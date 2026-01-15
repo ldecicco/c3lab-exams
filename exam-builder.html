@@ -354,6 +354,25 @@
       </div>
     </div>
 
+    <div class="modal-backdrop is-hidden" id="confirmBackdrop"></div>
+    <div class="modal-panel is-hidden" id="confirmModal" role="dialog" aria-modal="true" aria-labelledby="confirmTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="confirmTitle">Conferma operazione</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="confirmClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <p class="mb-0" id="confirmMessage">
+          Operazione irreversibile: verranno eliminati tutti i risultati e le sessioni.
+        </p>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" type="button" id="confirmCancel">Annulla</button>
+        <button class="btn btn-danger" type="button" id="confirmConfirm">Conferma</button>
+      </div>
+    </div>
+
     <div class="drawer-backdrop is-hidden" id="settingsBackdrop"></div>
     <aside class="settings-drawer is-hidden" id="settingsDrawer" aria-labelledby="settingsTitle">
       <div class="settings-header">

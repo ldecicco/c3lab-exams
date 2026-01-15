@@ -29,6 +29,7 @@ const IMAGE_LAYOUT_PRESETS = {
 
 let currentExamId = null;
 let currentExamLocked = false;
+let currentExamHasResults = false;
 let autosaveTimer = null;
 let coursesCache = [];
 let currentStep = 1;
@@ -72,6 +73,13 @@ const lockExamBtn = document.getElementById("lockExam");
 const unlockExamBtn = document.getElementById("unlockExam");
 const newExamBtn = document.getElementById("newExam");
 const examHistory = document.getElementById("examHistory");
+const confirmBackdrop = document.getElementById("confirmBackdrop");
+const confirmModal = document.getElementById("confirmModal");
+const confirmClose = document.getElementById("confirmClose");
+const confirmCancel = document.getElementById("confirmCancel");
+const confirmConfirm = document.getElementById("confirmConfirm");
+const confirmMessage = document.getElementById("confirmMessage");
+let confirmCallback = null;
 const examStatus = document.getElementById("examStatus");
 const examStateBadge = document.getElementById("examStateBadge");
 const currentExamTitle = document.getElementById("currentExamTitle");
@@ -204,7 +212,13 @@ const formatDateDisplay = (value) => {
 const setLockedState = (locked) => {
   currentExamLocked = locked;
   if (lockExamBtn) lockExamBtn.disabled = locked || !currentExamId;
-  if (unlockExamBtn) unlockExamBtn.classList.toggle("is-hidden", !locked);
+  if (unlockExamBtn) {
+    unlockExamBtn.classList.toggle("is-hidden", !locked);
+    unlockExamBtn.disabled = Boolean(currentExamHasResults);
+    unlockExamBtn.title = currentExamHasResults
+      ? "Esistono risultati salvati: svuota i risultati per sbloccare."
+      : "";
+  }
   const statusText = currentExamId
     ? locked
       ? "Traccia chiusa."
@@ -741,9 +755,24 @@ const showToast = (message, tone = "info") => {
   }, 2600);
 };
 
+const openConfirmModal = (message, onConfirm) => {
+  if (!confirmModal || !confirmBackdrop) return;
+  if (confirmMessage) confirmMessage.textContent = message;
+  confirmCallback = onConfirm;
+  confirmBackdrop.classList.remove("is-hidden");
+  confirmModal.classList.remove("is-hidden");
+};
+
+const closeConfirmModal = () => {
+  if (confirmBackdrop) confirmBackdrop.classList.add("is-hidden");
+  if (confirmModal) confirmModal.classList.add("is-hidden");
+  confirmCallback = null;
+};
+
 const resetExamState = () => {
   currentExamId = null;
   currentExamLocked = false;
+  currentExamHasResults = false;
   clearTimeout(autosaveTimer);
   autosaveTimer = null;
   state.meta.examName = "";
@@ -1183,6 +1212,7 @@ const renderExamHistory = (exams) => {
     return;
   }
   exams.forEach((exam) => {
+    const hasResults = Boolean(exam.has_results);
     const item = createEl("div", "history-card");
     const band = createEl("div", "history-card-band");
     const body = createEl("div", "history-card-body");
@@ -1193,13 +1223,15 @@ const renderExamHistory = (exams) => {
       "history-card-meta",
       `${exam.course_name} • ${metaDate} • ${exam.question_count} domande`
     );
-    const status = createEl(
-      "span",
-      "history-card-status",
-      exam.is_draft ? "Bozza" : "Chiusa"
-    );
+    const statusLabel = exam.is_draft
+      ? "Bozza"
+      : hasResults
+        ? "Chiusa con valutazione"
+        : "Chiusa";
+    const status = createEl("span", "history-card-status", statusLabel);
     status.classList.toggle("is-draft", exam.is_draft);
-    status.classList.toggle("is-locked", !exam.is_draft);
+    status.classList.toggle("is-locked", !exam.is_draft && !hasResults);
+    status.classList.toggle("is-graded", !exam.is_draft && hasResults);
     const actions = createEl("div", "history-card-actions");
     const loadBtn = createEl("button", "btn btn-outline-primary btn-sm", "Carica");
     loadBtn.type = "button";
@@ -1207,11 +1239,20 @@ const renderExamHistory = (exams) => {
     const duplicateBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Duplica");
     duplicateBtn.type = "button";
     duplicateBtn.addEventListener("click", () => duplicateExam(exam.id));
+    const clearBtn = createEl("button", "btn btn-outline-warning btn-sm", "Svuota risultati");
+    clearBtn.type = "button";
+    clearBtn.classList.toggle("is-hidden", !hasResults);
+    clearBtn.addEventListener("click", () => clearExamResults(exam.id));
     const deleteBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     deleteBtn.type = "button";
-    deleteBtn.addEventListener("click", () => deleteExam(exam.id));
+    deleteBtn.disabled = hasResults;
+    deleteBtn.title = hasResults
+      ? "Esistono risultati salvati: svuota i risultati per eliminare."
+      : "";
+    deleteBtn.addEventListener("click", () => deleteExam(exam.id, hasResults));
     actions.appendChild(loadBtn);
     actions.appendChild(duplicateBtn);
+    actions.appendChild(clearBtn);
     actions.appendChild(deleteBtn);
     body.appendChild(title);
     body.appendChild(meta);
@@ -1278,6 +1319,10 @@ const lockExam = async () => {
 
 const unlockExam = async () => {
   if (!currentExamId) return;
+  if (currentExamHasResults) {
+    if (examStatus) examStatus.textContent = "Impossibile sbloccare: esistono risultati salvati.";
+    return;
+  }
   try {
     await apiFetch(`/api/exams/${currentExamId}/unlock`, { method: "POST" });
     state.meta.isDraft = true;
@@ -1293,6 +1338,7 @@ const loadExam = async (examId) => {
   try {
     const payload = await apiFetch(`/api/exams/${examId}`);
     currentExamId = payload.exam.id;
+    currentExamHasResults = Boolean(payload.exam.hasResults);
     state.meta.isDraft = Boolean(payload.exam.isDraft);
     state.meta.examName = payload.exam.title;
     state.meta.courseId = payload.exam.courseId;
@@ -1339,17 +1385,47 @@ const loadExam = async (examId) => {
   }
 };
 
-const deleteExam = async (examId) => {
-  if (!confirm("Vuoi eliminare la traccia selezionata?")) return;
-  try {
-    await apiFetch(`/api/exams/${examId}`, { method: "DELETE" });
-    if (currentExamId === examId) {
-      currentExamId = null;
+const deleteExam = async (examId, hasResults) => {
+  if (hasResults) {
+    if (examStatus) {
+      examStatus.textContent = "Impossibile eliminare: esistono risultati salvati.";
     }
-    await loadExamHistory();
-  } catch (err) {
-    if (examStatus) examStatus.textContent = err.message;
+    return;
   }
+  openConfirmModal(
+    "Operazione irreversibile: verranno eliminati tutti i risultati e le sessioni.",
+    async () => {
+      try {
+        await apiFetch(`/api/exams/${examId}`, { method: "DELETE" });
+        if (currentExamId === examId) {
+          currentExamId = null;
+          currentExamHasResults = false;
+        }
+        await loadExamHistory();
+      } catch (err) {
+        if (examStatus) examStatus.textContent = err.message;
+      }
+    }
+  );
+};
+
+const clearExamResults = async (examId) => {
+  openConfirmModal(
+    "Operazione irreversibile: verranno eliminati tutti i risultati e le sessioni.",
+    async () => {
+      try {
+        await apiFetch(`/api/exams/${examId}/clear-results`, { method: "POST" });
+        if (currentExamId === examId) {
+          currentExamHasResults = false;
+          setLockedState(currentExamLocked);
+        }
+        await loadExamHistory();
+        showToast("Risultati eliminati.", "success");
+      } catch (err) {
+        if (examStatus) examStatus.textContent = err.message;
+      }
+    }
+  );
 };
 
 const duplicateExam = async (examId) => {
@@ -1951,6 +2027,20 @@ const init = () => {
   }
   if (bankPreviewCloseBtn) bankPreviewCloseBtn.addEventListener("click", closeBankPreviewModal);
   if (bankPreviewBackdrop) bankPreviewBackdrop.addEventListener("click", closeBankPreviewModal);
+  if (confirmClose) confirmClose.addEventListener("click", closeConfirmModal);
+  if (confirmCancel) confirmCancel.addEventListener("click", closeConfirmModal);
+  if (confirmBackdrop) confirmBackdrop.addEventListener("click", closeConfirmModal);
+  if (confirmConfirm) {
+    confirmConfirm.addEventListener("click", () => {
+      if (typeof confirmCallback === "function") {
+        const cb = confirmCallback;
+        closeConfirmModal();
+        cb();
+      } else {
+        closeConfirmModal();
+      }
+    });
+  }
   if (pdfPreviewCloseBtn) pdfPreviewCloseBtn.addEventListener("click", closePdfPreview);
   if (pdfPreviewBackdrop) pdfPreviewBackdrop.addEventListener("click", closePdfPreview);
   if (builderImagePickerCloseBtn) builderImagePickerCloseBtn.addEventListener("click", closeImagePicker);

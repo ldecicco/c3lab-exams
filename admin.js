@@ -1,6 +1,9 @@
 const adminCourseNewInput = document.getElementById("adminCourseNew");
 const adminAddCourseBtn = document.getElementById("adminAddCourse");
 const adminCourseList = document.getElementById("adminCourseList");
+const adminCoursePicker = document.getElementById("adminCoursePicker");
+const adminCourseEmpty = document.getElementById("adminCourseEmpty");
+const adminEditorWrap = document.getElementById("adminEditorWrap");
 const adminTopicCourseSelect = document.getElementById("adminTopicCourse");
 const adminTopicNewInput = document.getElementById("adminTopicNew");
 const adminAddTopicBtn = document.getElementById("adminAddTopic");
@@ -17,24 +20,34 @@ const bankTopicSelect = document.getElementById("bankTopic");
 const bankSearchInput = document.getElementById("bankSearch");
 const refreshBankBtn = document.getElementById("refreshBank");
 const bankList = document.getElementById("bankList");
-const adminQuestionCourse = document.getElementById("adminQuestionCourse");
 const adminQuestionType = document.getElementById("adminQuestionType");
 const adminQuestionTopics = document.getElementById("adminQuestionTopics");
-const adminQuestionImage = document.getElementById("adminQuestionImage");
 const adminPickImageBtn = document.getElementById("adminPickImage");
 const adminQuestionText = document.getElementById("adminQuestionText");
-const adminQuestionPreview = document.getElementById("adminQuestionPreview");
+const adminPreviewQuestion = document.getElementById("adminPreviewQuestion");
+const adminPreviewAnswers = document.getElementById("adminPreviewAnswers");
+const adminPreviewMeta = document.getElementById("adminPreviewMeta");
+const adminPreviewImageWrap = document.getElementById("adminPreviewImageWrap");
+const adminPreviewImage = document.getElementById("adminPreviewImage");
+const adminPreviewImageMeta = document.getElementById("adminPreviewImageMeta");
 const adminQuestionImageLayout = document.getElementById("adminQuestionImageLayout");
 const adminQuestionLayoutFields = document.getElementById("adminQuestionLayoutFields");
-const adminQuestionImageLeft = document.getElementById("adminQuestionImageLeft");
-const adminQuestionImageRight = document.getElementById("adminQuestionImageRight");
-const adminQuestionImageScale = document.getElementById("adminQuestionImageScale");
+const adminImageSplit = document.getElementById("adminImageSplit");
+const adminImageSplitLabel = document.getElementById("adminImageSplitLabel");
+const adminImageSplitPresets = document.getElementById("adminImageSplitPresets");
+const adminImageSplitPreview = document.getElementById("adminImageSplitPreview");
+const adminImageScaleRange = document.getElementById("adminImageScaleRange");
+const adminImageScaleLabel = document.getElementById("adminImageScaleLabel");
+const adminImageScalePresets = document.getElementById("adminImageScalePresets");
 const adminAnswers = document.getElementById("adminAnswers");
 const adminAddAnswerBtn = document.getElementById("adminAddAnswer");
 const adminSaveQuestionBtn = document.getElementById("adminSaveQuestion");
 const adminResetQuestionBtn = document.getElementById("adminResetQuestion");
 const adminQuestionStatus = document.getElementById("adminQuestionStatus");
 const adminEditBadge = document.getElementById("adminEditBadge");
+const adminEditBadgeTop = document.getElementById("adminEditBadgeTop");
+const adminQuestionError = document.getElementById("adminQuestionError");
+const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
 const toggleImagesBtn = document.getElementById("toggleImages");
@@ -51,7 +64,72 @@ const imagePreviewModal = document.getElementById("imagePreviewModal");
 const imagePreviewCloseBtn = document.getElementById("imagePreviewClose");
 const imagePreviewImg = document.getElementById("imagePreviewImg");
 const imagePreviewMeta = document.getElementById("imagePreviewMeta");
+const adminToolbarNew = document.getElementById("adminToolbarNew");
+const adminToolbarDuplicate = document.getElementById("adminToolbarDuplicate");
+const adminToolbarSave = document.getElementById("adminToolbarSave");
+const adminToolbarReset = document.getElementById("adminToolbarReset");
+const adminTemplateAnswers = document.getElementById("adminTemplateAnswers");
+const adminPreviewRefresh = document.getElementById("adminPreviewRefresh");
+const adminToolbarBank = document.getElementById("adminToolbarBank");
+const bankModalBackdrop = document.getElementById("bankModalBackdrop");
+const bankModal = document.getElementById("bankModal");
+const bankModalClose = document.getElementById("bankModalClose");
+const adminImageAccordion = document.getElementById("adminImageAccordion");
 let editingQuestionId = null;
+let topicOptions = [];
+
+const updateQuestionTypePills = () => {
+  if (!adminQuestionType) return;
+  const pills = adminQuestionType.querySelectorAll(".radio-pill");
+  pills.forEach((pill) => {
+    const input = pill.querySelector('input[type="radio"]');
+    pill.classList.toggle("is-selected", Boolean(input?.checked));
+  });
+};
+
+const readSelectNumber = (select) => {
+  const raw = select?.value;
+  if (!raw) return Number.NaN;
+  const value = Number(raw);
+  return Number.isFinite(value) ? value : Number.NaN;
+};
+
+const parseWidthToPercent = (value, fallback) => {
+  const match = String(value || "").match(/([0-9.]+)\s*\\linewidth/);
+  if (!match) return fallback;
+  const ratio = Number.parseFloat(match[1]);
+  if (!Number.isFinite(ratio)) return fallback;
+  return Math.round(ratio * 100);
+};
+
+const formatWidthPercent = (percent) => {
+  const ratio = (percent / 100).toFixed(2).replace(/\.?0+$/, "");
+  return `${ratio}\\linewidth`;
+};
+
+const updateImageLayoutState = () => {
+  const split = Number(adminImageSplit?.value || 50);
+  const safeSplit = Number.isFinite(split) ? split : 50;
+  const scale = Number(adminImageScaleRange?.value || 96);
+  const safeScale = Number.isFinite(scale) ? scale : 96;
+  const left = Math.min(Math.max(safeSplit, 30), 70);
+  const right = 100 - left;
+  adminQuestionState.imageLeft = formatWidthPercent(left);
+  adminQuestionState.imageRight = formatWidthPercent(right);
+  adminQuestionState.imageScale = formatWidthPercent(safeScale);
+  if (adminImageSplitLabel) {
+    adminImageSplitLabel.textContent = `Immagine ${left}% • Risposte ${right}%`;
+  }
+  if (adminImageScaleLabel) {
+    adminImageScaleLabel.textContent = `${safeScale}% della colonna`;
+  }
+  if (adminImageSplitPreview) {
+    const imageBlock = adminImageSplitPreview.querySelector(".layout-preview-image");
+    const textBlock = adminImageSplitPreview.querySelector(".layout-preview-text");
+    if (imageBlock) imageBlock.style.width = `${left}%`;
+    if (textBlock) textBlock.style.width = `${right}%`;
+  }
+};
 
 const apiFetch = async (url, options = {}) => {
   const response = await fetch(url, options);
@@ -101,6 +179,16 @@ const closeImagePreview = () => {
   if (imagePreviewImg) imagePreviewImg.src = "";
 };
 
+const openBankModal = () => {
+  if (bankModalBackdrop) bankModalBackdrop.classList.remove("is-hidden");
+  if (bankModal) bankModal.classList.remove("is-hidden");
+};
+
+const closeBankModal = () => {
+  if (bankModalBackdrop) bankModalBackdrop.classList.add("is-hidden");
+  if (bankModal) bankModal.classList.add("is-hidden");
+};
+
 const renderImagePickerList = (images) => {
   if (!imagePickerList) return;
   imagePickerList.innerHTML = "";
@@ -132,7 +220,9 @@ const renderImagePickerList = (images) => {
     const selectBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa immagine");
     selectBtn.type = "button";
     selectBtn.addEventListener("click", () => {
-      if (adminQuestionImage) adminQuestionImage.value = filePath;
+      adminQuestionState.image = filePath;
+      updateImagePickButton();
+      updateAdminPreviews();
       if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine selezionata.";
       closeImagePicker();
     });
@@ -146,8 +236,32 @@ const renderImagePickerList = (images) => {
   });
 };
 
+const updateImageFieldState = () => {
+  const enabled = Boolean(adminQuestionImageLayout?.checked);
+  if (adminPickImageBtn) adminPickImageBtn.disabled = !enabled;
+  if (adminImageSplit) adminImageSplit.disabled = !enabled;
+  if (adminImageScaleRange) adminImageScaleRange.disabled = !enabled;
+  if (adminImageSplitPresets) {
+    adminImageSplitPresets.querySelectorAll("button").forEach((btn) => {
+      btn.disabled = !enabled;
+    });
+  }
+  if (adminImageScalePresets) {
+    adminImageScalePresets.querySelectorAll("button").forEach((btn) => {
+      btn.disabled = !enabled;
+    });
+  }
+};
+
+const updateImagePickButton = () => {
+  if (!adminPickImageBtn) return;
+  const hasImage = Boolean(adminQuestionState.image);
+  adminPickImageBtn.textContent = hasImage ? "Cambia immagine" : "Seleziona immagine";
+  adminPickImageBtn.classList.toggle("btn-image-selected", hasImage);
+};
+
 const openImagePicker = async () => {
-  const courseId = Number(adminQuestionCourse?.value || "");
+  const courseId = readSelectNumber(adminCoursePicker);
   if (!Number.isFinite(courseId)) {
     if (imagePickerStatus) imagePickerStatus.textContent = "Seleziona prima un corso.";
     if (imagePickerList) imagePickerList.innerHTML = "";
@@ -173,13 +287,13 @@ const renderMathPreview = (source, target, input) => {
   if (!target) return;
   const trimmed = String(source || "").trim();
   target.innerHTML = "";
-  if (!input) return;
   if (!trimmed) {
-    input.classList.remove("input-error");
+    if (input) input.classList.remove("input-error");
     return;
   }
-  try {
-    if (window.latexjs && typeof window.latexjs.parse === "function") {
+  let latexRendered = false;
+  if (window.latexjs && typeof window.latexjs.parse === "function") {
+    try {
       const generator = window.latexjs.parse(trimmed, { strict: false });
       let html = "";
       if (typeof generator.htmlDocument === "function") {
@@ -200,26 +314,30 @@ const renderMathPreview = (source, target, input) => {
         } else {
           target.append(...Array.from(template.content.childNodes));
         }
+        latexRendered = true;
       }
-    } else {
-      target.textContent = trimmed;
+    } catch {
+      latexRendered = false;
     }
-    if (typeof window.renderMathInElement === "function") {
-      window.renderMathInElement(target, {
-        delimiters: [
-          { left: "$$", right: "$$", display: true },
-          { left: "$", right: "$", display: false },
-          { left: "\\(", right: "\\)", display: false },
-          { left: "\\[", right: "\\]", display: true },
-        ],
-        throwOnError: true,
-      });
-    }
-    input.classList.remove("input-error");
-  } catch {
-    input.classList.add("input-error");
+  }
+  if (!latexRendered) {
     target.textContent = trimmed;
   }
+  let mathError = false;
+  if (typeof window.renderMathInElement === "function") {
+    window.renderMathInElement(target, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true },
+      ],
+      throwOnError: false,
+    });
+    mathError = Boolean(target.querySelector(".katex-error"));
+  }
+  if (input) input.classList.toggle("input-error", mathError);
+  return !mathError;
 };
 
 const renderMathDisplay = (source, target) => {
@@ -299,23 +417,73 @@ const formatDateDisplay = (value) => {
 };
 
 const updateAdminPreviews = () => {
-  if (adminQuestionText && adminQuestionPreview) {
-    renderMathPreview(adminQuestionText.value, adminQuestionPreview, adminQuestionText);
-  }
-  const answerInputs = adminAnswers?.querySelectorAll("input.form-control") || [];
-  answerInputs.forEach((input) => {
-    const idx = Number(input.dataset.answerIndex);
-    const preview = adminAnswers.querySelector(
-      `[data-preview="admin-answer"][data-answer-index="${idx}"]`
+  let questionOk = true;
+  if (adminQuestionText && adminPreviewQuestion) {
+    questionOk = renderMathPreview(
+      adminQuestionText.value,
+      adminPreviewQuestion,
+      adminQuestionText
     );
-    if (preview) renderMathPreview(input.value, preview, input);
-  });
+  }
+  if (adminPreviewMeta) {
+    const typeLabel = adminQuestionState.type === "multipla" ? "Multipla" : "Singola";
+    const answersCount = adminQuestionState.answers.length;
+    adminPreviewMeta.textContent = `${typeLabel} • ${answersCount} risposte`;
+  }
+  if (adminPreviewImageWrap && adminPreviewImage) {
+    const path = adminQuestionState.image || "";
+    const showImage = Boolean(adminQuestionState.imageLayoutEnabled) && Boolean(path);
+    if (showImage) {
+      adminPreviewImageWrap.classList.remove("is-hidden");
+      adminPreviewImage.src = path;
+      adminPreviewImage.alt = "Anteprima immagine";
+      if (adminPreviewImageMeta) {
+        const name = path.split("/").pop() || path;
+        adminPreviewImageMeta.textContent = name;
+      }
+    } else {
+      adminPreviewImageWrap.classList.add("is-hidden");
+      adminPreviewImage.src = "";
+      if (adminPreviewImageMeta) adminPreviewImageMeta.textContent = "";
+    }
+  }
+  if (adminPreviewAnswers) {
+    adminPreviewAnswers.innerHTML = "";
+    const inputs = adminAnswers?.querySelectorAll("input.form-control") || [];
+    let answersOk = true;
+    adminQuestionState.answers.forEach((answer, idx) => {
+      const row = createEl("div", "preview-answer-row");
+      const label = createEl("span", "preview-answer-label", `${idx + 1}.`);
+      const text = createEl("div", "preview-answer-text");
+      const inputEl = Array.from(inputs).find(
+        (input) => Number(input.dataset.answerIndex) === idx
+      );
+      const ok = renderMathPreview(answer.text || "", text, inputEl || null);
+      if (!ok && answer.text.trim() !== "") answersOk = false;
+      row.appendChild(label);
+      row.appendChild(text);
+      if (answer.correct) {
+        const tick = createEl("span", "answer-tick");
+        tick.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+        row.appendChild(tick);
+      }
+      adminPreviewAnswers.appendChild(row);
+    });
+    if (adminAnswersError) {
+      adminAnswersError.classList.toggle("is-hidden", answersOk);
+    }
+  }
+  if (adminQuestionError) {
+    const hasText = String(adminQuestionText?.value || "").trim() !== "";
+    adminQuestionError.classList.toggle("is-hidden", questionOk || !hasText);
+  }
 };
 
 const adminQuestionState = {
   type: "singola",
   text: "",
-  topics: [],
+  topicIds: [],
   image: "",
   imageLayoutEnabled: false,
   imageLeft: "0.5\\linewidth",
@@ -356,9 +524,6 @@ const renderAdminAnswers = () => {
       adminQuestionState.answers[idx].text = input.value;
       updateAdminPreviews();
     });
-    const preview = createEl("div", "latex-preview-inline");
-    preview.dataset.preview = "admin-answer";
-    preview.dataset.answerIndex = String(idx);
     const remove = createEl("button", "btn btn-outline-danger btn-sm", "Rimuovi");
     remove.type = "button";
     remove.addEventListener("click", () => {
@@ -367,7 +532,6 @@ const renderAdminAnswers = () => {
     });
     row.appendChild(check);
     row.appendChild(input);
-    row.appendChild(preview);
     row.appendChild(remove);
     adminAnswers.appendChild(row);
   });
@@ -378,35 +542,62 @@ const resetAdminQuestion = () => {
   editingQuestionId = null;
   adminQuestionState.type = "singola";
   adminQuestionState.text = "";
-  adminQuestionState.topics = [];
+  adminQuestionState.topicIds = [];
   adminQuestionState.image = "";
   adminQuestionState.imageLayoutEnabled = false;
   adminQuestionState.imageLeft = "0.5\\linewidth";
   adminQuestionState.imageRight = "0.5\\linewidth";
   adminQuestionState.imageScale = "0.96\\linewidth";
+  adminQuestionState.image = "";
   adminQuestionState.answers = [
     { text: "", correct: false },
     { text: "", correct: false },
     { text: "", correct: false },
     { text: "", correct: false },
   ];
-  if (adminQuestionType) adminQuestionType.value = "singola";
-  if (adminQuestionText) adminQuestionText.value = "";
-  if (adminQuestionTopics) {
-    Array.from(adminQuestionTopics.options).forEach((opt) => {
-      opt.selected = false;
-    });
+  if (adminQuestionType) {
+    const radio = adminQuestionType.querySelector('input[value="singola"]');
+    if (radio) radio.checked = true;
   }
-  if (adminQuestionImage) adminQuestionImage.value = "";
+  updateQuestionTypePills();
+  if (adminQuestionText) adminQuestionText.value = "";
+  renderTopicOptions(topicOptions);
+  adminQuestionState.image = "";
   if (adminQuestionImageLayout) adminQuestionImageLayout.checked = false;
   if (adminQuestionLayoutFields) adminQuestionLayoutFields.classList.add("is-hidden");
-  if (adminQuestionImageLeft) adminQuestionImageLeft.value = adminQuestionState.imageLeft;
-  if (adminQuestionImageRight) adminQuestionImageRight.value = adminQuestionState.imageRight;
-  if (adminQuestionImageScale) adminQuestionImageScale.value = adminQuestionState.imageScale;
+  if (adminImageSplit) adminImageSplit.value = "50";
+  if (adminImageScaleRange) adminImageScaleRange.value = "96";
+  updateImageLayoutState();
+  updateImageFieldState();
+  updateImagePickButton();
+  updateImageLayoutState();
+  if (adminImageAccordion) adminImageAccordion.open = false;
   renderAdminAnswers();
   updateAdminPreviews();
   if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Salva nel banco";
   if (adminEditBadge) adminEditBadge.classList.add("is-hidden");
+  if (adminEditBadgeTop) adminEditBadgeTop.classList.add("is-hidden");
+};
+
+const duplicateAdminQuestion = () => {
+  if (!adminQuestionText) return;
+  editingQuestionId = null;
+  if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Salva nel banco";
+  if (adminEditBadge) adminEditBadge.classList.add("is-hidden");
+  if (adminEditBadgeTop) adminEditBadgeTop.classList.add("is-hidden");
+  if (adminQuestionStatus) adminQuestionStatus.textContent = "Duplica attiva: salva per creare una nuova domanda.";
+  updateAdminPreviews();
+};
+
+const applyAnswerTemplate = () => {
+  adminQuestionState.answers = [
+    { text: "", correct: false },
+    { text: "", correct: false },
+    { text: "", correct: false },
+    { text: "", correct: false },
+  ];
+  renderAdminAnswers();
+  if (adminQuestionStatus) adminQuestionStatus.textContent = "Template risposte applicato.";
 };
 
 const renderSelectOptions = (select, items, placeholder) => {
@@ -428,12 +619,27 @@ const renderSelectOptions = (select, items, placeholder) => {
 
 const renderTopicOptions = (topics) => {
   if (!adminQuestionTopics) return;
+  topicOptions = topics.map((topic) => ({ id: topic.id, name: topic.name }));
   adminQuestionTopics.innerHTML = "";
   topics.forEach((topic) => {
-    const opt = createEl("option");
-    opt.value = String(topic.id);
-    opt.textContent = topic.name;
-    adminQuestionTopics.appendChild(opt);
+    const pill = createEl("button", "topic-pill", topic.name);
+    pill.type = "button";
+    pill.dataset.topicId = String(topic.id);
+    if (adminQuestionState.topicIds.includes(topic.id)) {
+      pill.classList.add("is-selected");
+    }
+    pill.addEventListener("click", () => {
+      const id = Number(pill.dataset.topicId);
+      if (adminQuestionState.topicIds.includes(id)) {
+        adminQuestionState.topicIds = adminQuestionState.topicIds.filter((t) => t !== id);
+        pill.classList.remove("is-selected");
+      } else {
+        adminQuestionState.topicIds.push(id);
+        pill.classList.add("is-selected");
+      }
+      updateAdminPreviews();
+    });
+    adminQuestionTopics.appendChild(pill);
   });
 };
 
@@ -517,7 +723,9 @@ const renderImageList = (images) => {
     const useBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa in domanda");
     useBtn.type = "button";
     useBtn.addEventListener("click", () => {
-      if (adminQuestionImage) adminQuestionImage.value = image.file_path;
+      adminQuestionState.image = image.file_path || "";
+      updateImagePickButton();
+      updateAdminPreviews();
       if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine impostata nella domanda.";
     });
     const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
@@ -573,14 +781,85 @@ const renderBankList = (questions) => {
   });
 };
 
+const ADMIN_COURSE_STORAGE_KEY = "adminSelectedCourseId";
+
+const getStoredAdminCourseId = () => {
+  const raw = localStorage.getItem(ADMIN_COURSE_STORAGE_KEY);
+  const id = Number(raw);
+  return Number.isFinite(id) ? id : null;
+};
+
+const setStoredAdminCourseId = (courseId) => {
+  if (!Number.isFinite(courseId)) {
+    localStorage.removeItem(ADMIN_COURSE_STORAGE_KEY);
+    return;
+  }
+  localStorage.setItem(ADMIN_COURSE_STORAGE_KEY, String(courseId));
+};
+
+const setActiveCourse = async (
+  courseId,
+  { persist = true, syncBank = true, resetTopics = true } = {}
+) => {
+  if (!Number.isFinite(courseId)) {
+    if (adminCoursePicker) adminCoursePicker.value = "";
+    if (adminTopicCourseSelect) adminTopicCourseSelect.value = "";
+    if (adminImageCourseSelect) adminImageCourseSelect.value = "";
+    if (bankCourseSelect) bankCourseSelect.value = "";
+    renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
+    renderTopicOptions([]);
+    renderImageList([]);
+    if (adminCourseEmpty) adminCourseEmpty.classList.remove("is-hidden");
+    if (adminEditorWrap) adminEditorWrap.classList.add("is-hidden");
+    return;
+  }
+
+  if (persist) setStoredAdminCourseId(courseId);
+  if (adminCoursePicker && adminCoursePicker.value !== String(courseId)) {
+    adminCoursePicker.value = String(courseId);
+  }
+  if (adminTopicCourseSelect && adminTopicCourseSelect.value !== String(courseId)) {
+    adminTopicCourseSelect.value = String(courseId);
+  }
+  if (adminImageCourseSelect && adminImageCourseSelect.value !== String(courseId)) {
+    adminImageCourseSelect.value = String(courseId);
+  }
+  if (syncBank && bankCourseSelect && bankCourseSelect.value !== String(courseId)) {
+    bankCourseSelect.value = String(courseId);
+  }
+  if (resetTopics) {
+    adminQuestionState.topicIds = [];
+  }
+  await loadQuestionTopics(courseId);
+  await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
+  await loadImages(courseId);
+  if (syncBank) {
+    await refreshQuestionBank();
+  }
+  if (adminCourseEmpty) adminCourseEmpty.classList.add("is-hidden");
+  if (adminEditorWrap) adminEditorWrap.classList.remove("is-hidden");
+};
+
 const loadCourses = async () => {
   const payload = await apiFetch("/api/courses");
   const courses = payload.courses || [];
   renderSelectOptions(adminTopicCourseSelect, courses, "Seleziona corso");
-  renderSelectOptions(adminQuestionCourse, courses, "Seleziona corso");
+  renderSelectOptions(adminCoursePicker, courses, "Seleziona corso");
   renderSelectOptions(adminImageCourseSelect, courses, "Seleziona corso");
   renderSelectOptions(bankCourseSelect, courses, "Tutti i corsi");
   renderCourseList(courses);
+  const storedCourseId = getStoredAdminCourseId();
+  const storedExists = Number.isFinite(storedCourseId)
+    ? courses.some((course) => course.id === storedCourseId)
+    : false;
+  const fallbackId = courses[0]?.id;
+  const preferredId = storedExists ? storedCourseId : fallbackId;
+  if (Number.isFinite(preferredId)) {
+    await setActiveCourse(preferredId, { persist: true });
+  } else {
+    await setActiveCourse(Number.NaN, { persist: false });
+  }
+  return courses;
 };
 
 const loadTopics = async (courseId, select, placeholder) => {
@@ -719,45 +998,57 @@ const deleteQuestion = async (questionId) => {
 const loadQuestionForEdit = async (questionId) => {
   const payload = await apiFetch(`/api/questions/${questionId}`);
   const q = payload.question;
-  if (adminQuestionCourse && q.courseId) {
-    adminQuestionCourse.value = String(q.courseId);
-    await loadQuestionTopics(q.courseId);
-    if (adminImageCourseSelect) {
-      adminImageCourseSelect.value = String(q.courseId);
-      await loadImages(q.courseId);
-    }
+  if (q.courseId) {
+    await setActiveCourse(Number(q.courseId), { persist: true, resetTopics: false });
   }
   editingQuestionId = q.id;
-  if (adminQuestionType) adminQuestionType.value = q.type || "singola";
+  if (adminQuestionType) {
+    const radio = adminQuestionType.querySelector(`input[value="${q.type || "singola"}"]`);
+    if (radio) radio.checked = true;
+  }
+  updateQuestionTypePills();
   if (adminQuestionText) adminQuestionText.value = q.text;
-  if (adminQuestionImage) adminQuestionImage.value = q.imagePath || "";
   if (adminQuestionImageLayout) adminQuestionImageLayout.checked = Boolean(q.imageLayoutEnabled);
+  updateImageFieldState();
   if (adminQuestionLayoutFields) {
     adminQuestionLayoutFields.classList.toggle("is-hidden", !q.imageLayoutEnabled);
   }
-  if (adminQuestionImageLeft) adminQuestionImageLeft.value = q.imageLeftWidth || "0.5\\linewidth";
-  if (adminQuestionImageRight) adminQuestionImageRight.value = q.imageRightWidth || "0.5\\linewidth";
-  if (adminQuestionImageScale) adminQuestionImageScale.value = q.imageScale || "0.96\\linewidth";
+  if (adminImageAccordion) {
+    adminImageAccordion.open = Boolean(q.imageLayoutEnabled) || Boolean(q.imagePath);
+  }
+  if (adminImageSplit) {
+    const leftPercent = parseWidthToPercent(q.imageLeftWidth, 50);
+    adminImageSplit.value = String(leftPercent);
+  }
+  if (adminImageScaleRange) {
+    const scalePercent = parseWidthToPercent(q.imageScale, 96);
+    adminImageScaleRange.value = String(scalePercent);
+  }
   adminQuestionState.type = q.type || "singola";
+  adminQuestionState.text = q.text || "";
+  adminQuestionState.image = q.imagePath || "";
+  adminQuestionState.imageLayoutEnabled = Boolean(q.imageLayoutEnabled);
+  adminQuestionState.imageLeft = q.imageLeftWidth || "0.5\\linewidth";
+  adminQuestionState.imageRight = q.imageRightWidth || "0.5\\linewidth";
+  adminQuestionState.imageScale = q.imageScale || "0.96\\linewidth";
   adminQuestionState.answers = (q.answers || []).map((ans) => ({
     text: ans.text,
     correct: Boolean(ans.isCorrect),
   }));
+  adminQuestionState.topicIds = q.topicIds || [];
   renderAdminAnswers();
-  if (adminQuestionTopics) {
-    const topicIds = q.topicIds || [];
-    Array.from(adminQuestionTopics.options).forEach((opt) => {
-      opt.selected = topicIds.includes(Number(opt.value));
-    });
-  }
+  renderTopicOptions(topicOptions);
   if (adminQuestionStatus) adminQuestionStatus.textContent = "Modifica attiva.";
   if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Aggiorna domanda";
   if (adminEditBadge) adminEditBadge.classList.remove("is-hidden");
+  if (adminEditBadgeTop) adminEditBadgeTop.classList.remove("is-hidden");
+  updateImageLayoutState();
+  updateImagePickButton();
   updateAdminPreviews();
 };
 
 const saveAdminQuestion = async () => {
-  const courseId = Number(adminQuestionCourse?.value || "");
+  const courseId = readSelectNumber(adminCoursePicker);
   if (!Number.isFinite(courseId)) {
     if (adminQuestionStatus) adminQuestionStatus.textContent = "Seleziona un corso.";
     return;
@@ -767,9 +1058,9 @@ const saveAdminQuestion = async () => {
     if (adminQuestionStatus) adminQuestionStatus.textContent = "Inserisci il testo della domanda.";
     return;
   }
-  const topics = Array.from(adminQuestionTopics?.selectedOptions || []).map(
-    (opt) => opt.textContent
-  );
+  const topics = topicOptions
+    .filter((topic) => adminQuestionState.topicIds.includes(topic.id))
+    .map((topic) => topic.name);
   if (!topics.length) {
     if (adminQuestionStatus) adminQuestionStatus.textContent = "Seleziona almeno un argomento.";
     return;
@@ -784,11 +1075,11 @@ const saveAdminQuestion = async () => {
     question: {
       text,
       type: adminQuestionState.type,
-      imagePath: String(adminQuestionImage?.value || "").trim(),
+      imagePath: String(adminQuestionState.image || "").trim(),
       imageLayoutEnabled: Boolean(adminQuestionImageLayout?.checked),
-      imageLeftWidth: String(adminQuestionImageLeft?.value || "").trim(),
-      imageRightWidth: String(adminQuestionImageRight?.value || "").trim(),
-      imageScale: String(adminQuestionImageScale?.value || "").trim(),
+      imageLeftWidth: String(adminQuestionState.imageLeft || "").trim(),
+      imageRightWidth: String(adminQuestionState.imageRight || "").trim(),
+      imageScale: String(adminQuestionState.imageScale || "").trim(),
       topics: Array.from(new Set(topics)),
       answers: answers.map((answer) => ({
         text: answer.text.trim(),
@@ -828,6 +1119,7 @@ const init = async () => {
   await loadCourses();
   renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
   resetAdminQuestion();
+  if (adminImageAccordion) adminImageAccordion.open = false;
 
   if (adminAddCourseBtn) adminAddCourseBtn.addEventListener("click", createCourse);
   if (adminAddTopicBtn) adminAddTopicBtn.addEventListener("click", createTopic);
@@ -844,55 +1136,114 @@ const init = async () => {
       updateAdminPreviews();
     });
   }
-  if (adminSaveQuestionBtn) adminSaveQuestionBtn.addEventListener("click", saveAdminQuestion);
-  if (adminResetQuestionBtn) adminResetQuestionBtn.addEventListener("click", resetAdminQuestion);
+if (adminSaveQuestionBtn) adminSaveQuestionBtn.addEventListener("click", saveAdminQuestion);
+if (adminResetQuestionBtn) adminResetQuestionBtn.addEventListener("click", resetAdminQuestion);
+if (adminToolbarReset) adminToolbarReset.addEventListener("click", resetAdminQuestion);
+if (adminToolbarNew) adminToolbarNew.addEventListener("click", resetAdminQuestion);
+if (adminToolbarDuplicate) adminToolbarDuplicate.addEventListener("click", duplicateAdminQuestion);
+if (adminToolbarSave) {
+  adminToolbarSave.addEventListener("click", () => {
+    if (adminSaveQuestionBtn) adminSaveQuestionBtn.click();
+  });
+}
+if (adminTemplateAnswers) adminTemplateAnswers.addEventListener("click", applyAnswerTemplate);
+if (adminPreviewRefresh) adminPreviewRefresh.addEventListener("click", updateAdminPreviews);
+if (adminToolbarBank) adminToolbarBank.addEventListener("click", openBankModal);
+if (bankModalClose) bankModalClose.addEventListener("click", closeBankModal);
+if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModal);
   if (adminQuestionType) {
-    adminQuestionType.addEventListener("change", () => {
-      adminQuestionState.type = adminQuestionType.value;
+    adminQuestionType.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!target || target.name !== "adminQuestionTypeOption") return;
+      adminQuestionState.type = target.value;
       if (adminQuestionState.type === "singola") {
         const first = adminQuestionState.answers.findIndex((a) => a.correct);
         adminQuestionState.answers.forEach((a, idx) => {
           a.correct = first === -1 ? false : idx === first;
         });
         renderAdminAnswers();
+      } else {
+        updateAdminPreviews();
       }
+      updateQuestionTypePills();
     });
   }
   if (adminQuestionImageLayout && adminQuestionLayoutFields) {
+    adminQuestionImageLayout.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
     adminQuestionImageLayout.addEventListener("change", () => {
       adminQuestionState.imageLayoutEnabled = adminQuestionImageLayout.checked;
+      if (!adminQuestionImageLayout.checked) {
+        adminQuestionState.image = "";
+      }
       adminQuestionLayoutFields.classList.toggle("is-hidden", !adminQuestionImageLayout.checked);
+      updateImageFieldState();
+      if (adminImageAccordion) adminImageAccordion.open = adminQuestionImageLayout.checked;
+      updateImagePickButton();
+      updateImageLayoutState();
+      updateAdminPreviews();
     });
   }
+  if (adminImageSplit) {
+    adminImageSplit.addEventListener("input", () => {
+      updateImageLayoutState();
+      updateAdminPreviews();
+    });
+  }
+  if (adminImageScaleRange) {
+    adminImageScaleRange.addEventListener("input", () => {
+      updateImageLayoutState();
+      updateAdminPreviews();
+    });
+  }
+  if (adminImageSplitPresets) {
+    adminImageSplitPresets.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLButtonElement)) return;
+      const value = Number(target.dataset.split || "");
+      if (!Number.isFinite(value)) return;
+      if (adminImageSplit) adminImageSplit.value = String(value);
+      updateImageLayoutState();
+      updateAdminPreviews();
+    });
+  }
+  if (adminImageScalePresets) {
+    adminImageScalePresets.addEventListener("click", (event) => {
+      const target = event.target;
+      if (!(target instanceof HTMLButtonElement)) return;
+      const value = Number(target.dataset.scale || "");
+      if (!Number.isFinite(value)) return;
+      if (adminImageScaleRange) adminImageScaleRange.value = String(value);
+      updateImageLayoutState();
+      updateAdminPreviews();
+    });
+  }
+  updateImageFieldState();
+  updateImagePickButton();
   if (adminPickImageBtn) adminPickImageBtn.addEventListener("click", openImagePicker);
   if (imagePickerCloseBtn) imagePickerCloseBtn.addEventListener("click", closeImagePicker);
   if (imagePickerBackdrop) imagePickerBackdrop.addEventListener("click", closeImagePicker);
   if (imagePreviewCloseBtn) imagePreviewCloseBtn.addEventListener("click", closeImagePreview);
   if (imagePreviewBackdrop) imagePreviewBackdrop.addEventListener("click", closeImagePreview);
+  if (adminCoursePicker) {
+    adminCoursePicker.addEventListener("change", () => {
+      setActiveCourse(readSelectNumber(adminCoursePicker));
+    });
+  }
   if (adminTopicCourseSelect) {
     adminTopicCourseSelect.addEventListener("change", () => {
-      loadTopics(Number(adminTopicCourseSelect.value || ""), bankTopicSelect, "Tutti gli argomenti");
+      setActiveCourse(readSelectNumber(adminTopicCourseSelect));
     });
   }
   if (adminImageCourseSelect) {
     adminImageCourseSelect.addEventListener("change", () => {
-      loadImages(Number(adminImageCourseSelect.value || ""));
-    });
-  }
-  if (adminQuestionCourse) {
-    adminQuestionCourse.addEventListener("change", () => {
-      const courseId = Number(adminQuestionCourse.value || "");
-      loadQuestionTopics(courseId);
-      if (adminImageCourseSelect && adminImageCourseSelect.value !== String(courseId)) {
-        adminImageCourseSelect.value = String(courseId);
-        loadImages(courseId);
-      }
+      setActiveCourse(readSelectNumber(adminImageCourseSelect));
     });
   }
   if (bankCourseSelect) {
     bankCourseSelect.addEventListener("change", () => {
-      loadTopics(Number(bankCourseSelect.value || ""), bankTopicSelect, "Tutti gli argomenti");
-      refreshQuestionBank();
+      setActiveCourse(readSelectNumber(bankCourseSelect));
     });
   }
   if (bankTopicSelect) bankTopicSelect.addEventListener("change", refreshQuestionBank);

@@ -809,7 +809,14 @@ app.get("/api/exams", (req, res) => {
       `SELECT e.id, e.title, e.date, e.updated_at, e.course_id,
               e.is_draft, e.locked_at,
               c.name AS course_name,
-              COUNT(eq.id) AS question_count
+              COUNT(eq.id) AS question_count,
+              EXISTS (
+                SELECT 1
+                  FROM exam_session_students ess
+                  JOIN exam_sessions es ON es.id = ess.session_id
+                 WHERE es.exam_id = e.id
+                 LIMIT 1
+              ) AS has_results
          FROM exams e
          JOIN courses c ON c.id = e.course_id
          LEFT JOIN exam_questions eq ON eq.exam_id = e.id
@@ -831,7 +838,14 @@ app.get("/api/exams/:id", (req, res) => {
       `SELECT id, course_id, title, date, output_name, versions, seed,
               randomize_questions, randomize_answers, write_r,
               header_title, header_department, header_university, header_note, header_logo,
-              is_draft, locked_at
+              is_draft, locked_at,
+              EXISTS (
+                SELECT 1
+                  FROM exam_session_students ess
+                  JOIN exam_sessions es ON es.id = ess.session_id
+                 WHERE es.exam_id = exams.id
+                 LIMIT 1
+              ) AS has_results
          FROM exams WHERE id = ?`
     )
     .get(id);
@@ -903,6 +917,7 @@ app.get("/api/exams/:id", (req, res) => {
       headerLogo: exam.header_logo || "",
       isDraft: Boolean(exam.is_draft),
       lockedAt: exam.locked_at || "",
+      hasResults: Boolean(exam.has_results),
     },
     questions,
   });
@@ -1337,6 +1352,19 @@ app.post("/api/exams/:id/unlock", (req, res) => {
     res.status(400).json({ error: "Id non valido" });
     return;
   }
+  const hasResults = db
+    .prepare(
+      `SELECT 1
+         FROM exam_session_students ess
+         JOIN exam_sessions es ON es.id = ess.session_id
+        WHERE es.exam_id = ?
+        LIMIT 1`
+    )
+    .get(examId);
+  if (hasResults) {
+    res.status(409).json({ error: "Impossibile sbloccare: esistono risultati salvati." });
+    return;
+  }
   const exam = db
     .prepare("SELECT id, course_id, is_draft FROM exams WHERE id = ?")
     .get(examId);
@@ -1541,8 +1569,51 @@ app.delete("/api/exams/:id", (req, res) => {
     res.status(400).json({ error: "Id non valido" });
     return;
   }
-  db.prepare("DELETE FROM exam_questions WHERE exam_id = ?").run(examId);
-  db.prepare("DELETE FROM exams WHERE id = ?").run(examId);
+  const hasResults = db
+    .prepare(
+      `SELECT 1
+         FROM exam_session_students ess
+         JOIN exam_sessions es ON es.id = ess.session_id
+        WHERE es.exam_id = ?
+        LIMIT 1`
+    )
+    .get(examId);
+  if (hasResults) {
+    res.status(409).json({ error: "Esistono risultati salvati. Svuota i risultati prima di eliminare la traccia." });
+    return;
+  }
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM exam_session_students
+        WHERE session_id IN (SELECT id FROM exam_sessions WHERE exam_id = ?)`
+    ).run(examId);
+    db.prepare("DELETE FROM exam_sessions WHERE exam_id = ?").run(examId);
+    db.prepare("DELETE FROM exam_questions WHERE exam_id = ?").run(examId);
+    db.prepare("DELETE FROM exams WHERE id = ?").run(examId);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+app.post("/api/exams/:id/clear-results", (req, res) => {
+  const examId = Number(req.params.id);
+  if (!Number.isFinite(examId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const exam = db.prepare("SELECT id FROM exams WHERE id = ?").get(examId);
+  if (!exam) {
+    res.status(404).json({ error: "Esame non trovato" });
+    return;
+  }
+  const tx = db.transaction(() => {
+    db.prepare(
+      `DELETE FROM exam_session_students
+        WHERE session_id IN (SELECT id FROM exam_sessions WHERE exam_id = ?)`
+    ).run(examId);
+    db.prepare("DELETE FROM exam_sessions WHERE exam_id = ?").run(examId);
+  });
+  tx();
   res.json({ ok: true });
 });
 
