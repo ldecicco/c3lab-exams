@@ -4,4 +4,10 @@
   <a href="/index" class="nav-link <%= active === 'index' ? 'active' : '' %>">Valutazione</a>
   <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">Analisi</a>
   <a href="/admin" class="nav-link admin-link <%= active === 'admin' ? 'active' : '' %>">Admin</a>
+  <% if (user) { %>
+    <span class="nav-user"><%= user.username %> • <%= user.role %></span>
+    <a href="/logout" class="nav-link">Esci</a>
+  <% } else { %>
+    <a href="/login" class="nav-link">Accedi</a>
+  <% } %>
 </nav>

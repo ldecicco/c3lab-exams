@@ -7,6 +7,15 @@
   };
 
   const getHasResults = (exam) => Boolean(exam.has_results || exam.hasResults);
+  const isPublicAccessActive = (exam) => {
+    const enabled = Boolean(exam.public_access_enabled ?? exam.publicAccessEnabled);
+    if (!enabled) return false;
+    const expiresAt = exam.public_access_expires_at || exam.publicAccessExpiresAt;
+    if (!expiresAt) return true;
+    const expiry = new Date(expiresAt);
+    if (Number.isNaN(expiry.getTime())) return false;
+    return expiry > new Date();
+  };
 
   const render = (container, exams, options = {}) => {
     if (!container) return;
@@ -51,6 +60,12 @@
           badges.appendChild(badge);
         }
         band.appendChild(badges);
+      }
+      if (isPublicAccessActive(exam)) {
+        const badges = band.querySelector(".exam-card-badges") || createEl("div", "exam-card-badges");
+        const badge = createEl("span", "exam-card-badge is-access", "Accesso studenti attivo");
+        badges.appendChild(badge);
+        if (!band.contains(badges)) band.appendChild(badges);
       }
       const body = createEl("div", "exam-card-body");
       const title = createEl("div", "exam-card-title", exam.title || "Traccia");

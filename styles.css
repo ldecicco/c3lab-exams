@@ -142,6 +142,13 @@ h1 {
   margin-bottom: 24px;
 }
 
+.grading-topbar .builder-topbar-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .toolbar-status {
   display: inline-flex;
   align-items: center;
@@ -153,6 +160,10 @@ h1 {
   font-weight: 600;
   color: var(--muted);
   white-space: nowrap;
+}
+
+.toolbar-status.is-hidden {
+  display: none;
 }
 
 .toolbar-status.is-active {
@@ -428,6 +439,13 @@ h1 {
 
 .top-nav .nav-link.admin-link {
   margin-left: auto;
+}
+
+.top-nav .nav-user {
+  align-self: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  font-weight: 600;
 }
 
 .top-nav .nav-link.active {
@@ -753,6 +771,12 @@ input {
   font-weight: 700;
 }
 
+.admin-topbar .btn.is-active {
+  background: rgba(13, 74, 124, 0.12);
+  border-color: rgba(13, 74, 124, 0.4);
+  color: #0d4a7c;
+}
+
 .actions,
 .table-actions {
   display: flex;
@@ -780,6 +804,48 @@ input {
   grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
   align-items: end;
   margin-bottom: 18px;
+}
+
+.public-access {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 16px;
+  background: #f8fbff;
+  margin-bottom: 18px;
+}
+
+.public-access-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.public-access-body {
+  display: grid;
+  gap: 12px;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  align-items: end;
+  margin-top: 12px;
+}
+
+.public-access-body.is-disabled {
+  opacity: 0.6;
+  pointer-events: none;
+}
+
+.public-access-toggle .form-check-input {
+  cursor: pointer;
+}
+
+#publicAccessStatus.is-error {
+  color: var(--danger);
+  font-weight: 600;
+}
+
+#publicAccessStatus.is-success {
+  color: var(--teal);
+  font-weight: 600;
 }
 
 .histogram-block {
@@ -1778,6 +1844,12 @@ input {
   font-weight: 700;
 }
 
+.exam-card-badge.is-access {
+  background: #ecfdf3;
+  border-color: rgba(16, 122, 74, 0.3);
+  color: #0b6b3a;
+}
+
 .list-item {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -1785,6 +1857,16 @@ input {
   background: #ffffff;
   display: grid;
   gap: 6px;
+}
+
+.list-item-title {
+  font-weight: 700;
+  color: var(--accent-dark);
+}
+
+.list-item-meta {
+  font-size: 0.85rem;
+  color: var(--muted);
 }
 
 .list-item.is-selected {

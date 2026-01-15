@@ -3,12 +3,15 @@
 
 const express = require("express");
 const path = require("path");
+const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
 const { spawn } = require("child_process");
 const Database = require("better-sqlite3");
 const PDFDocument = require("pdfkit");
 const xlsx = require("xlsx");
+const bcrypt = require("bcryptjs");
+const cookieParser = require("cookie-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -24,6 +27,22 @@ const db = new Database(path.join(DATA_DIR, "exam-builder.db"));
 db.pragma("journal_mode = WAL");
 
 db.exec(`
+  CREATE TABLE IF NOT EXISTS users (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    username TEXT NOT NULL UNIQUE,
+    password_hash TEXT NOT NULL,
+    role TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  );
+  CREATE TABLE IF NOT EXISTS auth_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
   CREATE TABLE IF NOT EXISTS courses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -137,6 +156,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_questions_updated ON questions(updated_at);
   CREATE INDEX IF NOT EXISTS idx_exam_sessions_exam ON exam_sessions(exam_id);
   CREATE INDEX IF NOT EXISTS idx_exam_session_students_session ON exam_session_students(session_id);
+  CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token);
 `);
 
 const ensureColumn = (table, column, definition) => {
@@ -150,23 +170,453 @@ const ensureColumn = (table, column, definition) => {
 ensureColumn("exams", "is_draft", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("exams", "locked_at", "TEXT");
 ensureColumn("exams", "mapping_json", "TEXT");
+ensureColumn("exams", "public_access_enabled", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn("exams", "public_access_password_hash", "TEXT");
+ensureColumn("exams", "public_access_expires_at", "TEXT");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 app.use(express.text({ type: ["text/plain", "application/octet-stream"], limit: "5mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.raw({ type: "application/vnd.ms-excel", limit: "5mb" }));
+app.use(express.urlencoded({ extended: false }));
+app.use(cookieParser());
+
+const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 7);
+const PUBLIC_ACCESS_TTL_DAYS = Number(process.env.PUBLIC_ACCESS_TTL_DAYS || 30);
+
+const createSession = (userId) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date();
+  expiresAt.setDate(expiresAt.getDate() + SESSION_TTL_DAYS);
+  db.prepare(
+    "INSERT INTO auth_sessions (user_id, token, expires_at) VALUES (?, ?, ?)"
+  ).run(userId, token, expiresAt.toISOString());
+  return { token, expiresAt };
+};
+
+const getUserFromToken = (token) => {
+  if (!token) return null;
+  const row = db
+    .prepare(
+      `SELECT u.id, u.username, u.role, s.expires_at
+         FROM auth_sessions s
+         JOIN users u ON u.id = s.user_id
+        WHERE s.token = ?`
+    )
+    .get(token);
+  if (!row) return null;
+  if (new Date(row.expires_at) <= new Date()) {
+    db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
+    return null;
+  }
+  return { id: row.id, username: row.username, role: row.role };
+};
+
+const loadUser = (req, res, next) => {
+  const token = req.cookies?.session_token;
+  const user = getUserFromToken(token);
+  req.user = user || null;
+  res.locals.user = user || null;
+  next();
+};
+
+app.use(loadUser);
+
+const requireAuth = (req, res, next) => {
+  if (!req.user) {
+    res.status(401).json({ error: "Autenticazione richiesta" });
+    return;
+  }
+  next();
+};
+
+const requireRole = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    res.status(401).json({ error: "Autenticazione richiesta" });
+    return;
+  }
+  if (!roles.includes(req.user.role)) {
+    res.status(403).json({ error: "Permessi insufficienti" });
+    return;
+  }
+  next();
+};
+
+const requirePageRole = (...roles) => (req, res, next) => {
+  if (!req.user) {
+    res.redirect("/login");
+    return;
+  }
+  if (!roles.includes(req.user.role)) {
+    res.status(403).send("Permessi insufficienti");
+    return;
+  }
+  next();
+};
+
+const ensureAdminUser = () => {
+  const count = db.prepare("SELECT COUNT(*) AS total FROM users").get();
+  if (count.total > 0) return;
+  const username = process.env.ADMIN_USER || "admin";
+  const password = process.env.ADMIN_PASS || "admin";
+  const hash = bcrypt.hashSync(password, 10);
+  db.prepare(
+    "INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)"
+  ).run(username, hash, "admin");
+  console.log(`Admin user creato: ${username}`);
+};
+
+ensureAdminUser();
 
 app.get("/", (req, res) => res.redirect("/index"));
+app.get("/login", (req, res) => res.render("login"));
 app.get("/index", (req, res) => res.render("index"));
 app.get("/index.html", (req, res) => res.render("index"));
-app.get("/questions", (req, res) => res.render("questions"));
-app.get("/questions.html", (req, res) => res.render("questions"));
-app.get("/exam-builder", (req, res) => res.render("exam-builder"));
-app.get("/exam-builder.html", (req, res) => res.render("exam-builder"));
-app.get("/dashboard", (req, res) => res.render("dashboard"));
-app.get("/dashboard.html", (req, res) => res.render("dashboard"));
-app.get("/admin", (req, res) => res.render("admin"));
-app.get("/admin.html", (req, res) => res.render("admin"));
+app.get("/questions", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("questions")
+);
+app.get("/questions.html", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("questions")
+);
+app.get("/exam-builder", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("exam-builder")
+);
+app.get("/exam-builder.html", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("exam-builder")
+);
+app.get("/dashboard", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("dashboard")
+);
+app.get("/dashboard.html", requirePageRole("admin", "creator"), (req, res) =>
+  res.render("dashboard")
+);
+app.get("/admin", requirePageRole("admin"), (req, res) => res.render("admin"));
+app.get("/admin.html", requirePageRole("admin"), (req, res) =>
+  res.render("admin")
+);
+
+app.get("/logout", (req, res) => {
+  const token = req.cookies?.session_token;
+  if (token) {
+    db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
+  }
+  res.clearCookie("session_token");
+  res.redirect("/login");
+});
+
+app.post("/auth/login", (req, res) => {
+  const username = String(req.body.username || "").trim();
+  const password = String(req.body.password || "");
+  if (!username || !password) {
+    res.status(400).json({ error: "Credenziali mancanti" });
+    return;
+  }
+  const user = db
+    .prepare("SELECT id, username, password_hash, role FROM users WHERE username = ?")
+    .get(username);
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    res.status(401).json({ error: "Credenziali non valide" });
+    return;
+  }
+  const session = createSession(user.id);
+  res.cookie("session_token", session.token, {
+    httpOnly: true,
+    sameSite: "lax",
+    expires: session.expiresAt,
+  });
+  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
+});
+
+app.post("/auth/logout", (req, res) => {
+  const token = req.cookies?.session_token;
+  if (token) {
+    db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
+  }
+  res.clearCookie("session_token");
+  res.json({ ok: true });
+});
+
+app.get("/auth/me", (req, res) => {
+  res.json({ user: req.user || null });
+});
+
+app.get("/api/users", requireRole("admin"), (req, res) => {
+  const users = db
+    .prepare("SELECT id, username, role, created_at FROM users ORDER BY username")
+    .all();
+  res.json({ users });
+});
+
+app.post("/api/users", requireRole("admin"), (req, res) => {
+  const payload = req.body || {};
+  const username = String(payload.username || "").trim();
+  const password = String(payload.password || "");
+  const role = String(payload.role || "").trim();
+  if (!username || !password || !role) {
+    res.status(400).json({ error: "Dati mancanti" });
+    return;
+  }
+  const hash = bcrypt.hashSync(password, 10);
+  try {
+    const info = db
+      .prepare("INSERT INTO users (username, password_hash, role) VALUES (?, ?, ?)")
+      .run(username, hash, role);
+    res.status(201).json({ id: info.lastInsertRowid });
+  } catch (err) {
+    res.status(400).json({ error: "Username già presente" });
+  }
+});
+
+app.put("/api/users/:id", requireRole("admin"), (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isFinite(userId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const current = db.prepare("SELECT id, role FROM users WHERE id = ?").get(userId);
+  if (!current) {
+    res.status(404).json({ error: "Utente non trovato." });
+    return;
+  }
+  const payload = req.body || {};
+  const updates = [];
+  const params = [];
+  if (payload.username) {
+    updates.push("username = ?");
+    params.push(String(payload.username).trim());
+  }
+  if (payload.role) {
+    if (current.role === "admin" && String(payload.role).trim() !== "admin") {
+      res.status(400).json({ error: "Non puoi cambiare il ruolo di un amministratore." });
+      return;
+    }
+    updates.push("role = ?");
+    params.push(String(payload.role).trim());
+  }
+  if (payload.password) {
+    updates.push("password_hash = ?");
+    params.push(bcrypt.hashSync(String(payload.password), 10));
+  }
+  if (!updates.length) {
+    res.json({ ok: true });
+    return;
+  }
+  params.push(userId);
+  db.prepare(`UPDATE users SET ${updates.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...params);
+  res.json({ ok: true });
+});
+
+app.delete("/api/users/:id", requireRole("admin"), (req, res) => {
+  const userId = Number(req.params.id);
+  if (!Number.isFinite(userId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const target = db.prepare("SELECT id, role FROM users WHERE id = ?").get(userId);
+  if (!target) {
+    res.status(404).json({ error: "Utente non trovato." });
+    return;
+  }
+  if (target.role === "admin") {
+    res.status(400).json({ error: "Non puoi eliminare un amministratore." });
+    return;
+  }
+  if (req.user?.id === userId) {
+    res.status(400).json({ error: "Non puoi eliminare il tuo utente." });
+    return;
+  }
+  db.prepare("DELETE FROM users WHERE id = ?").run(userId);
+  res.json({ ok: true });
+});
+
+app.get("/api/public-exams", (req, res) => {
+  const rows = db
+    .prepare(
+      `SELECT e.id, e.title, e.date, c.name AS course_name
+         FROM exams e
+         JOIN courses c ON c.id = e.course_id
+        WHERE e.public_access_enabled = 1
+          AND (e.public_access_expires_at IS NULL OR e.public_access_expires_at > datetime('now'))
+        ORDER BY e.date DESC, e.updated_at DESC`
+    )
+    .all();
+  res.json({ exams: rows });
+});
+
+app.post("/api/public-results", (req, res) => {
+  const examId = Number(req.body.examId);
+  const matricola = String(req.body.matricola || "").trim();
+  const password = String(req.body.password || "");
+  if (!Number.isFinite(examId) || !matricola || !password) {
+    res.status(400).json({ error: "Dati mancanti" });
+    return;
+  }
+  const exam = db
+    .prepare(
+      `SELECT e.id, e.title, e.date, e.mapping_json, e.public_access_enabled,
+              e.public_access_password_hash, e.public_access_expires_at,
+              c.name AS course_name
+         FROM exams e
+         JOIN courses c ON c.id = e.course_id
+        WHERE e.id = ?`
+    )
+    .get(examId);
+  if (!exam) {
+    res.status(404).json({ error: "Traccia non trovata" });
+    return;
+  }
+  if (!exam.public_access_enabled) {
+    res.status(403).json({ error: "Accesso non abilitato per questa traccia." });
+    return;
+  }
+  if (exam.public_access_expires_at && new Date(exam.public_access_expires_at) <= new Date()) {
+    res.status(403).json({ error: "Accesso scaduto." });
+    return;
+  }
+  if (!bcrypt.compareSync(password, exam.public_access_password_hash || "")) {
+    res.status(401).json({ error: "Password non valida." });
+    return;
+  }
+  if (!exam.mapping_json) {
+    res.status(400).json({ error: "Mapping non disponibile." });
+    return;
+  }
+  let mapping;
+  try {
+    mapping = JSON.parse(exam.mapping_json);
+  } catch {
+    res.status(400).json({ error: "Mapping non valido." });
+    return;
+  }
+  const studentRow = db
+    .prepare(
+      `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id
+        WHERE es.exam_id = ? AND ess.matricola = ?
+        ORDER BY ess.updated_at DESC
+        LIMIT 1`
+    )
+    .get(examId, matricola);
+  if (!studentRow) {
+    res.status(404).json({ error: "Matricola non trovata." });
+    return;
+  }
+  const student = {
+    matricola: studentRow.matricola,
+    nome: studentRow.nome || "",
+    cognome: studentRow.cognome || "",
+    versione: studentRow.versione,
+    answers: JSON.parse(studentRow.answers_json || "[]"),
+    overrides: JSON.parse(studentRow.overrides_json || "[]"),
+  };
+
+  const allStudents = db
+    .prepare(
+      `SELECT ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id
+        WHERE es.exam_id = ?`
+    )
+    .all(examId)
+    .map((row) => ({
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    }));
+
+  const scores = allStudents
+    .map((s) => gradeStudent(s, mapping))
+    .filter((val) => val !== null);
+  const maxPoints = getMaxPoints(mapping);
+  const rawGrade = Math.round(((gradeStudent(student, mapping) || 0) / maxPoints) * 300) / 10;
+  const grades = scores.map((points) => (maxPoints ? (points / maxPoints) * 30 : 0));
+  const top = grades.length ? Math.max(...grades) : null;
+  const factor = top && top > 0 ? 30 / top : null;
+  const normalizedGrade = factor
+    ? Math.round(rawGrade * factor)
+    : Math.round(rawGrade);
+
+  const questionRows = db
+    .prepare(
+      `SELECT eq.position, q.id, q.text, q.type
+         FROM exam_questions eq
+         JOIN questions q ON q.id = eq.question_id
+        WHERE eq.exam_id = ?
+        ORDER BY eq.position`
+    )
+    .all(examId);
+  const questions = questionRows.map((row) => {
+    const answers = db
+      .prepare(
+        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      )
+      .all(row.id)
+      .map((ans) => ({
+        position: ans.position,
+        text: ans.text,
+        isCorrect: Boolean(ans.is_correct),
+      }));
+    return {
+      id: row.id,
+      position: row.position,
+      text: row.text,
+      type: row.type,
+      answers,
+    };
+  });
+
+  const qdict = mapping.questiondictionary[student.versione - 1];
+  const adict = mapping.randomizedanswersdictionary[student.versione - 1];
+  const displayedToOriginal = [];
+  qdict.forEach((displayed, original) => {
+    displayedToOriginal[displayed - 1] = original;
+  });
+
+  const displayedQuestions = displayedToOriginal.map((originalIndex, displayedIndex) => {
+    const q = questions[originalIndex];
+    const order = adict[originalIndex];
+    const selectedLetters = String(student.answers[displayedIndex] || "").split("");
+    const displayedAnswers = order.map((originalAnswerIndex, idx) => {
+      const answer = q.answers[originalAnswerIndex - 1];
+      const letter = ANSWER_OPTIONS[idx] || String(idx + 1);
+      return {
+        letter,
+        text: answer.text,
+        isCorrect: Boolean(answer.isCorrect),
+        selected: selectedLetters.includes(letter),
+      };
+    });
+    return {
+      index: displayedIndex + 1,
+      text: q.text,
+      type: q.type,
+      answers: displayedAnswers,
+      selectedLetters,
+    };
+  });
+
+  res.json({
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      date: exam.date || "",
+      courseName: exam.course_name,
+    },
+    student: {
+      matricola: student.matricola,
+      nome: student.nome,
+      cognome: student.cognome,
+      versione: student.versione,
+    },
+    grade: {
+      raw: rawGrade,
+      normalized: normalizedGrade,
+      maxPoints,
+    },
+    questions: displayedQuestions,
+  });
+});
 
 const extractListBlock = (text, key) => {
   const marker = `${key}=list(`;
@@ -346,12 +796,12 @@ app.post("/api/mapping", (req, res) => {
   }
 });
 
-app.get("/api/courses", (req, res) => {
+app.get("/api/courses", requireRole("admin", "creator"), (req, res) => {
   const rows = db.prepare("SELECT id, name, code FROM courses ORDER BY name").all();
   res.json({ courses: rows });
 });
 
-app.post("/api/courses", (req, res) => {
+app.post("/api/courses", requireRole("admin"), (req, res) => {
   const payload = req.body || {};
   const name = String(payload.name || "").trim();
   const code = String(payload.code || "").trim();
@@ -371,7 +821,7 @@ app.post("/api/courses", (req, res) => {
   res.json({ course });
 });
 
-app.get("/api/topics", (req, res) => {
+app.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -383,7 +833,7 @@ app.get("/api/topics", (req, res) => {
   res.json({ topics: rows });
 });
 
-app.post("/api/topics", (req, res) => {
+app.post("/api/topics", requireRole("admin"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const name = String(payload.name || "").trim();
@@ -407,7 +857,7 @@ app.post("/api/topics", (req, res) => {
   res.json({ topic });
 });
 
-app.delete("/api/topics/:id", (req, res) => {
+app.delete("/api/topics/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -424,7 +874,7 @@ app.delete("/api/topics/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/images", (req, res) => {
+app.get("/api/images", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -441,7 +891,7 @@ app.get("/api/images", (req, res) => {
   res.json({ images: rows });
 });
 
-app.post("/api/images", (req, res) => {
+app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const name = String(payload.name || "").trim();
@@ -492,7 +942,7 @@ app.post("/api/images", (req, res) => {
   res.json({ image });
 });
 
-app.delete("/api/images/:id", (req, res) => {
+app.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -520,7 +970,7 @@ app.delete("/api/images/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/courses/:id", (req, res) => {
+app.delete("/api/courses/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -551,7 +1001,7 @@ app.delete("/api/courses/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/questions", (req, res) => {
+app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   const topicId = Number(req.query.topicId);
   const search = String(req.query.search || "").trim();
@@ -594,7 +1044,7 @@ app.get("/api/questions", (req, res) => {
   res.json({ questions: rows });
 });
 
-app.post("/api/questions", (req, res) => {
+app.post("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const question = payload.question || {};
@@ -611,7 +1061,7 @@ app.post("/api/questions", (req, res) => {
   res.json({ questionId });
 });
 
-app.post("/api/questions/:id/duplicate", (req, res) => {
+app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -680,7 +1130,7 @@ app.post("/api/questions/:id/duplicate", (req, res) => {
   res.json({ questionId });
 });
 
-app.put("/api/questions/:id", (req, res) => {
+app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
@@ -736,7 +1186,7 @@ app.put("/api/questions/:id", (req, res) => {
   res.json({ questionId: id });
 });
 
-app.delete("/api/questions/:id", (req, res) => {
+app.delete("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -755,7 +1205,7 @@ app.delete("/api/questions/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/questions/:id", (req, res) => {
+app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -818,11 +1268,12 @@ app.get("/api/questions/:id", (req, res) => {
   });
 });
 
-app.get("/api/exams", (req, res) => {
+app.get("/api/exams", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const rows = db
     .prepare(
       `SELECT e.id, e.title, e.date, e.updated_at, e.course_id,
               e.is_draft, e.locked_at,
+              e.public_access_enabled, e.public_access_expires_at,
               c.name AS course_name,
               COUNT(eq.id) AS question_count,
               EXISTS (
@@ -894,7 +1345,7 @@ const gradeStudent = (student, mapping) => {
   return total;
 };
 
-app.get("/api/exams/stats", (req, res) => {
+app.get("/api/exams/stats", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const exams = db
     .prepare("SELECT id, mapping_json FROM exams")
     .all()
@@ -957,7 +1408,7 @@ app.get("/api/exams/stats", (req, res) => {
   res.json({ stats });
 });
 
-app.get("/api/exams/:id", (req, res) => {
+app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -975,7 +1426,8 @@ app.get("/api/exams/:id", (req, res) => {
                   JOIN exam_sessions es ON es.id = ess.session_id
                  WHERE es.exam_id = exams.id
                  LIMIT 1
-              ) AS has_results
+              ) AS has_results,
+              public_access_enabled, public_access_expires_at
          FROM exams WHERE id = ?`
     )
     .get(id);
@@ -1048,12 +1500,70 @@ app.get("/api/exams/:id", (req, res) => {
       isDraft: Boolean(exam.is_draft),
       lockedAt: exam.locked_at || "",
       hasResults: Boolean(exam.has_results),
+      publicAccessEnabled: Boolean(exam.public_access_enabled),
+      publicAccessExpiresAt: exam.public_access_expires_at || "",
     },
     questions,
   });
 });
 
-app.get("/api/exams/draft", (req, res) => {
+app.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evaluator"), (req, res) => {
+  const examId = Number(req.params.id);
+  if (!Number.isFinite(examId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const payload = req.body || {};
+  const enabled = Boolean(payload.enabled);
+  if (!enabled) {
+    db.prepare(
+      `UPDATE exams
+          SET public_access_enabled = 0,
+              public_access_password_hash = NULL,
+              public_access_expires_at = NULL
+        WHERE id = ?`
+    ).run(examId);
+    res.json({ ok: true });
+    return;
+  }
+  const password = String(payload.password || "");
+  const expiresAtRaw = payload.expiresAt ? String(payload.expiresAt).trim() : "";
+  let expiresAt = null;
+  if (expiresAtRaw) {
+    expiresAt = new Date(expiresAtRaw);
+  } else {
+    const fallback = new Date();
+    fallback.setDate(fallback.getDate() + PUBLIC_ACCESS_TTL_DAYS);
+    expiresAt = fallback;
+  }
+  if (!expiresAt || Number.isNaN(expiresAt.getTime())) {
+    res.status(400).json({ error: "Scadenza non valida" });
+    return;
+  }
+  let hash = null;
+  if (password) {
+    hash = bcrypt.hashSync(password, 10);
+  } else {
+    const existing = db
+      .prepare("SELECT public_access_password_hash FROM exams WHERE id = ?")
+      .get(examId);
+    if (!existing || !existing.public_access_password_hash) {
+      res.status(400).json({ error: "Password mancante" });
+      return;
+    }
+    hash = existing.public_access_password_hash;
+  }
+  db.prepare(
+    `UPDATE exams
+        SET public_access_enabled = 1,
+            public_access_password_hash = ?,
+            public_access_expires_at = ?
+      WHERE id = ?`
+  ).run(hash, expiresAt.toISOString(), examId);
+  res.json({ ok: true });
+});
+
+app.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -1233,7 +1743,7 @@ const replaceExamQuestions = (examId, questions, courseId, cleanupPrevious) => {
   });
 };
 
-app.post("/api/exams", (req, res) => {
+app.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const exam = payload.exam || {};
   const courseId = Number(exam.courseId);
@@ -1280,7 +1790,7 @@ app.post("/api/exams", (req, res) => {
   res.json({ examId });
 });
 
-app.put("/api/exams/:id", (req, res) => {
+app.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1400,7 +1910,7 @@ app.post("/api/exams/draft", (req, res) => {
   res.json({ examId });
 });
 
-app.post("/api/exams/:id/lock", async (req, res) => {
+app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1476,7 +1986,7 @@ app.post("/api/exams/:id/lock", async (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/exams/:id/unlock", (req, res) => {
+app.post("/api/exams/:id/unlock", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1508,7 +2018,7 @@ app.post("/api/exams/:id/unlock", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/exams/:id/mapping", (req, res) => {
+app.get("/api/exams/:id/mapping", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1534,7 +2044,7 @@ app.get("/api/exams/:id/mapping", (req, res) => {
   res.json({ mapping: JSON.parse(row.mapping_json) });
 });
 
-app.get("/api/exams/:id/sessions", (req, res) => {
+app.get("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1559,7 +2069,7 @@ app.get("/api/exams/:id/sessions", (req, res) => {
   res.json({ sessions: rows });
 });
 
-app.post("/api/exams/:id/sessions", (req, res) => {
+app.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1582,7 +2092,7 @@ app.post("/api/exams/:id/sessions", (req, res) => {
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
-app.get("/api/sessions/:id", (req, res) => {
+app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1617,7 +2127,7 @@ app.get("/api/sessions/:id", (req, res) => {
   res.json({ session, students });
 });
 
-app.put("/api/sessions/:id", (req, res) => {
+app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1674,7 +2184,7 @@ app.put("/api/sessions/:id", (req, res) => {
   }
 });
 
-app.delete("/api/sessions/:id", (req, res) => {
+app.delete("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1693,7 +2203,7 @@ app.delete("/api/sessions/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.delete("/api/exams/:id", (req, res) => {
+app.delete("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1725,7 +2235,7 @@ app.delete("/api/exams/:id", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/exams/:id/clear-results", (req, res) => {
+app.post("/api/exams/:id/clear-results", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -1747,7 +2257,7 @@ app.post("/api/exams/:id/clear-results", (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/results-pdf", (req, res) => {
+app.post("/api/results-pdf", requireRole("admin", "creator", "evaluator"), (req, res) => {
   try {
     const payload = req.body || {};
     const rows = Array.isArray(payload.rows) ? payload.rows : [];
@@ -1829,7 +2339,7 @@ app.post("/api/results-pdf", (req, res) => {
   }
 });
 
-app.post("/api/import-esse3", (req, res) => {
+app.post("/api/import-esse3", requireRole("admin", "creator", "evaluator"), (req, res) => {
   try {
     if (!req.body || !req.body.length) {
       res.status(400).json({ error: "File vuoto" });
@@ -1870,7 +2380,7 @@ app.post("/api/import-esse3", (req, res) => {
   }
 });
 
-app.post("/api/results-xls", (req, res) => {
+app.post("/api/results-xls", requireRole("admin", "creator", "evaluator"), (req, res) => {
   try {
     const payload = req.body || {};
     if (!payload.fileBase64 || !Array.isArray(payload.results)) {
@@ -1919,7 +2429,7 @@ app.post("/api/results-xls", (req, res) => {
   }
 });
 
-app.post("/api/compile-pdf", async (req, res) => {
+app.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) => {
   try {
     const payload = req.body || {};
     const latex = typeof payload.latex === "string" ? payload.latex : "";
@@ -1975,7 +2485,7 @@ app.post("/api/compile-pdf", async (req, res) => {
   }
 });
 
-app.post("/api/generate-traces", async (req, res) => {
+app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, res) => {
   try {
     const payload = req.body || {};
     const latex = typeof payload.latex === "string" ? payload.latex : "";

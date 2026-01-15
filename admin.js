@@ -51,9 +51,21 @@ const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
 const toggleImagesBtn = document.getElementById("toggleImages");
+const toggleUsersBtn = document.getElementById("toggleUsers");
+const adminActionButtons = [toggleUsersBtn, toggleCoursesBtn, toggleTopicsBtn, toggleImagesBtn].filter(
+  Boolean
+);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
 const adminImagesSection = document.getElementById("adminImagesSection");
+const adminUsersSection = document.getElementById("adminUsersSection");
+const adminEmptyState = document.getElementById("adminEmptyState");
+const adminUserNameInput = document.getElementById("adminUserName");
+const adminUserPasswordInput = document.getElementById("adminUserPassword");
+const adminUserRoleSelect = document.getElementById("adminUserRole");
+const adminCreateUserBtn = document.getElementById("adminCreateUser");
+const adminUserStatus = document.getElementById("adminUserStatus");
+const adminUserList = document.getElementById("adminUserList");
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
@@ -77,6 +89,7 @@ const bankModalClose = document.getElementById("bankModalClose");
 const adminImageAccordion = document.getElementById("adminImageAccordion");
 let editingQuestionId = null;
 let topicOptions = [];
+let userCache = [];
 
 const updateQuestionTypePills = () => {
   if (!adminQuestionType) return;
@@ -187,6 +200,22 @@ const openBankModal = () => {
 const closeBankModal = () => {
   if (bankModalBackdrop) bankModalBackdrop.classList.add("is-hidden");
   if (bankModal) bankModal.classList.add("is-hidden");
+};
+
+const showAdminSection = (section) => {
+  const sections = [adminUsersSection, adminCoursesSection, adminTopicsSection, adminImagesSection];
+  sections.forEach((item) => {
+    if (!item) return;
+    item.classList.toggle("is-hidden", item !== section);
+  });
+  if (adminEmptyState) {
+    adminEmptyState.classList.toggle("is-hidden", Boolean(section));
+  }
+  adminActionButtons.forEach((btn) => btn.classList.remove("is-active"));
+  if (section === adminUsersSection && toggleUsersBtn) toggleUsersBtn.classList.add("is-active");
+  if (section === adminCoursesSection && toggleCoursesBtn) toggleCoursesBtn.classList.add("is-active");
+  if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
+  if (section === adminImagesSection && toggleImagesBtn) toggleImagesBtn.classList.add("is-active");
 };
 
 const renderImagePickerList = (images) => {
@@ -926,6 +955,84 @@ const deleteImage = async (imageId) => {
   await loadImages(courseId);
 };
 
+const formatUserDate = (isoString) => {
+  if (!isoString) return "";
+  const date = new Date(isoString);
+  if (Number.isNaN(date.getTime())) return isoString;
+  return date.toLocaleDateString("it-IT");
+};
+
+const renderUserList = () => {
+  if (!adminUserList) return;
+  adminUserList.innerHTML = "";
+  if (!userCache.length) {
+    adminUserList.textContent = "Nessun utente disponibile.";
+    return;
+  }
+  userCache.forEach((user) => {
+    const item = createEl("div", "list-item");
+    const header = createEl("div", "list-item-title", user.username);
+    const metaParts = [user.role, formatUserDate(user.created_at)].filter(Boolean);
+    const meta = createEl("div", "list-item-meta", metaParts.join(" • "));
+    const actions = createEl("div", "table-actions");
+    const removeBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
+    removeBtn.type = "button";
+    if (user.role === "admin") {
+      removeBtn.disabled = true;
+      removeBtn.title = "Non puoi eliminare un amministratore.";
+    } else {
+      removeBtn.addEventListener("click", async () => {
+        if (!confirm("Vuoi eliminare questo utente?")) return;
+        try {
+          await apiFetch(`/api/users/${user.id}`, { method: "DELETE" });
+          await loadUsers();
+        } catch (err) {
+          if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore eliminazione.";
+        }
+      });
+    }
+    actions.appendChild(removeBtn);
+    item.appendChild(header);
+    item.appendChild(meta);
+    item.appendChild(actions);
+    adminUserList.appendChild(item);
+  });
+};
+
+const loadUsers = async () => {
+  if (!adminUserList) return;
+  try {
+    const payload = await apiFetch("/api/users");
+    userCache = payload.users || [];
+    renderUserList();
+  } catch (err) {
+    if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore caricamento utenti.";
+  }
+};
+
+const createUser = async () => {
+  const username = String(adminUserNameInput?.value || "").trim();
+  const password = String(adminUserPasswordInput?.value || "");
+  const role = String(adminUserRoleSelect?.value || "").trim();
+  if (!username || !password || !role) {
+    if (adminUserStatus) adminUserStatus.textContent = "Compila username, password e ruolo.";
+    return;
+  }
+  try {
+    await apiFetch("/api/users", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ username, password, role }),
+    });
+    if (adminUserNameInput) adminUserNameInput.value = "";
+    if (adminUserPasswordInput) adminUserPasswordInput.value = "";
+    if (adminUserStatus) adminUserStatus.textContent = "Utente creato.";
+    await loadUsers();
+  } catch (err) {
+    if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore creazione utente.";
+  }
+};
+
 const createCourse = async () => {
   const name = adminCourseNewInput?.value.trim() || "";
   if (!name) return;
@@ -1251,19 +1358,30 @@ if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModa
   if (refreshBankBtn) refreshBankBtn.addEventListener("click", refreshQuestionBank);
   if (toggleCoursesBtn && adminCoursesSection) {
     toggleCoursesBtn.addEventListener("click", () => {
-      adminCoursesSection.classList.toggle("is-hidden");
+      const willOpen = adminCoursesSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminCoursesSection : null);
     });
   }
   if (toggleTopicsBtn && adminTopicsSection) {
     toggleTopicsBtn.addEventListener("click", () => {
-      adminTopicsSection.classList.toggle("is-hidden");
+      const willOpen = adminTopicsSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminTopicsSection : null);
     });
   }
   if (toggleImagesBtn && adminImagesSection) {
     toggleImagesBtn.addEventListener("click", () => {
-      adminImagesSection.classList.toggle("is-hidden");
+      const willOpen = adminImagesSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminImagesSection : null);
     });
   }
+  if (toggleUsersBtn && adminUsersSection) {
+    toggleUsersBtn.addEventListener("click", () => {
+      const willOpen = adminUsersSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminUsersSection : null);
+      if (willOpen) loadUsers();
+    });
+  }
+  if (adminCreateUserBtn) adminCreateUserBtn.addEventListener("click", createUser);
 };
 
 init();

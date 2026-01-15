@@ -1,5 +1,6 @@
 const STORAGE_KEY = "c3lab-exam-registry";
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
+const appUser = window.APP_USER || null;
 
 const answersGrid = document.getElementById("answersGrid");
 const mappingStatus = document.getElementById("mappingStatus");
@@ -14,7 +15,7 @@ const nomeInput = document.getElementById("nome");
 const cognomeInput = document.getElementById("cognome");
 const versioneInput = document.getElementById("versione");
 const resetFormBtn = document.getElementById("resetForm");
-const submitBtn = studentForm.querySelector('button[type="submit"]');
+const submitBtn = studentForm ? studentForm.querySelector('button[type="submit"]') : null;
 
 const studentsTable = document.getElementById("studentsTable");
 const exportBtn = document.getElementById("exportCsv");
@@ -30,6 +31,23 @@ const gradingStats = document.getElementById("gradingStats");
 const exportGradedBtn = document.getElementById("exportGradedCsv");
 const gradingTable = document.getElementById("gradingTable");
 const gradeHistogram = document.getElementById("gradeHistogram");
+const publicAccessForm = document.getElementById("publicAccessForm");
+const publicExamSelect = document.getElementById("publicExamSelect");
+const publicMatricola = document.getElementById("publicMatricola");
+const publicPassword = document.getElementById("publicPassword");
+const publicAccessError = document.getElementById("publicAccessError");
+const publicResultWrap = document.getElementById("publicResultWrap");
+const publicResultTitle = document.getElementById("publicResultTitle");
+const publicResultGrade = document.getElementById("publicResultGrade");
+const publicResultMeta = document.getElementById("publicResultMeta");
+const publicResultQuestions = document.getElementById("publicResultQuestions");
+const publicAccessControls = document.getElementById("publicAccessControls");
+const publicAccessEnabledToggle = document.getElementById("publicAccessEnabled");
+const publicAccessFields = document.getElementById("publicAccessFields");
+const publicAccessPasswordInput = document.getElementById("publicAccessPassword");
+const publicAccessExpiresAtInput = document.getElementById("publicAccessExpiresAt");
+const publicAccessSaveBtn = document.getElementById("publicAccessSave");
+const publicAccessStatus = document.getElementById("publicAccessStatus");
 const exportResultsPdfBtn = document.getElementById("exportResultsPdf");
 const exportResultsXlsBtn = document.getElementById("exportResultsXls");
 const resultDateInput = document.getElementById("resultDate");
@@ -49,6 +67,7 @@ const examHistoryBackdrop = document.getElementById("examHistoryBackdrop");
 const examHistoryModal = document.getElementById("examHistoryModal");
 const examHistoryCloseBtn = document.getElementById("examHistoryClose");
 const mappingBadge = document.getElementById("mappingBadge");
+const publicAccessSummary = document.getElementById("publicAccessSummary");
 const topbarSelectExam = document.getElementById("topbarSelectExam");
 const topbarImportEsse3 = document.getElementById("topbarImportEsse3");
 const topbarExportPdf = document.getElementById("topbarExportPdf");
@@ -68,6 +87,7 @@ let examStatsCache = {};
 let examQuestions = [];
 let toastTimer = null;
 let currentExamId = null;
+let currentExam = null;
 let currentSessionId = null;
 let sessionSaveTimer = null;
 
@@ -82,6 +102,251 @@ const showToast = (message, tone = "info") => {
   toastTimer = setTimeout(() => {
     gradingToast.classList.remove("show");
   }, 2600);
+};
+
+const formatDateLabel = (isoDate) => {
+  if (!isoDate) return "";
+  const parts = isoDate.split("-");
+  if (parts.length !== 3) return isoDate;
+  return `${parts[2]}-${parts[1]}-${parts[0]}`;
+};
+
+const getDefaultAccessExpiry = () => {
+  const d = new Date();
+  d.setDate(d.getDate() + 30);
+  return d.toISOString().slice(0, 10);
+};
+
+const setPublicAccessStatus = (text, tone = "info") => {
+  if (!publicAccessStatus) return;
+  publicAccessStatus.textContent = text;
+  publicAccessStatus.classList.remove("is-error", "is-success");
+  if (tone === "error") publicAccessStatus.classList.add("is-error");
+  if (tone === "success") publicAccessStatus.classList.add("is-success");
+};
+
+const setPublicAccessSummary = (text, isActive = false, icon = "lock") => {
+  if (!publicAccessSummary) return;
+  if (!text) {
+    publicAccessSummary.textContent = "";
+  } else {
+    const iconClass = icon === "unlock" ? "fa-lock-open" : "fa-lock";
+    publicAccessSummary.innerHTML = `<i class="fa-solid ${iconClass}"></i>${text}`;
+  }
+  publicAccessSummary.classList.toggle("is-active", isActive);
+  publicAccessSummary.classList.toggle("is-hidden", !text);
+  publicAccessSummary.setAttribute("aria-hidden", text ? "false" : "true");
+};
+
+const setPublicAccessControlsEnabled = (enabled) => {
+  if (!publicAccessEnabledToggle || !publicAccessFields) return;
+  publicAccessEnabledToggle.checked = Boolean(enabled);
+  publicAccessFields.classList.toggle("is-disabled", !enabled);
+  if (publicAccessPasswordInput) {
+    publicAccessPasswordInput.disabled = !enabled;
+    publicAccessPasswordInput.value = "";
+  }
+  if (publicAccessExpiresAtInput) {
+    publicAccessExpiresAtInput.disabled = !enabled;
+  }
+};
+
+const updatePublicAccessUI = (exam) => {
+  if (!publicAccessControls) return;
+  if (!exam) {
+    setPublicAccessControlsEnabled(false);
+    if (publicAccessExpiresAtInput) publicAccessExpiresAtInput.value = "";
+    setPublicAccessStatus("Seleziona una traccia per configurare l'accesso studenti.");
+    setPublicAccessSummary("", false);
+    return;
+  }
+  const enabled = Boolean(exam.publicAccessEnabled);
+  setPublicAccessControlsEnabled(enabled);
+  if (publicAccessExpiresAtInput) {
+    publicAccessExpiresAtInput.value = exam.publicAccessExpiresAt
+      ? exam.publicAccessExpiresAt.slice(0, 10)
+      : "";
+  }
+  if (!enabled) {
+    setPublicAccessStatus("Accesso studenti disattivato.");
+    setPublicAccessSummary("Accesso studenti disattivato", false, "unlock");
+    return;
+  }
+  const expiryLabel = exam.publicAccessExpiresAt
+    ? ` (scadenza ${formatDateLabel(exam.publicAccessExpiresAt.slice(0, 10))})`
+    : "";
+  setPublicAccessStatus(`Accesso studenti attivo${expiryLabel}.`, "success");
+  setPublicAccessSummary(`Accesso studenti attivo${expiryLabel}`, true, "lock");
+};
+
+const savePublicAccess = async () => {
+  if (!currentExamId) {
+    setPublicAccessStatus("Seleziona una traccia prima di salvare.", "error");
+    return;
+  }
+  const enabled = Boolean(publicAccessEnabledToggle?.checked);
+  const payload = { enabled };
+  if (enabled) {
+    const password = String(publicAccessPasswordInput?.value || "").trim();
+    if (password) {
+      payload.password = password;
+    } else if (!currentExam || !currentExam.publicAccessEnabled) {
+      setPublicAccessStatus("Inserisci una password per abilitare l'accesso.", "error");
+      return;
+    }
+    const expiresAt = String(publicAccessExpiresAtInput?.value || "").trim();
+    payload.expiresAt = expiresAt || getDefaultAccessExpiry();
+  }
+  try {
+    const response = await fetch(`/api/exams/${currentExamId}/public-access`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      const info = await response.json().catch(() => ({}));
+      setPublicAccessStatus(info.error || "Errore salvataggio accesso.", "error");
+      return;
+    }
+    const examResponse = await fetch(`/api/exams/${currentExamId}`);
+    if (examResponse.ok) {
+      const examPayload = await examResponse.json();
+      currentExam = examPayload.exam;
+      updatePublicAccessUI(currentExam);
+    } else {
+      setPublicAccessStatus("Accesso aggiornato.", "success");
+    }
+    showToast("Accesso studenti aggiornato.", "success");
+  } catch {
+    setPublicAccessStatus("Errore di rete.", "error");
+  }
+};
+
+const loadPublicExams = async () => {
+  if (!publicExamSelect) return;
+  try {
+    const response = await fetch("/api/public-exams");
+    if (!response.ok) throw new Error();
+    const payload = await response.json();
+    const exams = payload.exams || [];
+    publicExamSelect.innerHTML = "";
+    exams.forEach((exam) => {
+      const opt = document.createElement("option");
+      const dateLabel = exam.date ? ` • ${exam.date}` : "";
+      opt.value = String(exam.id);
+      opt.textContent = `${exam.course_name} — ${exam.title}${dateLabel}`;
+      publicExamSelect.appendChild(opt);
+    });
+    if (!exams.length) {
+      const opt = document.createElement("option");
+      opt.value = "";
+      opt.textContent = "Nessuna traccia disponibile";
+      publicExamSelect.appendChild(opt);
+    }
+  } catch {
+    if (publicAccessError) {
+      publicAccessError.textContent = "Errore nel caricamento tracce.";
+    }
+  }
+};
+
+const renderPublicResults = (payload) => {
+  if (!publicResultWrap) return;
+  publicResultWrap.classList.remove("is-hidden");
+  if (publicResultTitle) {
+    const dateText = payload.exam.date ? ` • ${payload.exam.date}` : "";
+    publicResultTitle.textContent = `${payload.exam.courseName} — ${payload.exam.title}${dateText}`;
+  }
+  if (publicResultGrade) {
+    publicResultGrade.textContent = `Voto: ${payload.grade.normalized}/30`;
+  }
+  if (publicResultMeta) {
+    const nameParts = [payload.student.nome, payload.student.cognome]
+      .map((part) => String(part || "").trim())
+      .filter(Boolean);
+    const name = nameParts.length ? nameParts.join(" ") : "Studente";
+    publicResultMeta.textContent = `${name} • Matricola ${payload.student.matricola} • Versione ${payload.student.versione}`;
+  }
+  if (publicResultQuestions) {
+    publicResultQuestions.innerHTML = "";
+    payload.questions.forEach((question) => {
+      const card = document.createElement("div");
+      card.className = "card shadow-sm";
+      const body = document.createElement("div");
+      body.className = "card-body";
+      const title = document.createElement("div");
+      title.className = "question-preview-title";
+      title.textContent = `Es. ${question.index}`;
+      const text = document.createElement("div");
+      text.className = "question-preview";
+      renderLatexHtml(question.text, text);
+      const answers = document.createElement("div");
+      answers.className = "vstack gap-2 mt-3";
+      question.answers.forEach((ans) => {
+        const row = document.createElement("div");
+        row.className = "preview-answer-row";
+        const label = document.createElement("span");
+        label.className = "preview-answer-label";
+        label.textContent = ans.letter;
+        const answerText = document.createElement("div");
+        answerText.className = "preview-answer-text";
+        renderLatexHtml(ans.text, answerText);
+        row.appendChild(label);
+        row.appendChild(answerText);
+        if (ans.selected) {
+          row.classList.add("is-selected");
+        }
+        if (ans.isCorrect) {
+          const tick = document.createElement("span");
+          tick.className = "answer-tick";
+          tick.innerHTML =
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+          row.appendChild(tick);
+        }
+        answers.appendChild(row);
+      });
+      body.appendChild(title);
+      body.appendChild(text);
+      body.appendChild(answers);
+      card.appendChild(body);
+      publicResultQuestions.appendChild(card);
+    });
+  }
+};
+
+const initPublicAccess = () => {
+  if (!publicAccessForm) return;
+  loadPublicExams();
+  publicAccessForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (publicAccessError) publicAccessError.textContent = "";
+    if (publicResultWrap) publicResultWrap.classList.add("is-hidden");
+    const examId = Number(publicExamSelect?.value || "");
+    const matricola = String(publicMatricola?.value || "").trim();
+    const password = String(publicPassword?.value || "");
+    if (!Number.isFinite(examId) || !matricola || !password) {
+      if (publicAccessError) publicAccessError.textContent = "Compila tutti i campi.";
+      return;
+    }
+    try {
+      const response = await fetch("/api/public-results", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ examId, matricola, password }),
+      });
+      if (!response.ok) {
+        const info = await response.json().catch(() => ({}));
+        if (publicAccessError) {
+          publicAccessError.textContent = info.error || "Accesso non valido.";
+        }
+        return;
+      }
+      const payload = await response.json();
+      renderPublicResults(payload);
+    } catch {
+      if (publicAccessError) publicAccessError.textContent = "Errore di rete.";
+    }
+  });
 };
 
 const setMappingBadge = (text, isActive = false) => {
@@ -812,6 +1077,8 @@ const loadMappingFromExam = async (selectedId) => {
     mappingStatus.textContent = "Seleziona una traccia.";
     setMappingBadge("Nessuna traccia", false);
     updateExamVisibility(false);
+    currentExam = null;
+    updatePublicAccessUI(null);
     return;
   }
   currentExamId = parsedId;
@@ -835,12 +1102,18 @@ const loadMappingFromExam = async (selectedId) => {
       const examResponse = await fetch(`/api/exams/${parsedId}`);
       if (examResponse.ok) {
         const examPayload = await examResponse.json();
+        currentExam = examPayload.exam;
         examQuestions = examPayload.questions || [];
+        updatePublicAccessUI(currentExam);
       } else {
+        currentExam = null;
         examQuestions = [];
+        updatePublicAccessUI(null);
       }
     } catch {
+      currentExam = null;
       examQuestions = [];
+      updatePublicAccessUI(null);
     }
     renderTable();
     renderGrading();
@@ -899,10 +1172,12 @@ const loadExams = async () => {
     renderExamHistory(examsCache);
     if (!mapping) setMappingBadge("Nessuna traccia", false);
     updateExamVisibility(Boolean(mapping));
+    if (!currentExamId) updatePublicAccessUI(null);
   } catch {
     mappingStatus.textContent = "Errore caricamento tracce.";
     setMappingBadge("Nessuna traccia", false);
     updateExamVisibility(Boolean(mapping));
+    updatePublicAccessUI(null);
   }
 };
 
@@ -1217,226 +1492,253 @@ const closeExamHistoryModal = () => {
   if (examHistoryModal) examHistoryModal.classList.add("is-hidden");
 };
 
-resetFormBtn.addEventListener("click", () => {
-  studentForm.reset();
-  clearSelections();
-  applyCorrectHints();
-  updatePerQuestionScores();
-  editingIndex = null;
-  if (submitBtn) submitBtn.textContent = "Aggiungi studente";
-});
-studentForm.addEventListener("submit", addStudent);
-if (exportBtn) exportBtn.addEventListener("click", exportCsv);
-if (exportRBtn) exportRBtn.addEventListener("click", exportCsvForR);
-if (clearBtn) clearBtn.addEventListener("click", openClearResultsModal);
-if (clearResultsCloseBtn) clearResultsCloseBtn.addEventListener("click", closeClearResultsModal);
-if (clearResultsCancelBtn) clearResultsCancelBtn.addEventListener("click", closeClearResultsModal);
-if (clearResultsBackdrop) clearResultsBackdrop.addEventListener("click", closeClearResultsModal);
-if (confirmClearResultsBtn) {
-  confirmClearResultsBtn.addEventListener("click", () => {
-    clearAll();
-    closeClearResultsModal();
-  });
-}
-if (exportGradedBtn) exportGradedBtn.addEventListener("click", () => {
-  if (!mapping || students.length === 0) return;
-  const maxPoints = getMaxPoints();
-  const header = [
-    "ID",
-    "nome",
-    "cognome",
-    "versions",
-    "punti",
-    "voto_30",
-    "voto_norm",
-    ...Array.from({ length: questionCount }, (_, i) => `q${i + 1}`),
-  ];
-  const rows = students.map((student) => [
-    student.matricola,
-    student.nome,
-    student.cognome,
-    student.versione,
-    gradeStudent(student),
-    toThirty(gradeStudent(student), maxPoints).toFixed(2),
-    normalizeGrade(toThirty(gradeStudent(student), maxPoints)),
-    ...student.answers,
-  ]);
-  const csv = [header, ...rows]
-    .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
-    .join("\n");
-  const blob = new Blob([csv], { type: "text/csv" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "registro_esami_con_punteggio.csv";
-  link.click();
-  URL.revokeObjectURL(link.href);
-});
-if (examPreviewCloseBtn) examPreviewCloseBtn.addEventListener("click", closeExamPreview);
-if (examPreviewBackdrop) examPreviewBackdrop.addEventListener("click", closeExamPreview);
-if (examHistoryCloseBtn) examHistoryCloseBtn.addEventListener("click", closeExamHistoryModal);
-if (examHistoryBackdrop) examHistoryBackdrop.addEventListener("click", closeExamHistoryModal);
-versioneInput.addEventListener("input", () => {
-  applyCorrectHints();
-  updatePerQuestionScores();
-});
-targetTopGradeInput.addEventListener("input", renderGrading);
-if (importEsse3Btn) {
-  importEsse3Btn.addEventListener("click", () => {
-    if (esse3FileInput) esse3FileInput.click();
-  });
-}
-if (esse3FileInput) {
-  esse3FileInput.addEventListener("change", () => {
-    if (!esse3FileInput.files || esse3FileInput.files.length === 0) return;
-    importEsse3();
-  });
-}
-if (resultDateInput) {
-  resultDateInput.addEventListener("change", () => {
-    scheduleSaveSession();
-  });
-}
-if (studentSearchInput) {
-  studentSearchInput.addEventListener("input", renderTable);
-}
-if (topbarSelectExam) {
-  topbarSelectExam.addEventListener("click", () => {
-    openExamHistoryModal();
-  });
-}
-if (emptySelectExam) {
-  emptySelectExam.addEventListener("click", () => {
-    openExamHistoryModal();
-  });
-}
-if (topbarImportEsse3) {
-  topbarImportEsse3.addEventListener("click", () => {
-    if (esse3FileInput) esse3FileInput.click();
-  });
-}
-if (topbarExportPdf) {
-  topbarExportPdf.addEventListener("click", () => {
-    if (exportResultsPdfBtn) exportResultsPdfBtn.click();
-  });
-}
-if (topbarExportXls) {
-  topbarExportXls.addEventListener("click", () => {
-    if (exportResultsXlsBtn) exportResultsXlsBtn.click();
-  });
-}
-if (topbarClear) {
-  topbarClear.addEventListener("click", () => {
-    if (clearBtn) clearBtn.click();
-  });
-}
-if (sessionSelect) {
-  sessionSelect.addEventListener("change", () => {
-    const nextId = Number(sessionSelect.value);
-    if (!Number.isFinite(nextId)) return;
-    loadSession(nextId);
-  });
-}
-if (newSessionBtn) {
-  newSessionBtn.addEventListener("click", async () => {
-    if (!currentExamId) {
-      showToast("Seleziona una traccia prima di creare una sessione.", "error");
-      return;
-    }
-    const title = formatSessionTitle(resultDateInput.value || "");
-    try {
-      const response = await fetch(`/api/exams/${currentExamId}/sessions`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
-      });
-      if (!response.ok) {
-        showToast("Errore nella creazione sessione.", "error");
+if (!appUser) {
+  initPublicAccess();
+} else {
+  if (resetFormBtn && studentForm) {
+    resetFormBtn.addEventListener("click", () => {
+      studentForm.reset();
+      clearSelections();
+      applyCorrectHints();
+      updatePerQuestionScores();
+      editingIndex = null;
+      if (submitBtn) submitBtn.textContent = "Aggiungi studente";
+    });
+  }
+  if (studentForm) studentForm.addEventListener("submit", addStudent);
+  if (exportBtn) exportBtn.addEventListener("click", exportCsv);
+  if (exportRBtn) exportRBtn.addEventListener("click", exportCsvForR);
+  if (clearBtn) clearBtn.addEventListener("click", openClearResultsModal);
+  if (clearResultsCloseBtn) clearResultsCloseBtn.addEventListener("click", closeClearResultsModal);
+  if (clearResultsCancelBtn) clearResultsCancelBtn.addEventListener("click", closeClearResultsModal);
+  if (clearResultsBackdrop) clearResultsBackdrop.addEventListener("click", closeClearResultsModal);
+  if (confirmClearResultsBtn) {
+    confirmClearResultsBtn.addEventListener("click", () => {
+      clearAll();
+      closeClearResultsModal();
+    });
+  }
+  if (publicAccessEnabledToggle) {
+    publicAccessEnabledToggle.addEventListener("change", () => {
+      const enabled = publicAccessEnabledToggle.checked;
+      setPublicAccessControlsEnabled(enabled);
+      if (enabled && publicAccessExpiresAtInput && !publicAccessExpiresAtInput.value) {
+        publicAccessExpiresAtInput.value = getDefaultAccessExpiry();
+      }
+      if (!enabled) {
+        setPublicAccessStatus("Accesso studenti disattivato.");
+      } else {
+        setPublicAccessStatus("Inserisci una password e salva per attivare.");
+      }
+    });
+  }
+  if (publicAccessSaveBtn) publicAccessSaveBtn.addEventListener("click", savePublicAccess);
+  if (exportGradedBtn) {
+    exportGradedBtn.addEventListener("click", () => {
+      if (!mapping || students.length === 0) return;
+      const maxPoints = getMaxPoints();
+      const header = [
+        "ID",
+        "nome",
+        "cognome",
+        "versions",
+        "punti",
+        "voto_30",
+        "voto_norm",
+        ...Array.from({ length: questionCount }, (_, i) => `q${i + 1}`),
+      ];
+      const rows = students.map((student) => [
+        student.matricola,
+        student.nome,
+        student.cognome,
+        student.versione,
+        gradeStudent(student),
+        toThirty(gradeStudent(student), maxPoints).toFixed(2),
+        normalizeGrade(toThirty(gradeStudent(student), maxPoints)),
+        ...student.answers,
+      ]);
+      const csv = [header, ...rows]
+        .map((row) => row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+        .join("\n");
+      const blob = new Blob([csv], { type: "text/csv" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "registro_esami_con_punteggio.csv";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+  }
+  if (examPreviewCloseBtn) examPreviewCloseBtn.addEventListener("click", closeExamPreview);
+  if (examPreviewBackdrop) examPreviewBackdrop.addEventListener("click", closeExamPreview);
+  if (examHistoryCloseBtn) examHistoryCloseBtn.addEventListener("click", closeExamHistoryModal);
+  if (examHistoryBackdrop) examHistoryBackdrop.addEventListener("click", closeExamHistoryModal);
+  if (versioneInput) {
+    versioneInput.addEventListener("input", () => {
+      applyCorrectHints();
+      updatePerQuestionScores();
+    });
+  }
+  if (targetTopGradeInput) targetTopGradeInput.addEventListener("input", renderGrading);
+  if (importEsse3Btn) {
+    importEsse3Btn.addEventListener("click", () => {
+      if (esse3FileInput) esse3FileInput.click();
+    });
+  }
+  if (esse3FileInput) {
+    esse3FileInput.addEventListener("change", () => {
+      if (!esse3FileInput.files || esse3FileInput.files.length === 0) return;
+      importEsse3();
+    });
+  }
+  if (resultDateInput) {
+    resultDateInput.addEventListener("change", () => {
+      scheduleSaveSession();
+    });
+  }
+  if (studentSearchInput) studentSearchInput.addEventListener("input", renderTable);
+  if (topbarSelectExam) {
+    topbarSelectExam.addEventListener("click", () => {
+      openExamHistoryModal();
+    });
+  }
+  if (emptySelectExam) {
+    emptySelectExam.addEventListener("click", () => {
+      openExamHistoryModal();
+    });
+  }
+  if (topbarImportEsse3) {
+    topbarImportEsse3.addEventListener("click", () => {
+      if (esse3FileInput) esse3FileInput.click();
+    });
+  }
+  if (topbarExportPdf) {
+    topbarExportPdf.addEventListener("click", () => {
+      if (exportResultsPdfBtn) exportResultsPdfBtn.click();
+    });
+  }
+  if (topbarExportXls) {
+    topbarExportXls.addEventListener("click", () => {
+      if (exportResultsXlsBtn) exportResultsXlsBtn.click();
+    });
+  }
+  if (topbarClear) {
+    topbarClear.addEventListener("click", () => {
+      if (clearBtn) clearBtn.click();
+    });
+  }
+  if (sessionSelect) {
+    sessionSelect.addEventListener("change", () => {
+      const nextId = Number(sessionSelect.value);
+      if (!Number.isFinite(nextId)) return;
+      loadSession(nextId);
+    });
+  }
+  if (newSessionBtn) {
+    newSessionBtn.addEventListener("click", async () => {
+      if (!currentExamId) {
+        showToast("Seleziona una traccia prima di creare una sessione.", "error");
         return;
       }
-      const info = await response.json();
-      currentSessionId = info.id;
-      await loadSessionsForExam(currentExamId);
-      await loadSession(currentSessionId);
-    } catch {
-      showToast("Errore nella creazione sessione.", "error");
-    }
-  });
-}
-exportResultsPdfBtn.addEventListener("click", async () => {
-  if (!mapping || students.length === 0) return;
-  const maxPoints = getMaxPoints();
-  const hasAnyAnswer = (student) =>
-    (student.answers || []).some((value) => String(value || "").trim() !== "") ||
-    (student.overrides || []).some((value) => typeof value === "number");
-  const rows = students
-    .filter((student) => hasAnyAnswer(student) && gradeStudent(student) !== null)
-    .map((student) => {
-      const points = gradeStudent(student);
-      const grade = toThirty(points, maxPoints);
-      const gradeNorm = normalizeGrade(grade);
-      return {
-        matricola: student.matricola,
-        nome: student.nome,
-        cognome: student.cognome,
-        grade: grade.toFixed(2),
-        gradeNorm,
-      };
+      const title = formatSessionTitle(resultDateInput.value || "");
+      try {
+        const response = await fetch(`/api/exams/${currentExamId}/sessions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
+        });
+        if (!response.ok) {
+          showToast("Errore nella creazione sessione.", "error");
+          return;
+        }
+        const info = await response.json();
+        currentSessionId = info.id;
+        await loadSessionsForExam(currentExamId);
+        await loadSession(currentSessionId);
+      } catch {
+        showToast("Errore nella creazione sessione.", "error");
+      }
     });
-  const payload = {
-    date: resultDateInput.value || "",
-    rows,
-  };
-  const response = await fetch("/api/results-pdf", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) return;
-  const blob = await response.blob();
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "risultati.pdf";
-  link.click();
-  URL.revokeObjectURL(link.href);
-});
-exportResultsXlsBtn.addEventListener("click", async () => {
-  if (!mapping || students.length === 0) return;
-  const file = esse3ResultsFileInput.files && esse3ResultsFileInput.files[0];
-  if (!file) return;
-  const buffer = await file.arrayBuffer();
-  const fileBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-  const maxPoints = getMaxPoints();
-  const results = students
-    .filter((student) => gradeStudent(student) !== null)
-    .map((student) => {
-      const points = gradeStudent(student);
-      const grade = toThirty(points, maxPoints);
-      const normalized = normalizeGrade(grade);
-      const esito = normalized > 30 ? 31 : normalized;
-      return {
-        matricola: student.matricola,
-        esito,
+  }
+  if (exportResultsPdfBtn) {
+    exportResultsPdfBtn.addEventListener("click", async () => {
+      if (!mapping || students.length === 0) return;
+      const maxPoints = getMaxPoints();
+      const hasAnyAnswer = (student) =>
+        (student.answers || []).some((value) => String(value || "").trim() !== "") ||
+        (student.overrides || []).some((value) => typeof value === "number");
+      const rows = students
+        .filter((student) => hasAnyAnswer(student) && gradeStudent(student) !== null)
+        .map((student) => {
+          const points = gradeStudent(student);
+          const grade = toThirty(points, maxPoints);
+          const gradeNorm = normalizeGrade(grade);
+          return {
+            matricola: student.matricola,
+            nome: student.nome,
+            cognome: student.cognome,
+            grade: grade.toFixed(2),
+            gradeNorm,
+          };
+        });
+      const payload = {
+        date: resultDateInput.value || "",
+        rows,
       };
+      const response = await fetch("/api/results-pdf", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "risultati.pdf";
+      link.click();
+      URL.revokeObjectURL(link.href);
     });
-  const payload = {
-    fileBase64,
-    results,
-  };
-  const response = await fetch("/api/results-xls", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
-  });
-  if (!response.ok) return;
-  const blob = await response.blob();
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = "ListaStudentiEsameRisultati.xls";
-  link.click();
-  URL.revokeObjectURL(link.href);
-});
+  }
+  if (exportResultsXlsBtn) {
+    exportResultsXlsBtn.addEventListener("click", async () => {
+      if (!mapping || students.length === 0) return;
+      const file = esse3ResultsFileInput.files && esse3ResultsFileInput.files[0];
+      if (!file) return;
+      const buffer = await file.arrayBuffer();
+      const fileBase64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
+      const maxPoints = getMaxPoints();
+      const results = students
+        .filter((student) => gradeStudent(student) !== null)
+        .map((student) => {
+          const points = gradeStudent(student);
+          const grade = toThirty(points, maxPoints);
+          const normalized = normalizeGrade(grade);
+          const esito = normalized > 30 ? 31 : normalized;
+          return {
+            matricola: student.matricola,
+            esito,
+          };
+        });
+      const payload = {
+        fileBase64,
+        results,
+      };
+      const response = await fetch("/api/results-xls", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) return;
+      const blob = await response.blob();
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "ListaStudentiEsameRisultati.xls";
+      link.click();
+      URL.revokeObjectURL(link.href);
+    });
+  }
 
-loadStudents();
-renderGrading();
-loadExams();
-updateExamVisibility(Boolean(mapping));
+  loadStudents();
+  renderGrading();
+  loadExams();
+  updateExamVisibility(Boolean(mapping));
+}

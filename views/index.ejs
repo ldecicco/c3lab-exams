@@ -20,11 +20,15 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <script>
+      window.APP_USER = <%- JSON.stringify(user || null) %>;
+    </script>
     <%- include('partials/nav', { active: 'index' }) %>
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
 
     <main class="layout container-fluid admin-layout py-4">
+      <% if (user) { %>
       <div class="builder-topbar grading-topbar">
         <div class="builder-topbar-left">
           <button class="btn btn-outline-secondary" id="topbarSelectExam" type="button">
@@ -50,6 +54,7 @@
         </div>
         <div class="builder-topbar-right">
           <span class="toolbar-status" id="mappingBadge">Nessuna traccia</span>
+          <span class="toolbar-status" id="publicAccessSummary"></span>
         </div>
       </div>
       <div class="empty-state" id="examEmptyState">
@@ -180,6 +185,34 @@
           </label>
           <div class="grading-factor text-secondary" id="gradingFactor">Fattore: -</div>
         </div>
+        <div class="public-access" id="publicAccessControls">
+          <div class="public-access-header">
+            <h3 class="h6 mb-0">Accesso studenti</h3>
+            <label class="form-check form-switch public-access-toggle">
+              <input class="form-check-input" type="checkbox" id="publicAccessEnabled" />
+              <span class="form-check-label">Abilita accesso con password</span>
+            </label>
+          </div>
+          <div class="public-access-body" id="publicAccessFields">
+            <label class="field">
+              <span>Password traccia</span>
+              <input
+                id="publicAccessPassword"
+                class="form-control"
+                type="text"
+                placeholder="Imposta una nuova password"
+              />
+            </label>
+            <label class="field">
+              <span>Scadenza accesso</span>
+              <input id="publicAccessExpiresAt" class="form-control" type="date" />
+            </label>
+            <button class="btn btn-outline-primary" type="button" id="publicAccessSave">
+              Salva accesso
+            </button>
+            <div class="text-secondary small mt-2" id="publicAccessStatus"></div>
+          </div>
+        </div>
         <div class="table-wrap">
           <table class="table table-striped table-sm align-middle">
             <thead>
@@ -209,8 +242,51 @@
           </div>
         </div>
       </section>
+      <% } else { %>
+      <section class="card shadow-sm" style="max-width: 720px; margin: 6vh auto;">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Accesso valutazione</h2>
+          <p class="text-secondary mb-0">
+            Inserisci la password della traccia e la tua matricola per vedere il risultato.
+          </p>
+        </div>
+        <div class="card-body">
+          <form id="publicAccessForm" class="row g-3">
+            <label class="field col-md-12">
+              <span>Traccia</span>
+              <select id="publicExamSelect" class="form-select"></select>
+            </label>
+            <label class="field col-md-6">
+              <span>Matricola</span>
+              <input id="publicMatricola" class="form-control" type="text" required />
+            </label>
+            <label class="field col-md-6">
+              <span>Password traccia</span>
+              <input id="publicPassword" class="form-control" type="password" required />
+            </label>
+            <div class="col-12">
+              <button class="btn btn-primary" type="submit">Mostra risultato</button>
+            </div>
+          </form>
+          <div class="text-danger small mt-2" id="publicAccessError"></div>
+          <div id="publicResultWrap" class="mt-4 is-hidden">
+            <div class="card border-0 shadow-sm">
+              <div class="card-body">
+                <div class="d-flex flex-wrap gap-3 align-items-center mb-3">
+                  <h3 class="h6 mb-0" id="publicResultTitle"></h3>
+                  <span class="chip" id="publicResultGrade"></span>
+                </div>
+                <div id="publicResultMeta" class="text-secondary small mb-3"></div>
+                <div id="publicResultQuestions" class="vstack gap-3"></div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+      <% } %>
     </main>
 
+    <% if (user) { %>
     <div class="modal-backdrop is-hidden" id="examPreviewBackdrop"></div>
     <div class="modal-panel is-hidden" id="examPreviewModal" role="dialog" aria-modal="true" aria-labelledby="examPreviewTitle">
       <div class="modal-header">
@@ -274,6 +350,7 @@
     </footer>
 
     <div class="toast-notify" id="gradingToast" role="status" aria-live="polite"></div>
+    <% } %>
 
     <script
       defer
