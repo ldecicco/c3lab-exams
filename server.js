@@ -13,6 +13,9 @@ const xlsx = require("xlsx");
 const app = express();
 const PORT = process.env.PORT || 3000;
 
+app.set("view engine", "ejs");
+app.set("views", path.join(__dirname, "views"));
+
 const DATA_DIR = path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const IMAGE_DIR = path.join(DATA_DIR, "images");
@@ -152,6 +155,18 @@ db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 app.use(express.text({ type: ["text/plain", "application/octet-stream"], limit: "5mb" }));
 app.use(express.json({ limit: "10mb" }));
 app.use(express.raw({ type: "application/vnd.ms-excel", limit: "5mb" }));
+
+app.get("/", (req, res) => res.redirect("/index"));
+app.get("/index", (req, res) => res.render("index"));
+app.get("/index.html", (req, res) => res.render("index"));
+app.get("/questions", (req, res) => res.render("questions"));
+app.get("/questions.html", (req, res) => res.render("questions"));
+app.get("/exam-builder", (req, res) => res.render("exam-builder"));
+app.get("/exam-builder.html", (req, res) => res.render("exam-builder"));
+app.get("/dashboard", (req, res) => res.render("dashboard"));
+app.get("/dashboard.html", (req, res) => res.render("dashboard"));
+app.get("/admin", (req, res) => res.render("admin"));
+app.get("/admin.html", (req, res) => res.render("admin"));
 
 const extractListBlock = (text, key) => {
   const marker = `${key}=list(`;
@@ -825,6 +840,121 @@ app.get("/api/exams", (req, res) => {
     )
     .all();
   res.json({ exams: rows });
+});
+
+const ANSWER_OPTIONS = ["A", "B", "C", "D", "E", "F"];
+
+const normalizeSet = (arr) =>
+  Array.from(new Set(arr))
+    .sort((a, b) => a - b)
+    .join(",");
+
+const getQuestionPoints = (row) => {
+  const correctCount = row.filter((val) => val > 0).length;
+  if (correctCount > 1) return 1;
+  return row.reduce((acc, val) => (val > 0 ? acc + val : acc), 0);
+};
+
+const getMaxPoints = (mapping) =>
+  mapping.correctiondictionary.reduce(
+    (sum, row) => sum + getQuestionPoints(row),
+    0
+  );
+
+const gradeStudent = (student, mapping) => {
+  if (!mapping) return null;
+  const version = Number(student.versione);
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    return null;
+  }
+  const qdict = mapping.questiondictionary[version - 1];
+  const adict = mapping.randomizedanswersdictionary[version - 1];
+  const cdict = mapping.correctiondictionary;
+  let total = 0;
+  for (let q = 0; q < mapping.Nquestions; q += 1) {
+    const override = student.overrides?.[q];
+    if (typeof override === "number" && Number.isFinite(override)) {
+      total += override;
+      continue;
+    }
+    const displayedIndex = (qdict[q] || 1) - 1;
+    const selected = String(student.answers?.[displayedIndex] || "");
+    const selectedIdx = selected
+      .split("")
+      .map((letter) => ANSWER_OPTIONS.indexOf(letter) + 1)
+      .filter((idx) => idx > 0);
+    const originalSelected = selectedIdx.map((idx) => adict[q][idx - 1]);
+    const correctIdx = cdict[q]
+      .map((val, i) => (val > 0 ? i + 1 : null))
+      .filter(Boolean);
+    if (normalizeSet(originalSelected) === normalizeSet(correctIdx)) {
+      total += getQuestionPoints(cdict[q]);
+    }
+  }
+  return total;
+};
+
+app.get("/api/exams/stats", (req, res) => {
+  const exams = db
+    .prepare("SELECT id, mapping_json FROM exams")
+    .all()
+    .map((row) => ({ id: row.id, mappingJson: row.mapping_json }));
+
+  const students = db
+    .prepare(
+      `SELECT es.exam_id, ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id`
+    )
+    .all();
+
+  const byExam = new Map();
+  students.forEach((row) => {
+    if (!byExam.has(row.exam_id)) byExam.set(row.exam_id, []);
+    byExam.get(row.exam_id).push({
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    });
+  });
+
+  const stats = {};
+  exams.forEach((exam) => {
+    if (!exam.mappingJson) {
+      stats[exam.id] = { studentsCount: 0, avgNormalized: null };
+      return;
+    }
+    let mapping;
+    try {
+      mapping = JSON.parse(exam.mappingJson);
+    } catch {
+      stats[exam.id] = { studentsCount: 0, avgNormalized: null };
+      return;
+    }
+    const examStudents = byExam.get(exam.id) || [];
+    const scores = examStudents
+      .map((student) => gradeStudent(student, mapping))
+      .filter((val) => val !== null);
+    if (!scores.length) {
+      stats[exam.id] = { studentsCount: 0, avgNormalized: null };
+      return;
+    }
+    const maxPoints = getMaxPoints(mapping);
+    const grades = scores.map((points) => (maxPoints ? (points / maxPoints) * 30 : 0));
+    const top = Math.max(...grades);
+    const factor = top > 0 ? 30 / top : null;
+    const normalized = grades.map((grade) =>
+      Math.round((factor ? grade * factor : grade))
+    );
+    const avg =
+      normalized.reduce((sum, val) => sum + val, 0) / normalized.length;
+    stats[exam.id] = {
+      studentsCount: scores.length,
+      avgNormalized: Math.round(avg * 10) / 10,
+    };
+  });
+
+  res.json({ stats });
 });
 
 app.get("/api/exams/:id", (req, res) => {

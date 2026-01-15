@@ -426,6 +426,10 @@ h1 {
   padding-bottom: 6px;
 }
 
+.top-nav .nav-link.admin-link {
+  margin-left: auto;
+}
+
 .top-nav .nav-link.active {
   border-color: var(--accent);
 }
@@ -567,14 +571,14 @@ h1 {
   white-space: nowrap;
 }
 
-.history-search {
+.exam-search {
   display: flex;
   align-items: flex-end;
   gap: 12px;
   flex-wrap: wrap;
 }
 
-.history-search .field {
+.exam-search .field {
   min-width: 220px;
 }
 
@@ -1677,14 +1681,14 @@ input {
   margin-top: 12px;
 }
 
-.history-grid {
+.exam-grid {
   margin-top: 16px;
   display: grid;
   gap: 16px;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
 }
 
-.history-card {
+.exam-card {
   border-radius: 16px;
   border: 1px solid var(--line);
   background: #ffffff;
@@ -1694,28 +1698,31 @@ input {
   box-shadow: 0 12px 24px var(--shadow);
 }
 
-.history-card-band {
-  height: 72px;
+.exam-card-band {
+  min-height: 72px;
   background: linear-gradient(135deg, rgba(13, 74, 124, 0.12), rgba(13, 74, 124, 0.38));
+  display: flex;
+  align-items: flex-end;
+  padding: 10px 12px;
 }
 
-.history-card-body {
+.exam-card-body {
   padding: 16px;
   display: grid;
   gap: 8px;
 }
 
-.history-card-title {
+.exam-card-title {
   font-weight: 700;
   font-size: 1rem;
 }
 
-.history-card-meta {
+.exam-card-meta {
   color: var(--muted);
   font-size: 0.85rem;
 }
 
-.history-card-status {
+.exam-card-status {
   display: inline-flex;
   align-items: center;
   gap: 6px;
@@ -1730,29 +1737,45 @@ input {
   letter-spacing: 0.06em;
 }
 
-.history-card-status.is-locked {
+.exam-card-status.is-locked {
   border-color: rgba(176, 42, 55, 0.35);
   color: #9b111e;
   background: rgba(176, 42, 55, 0.12);
 }
 
-.history-card-status.is-draft {
+.exam-card-status.is-draft {
   border-color: rgba(11, 107, 58, 0.35);
   color: #0b6b3a;
   background: rgba(11, 107, 58, 0.12);
 }
 
-.history-card-status.is-graded {
+.exam-card-status.is-graded {
   border-color: rgba(15, 76, 129, 0.4);
   color: #0f4c81;
   background: rgba(15, 76, 129, 0.12);
 }
 
-.history-card-actions {
+.exam-card-actions {
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
   padding: 0 16px 16px;
+}
+
+.exam-card-badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.exam-card-badge {
+  font-size: 0.7rem;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(13, 74, 124, 0.15);
+  color: #0d4a7c;
+  font-weight: 700;
 }
 
 .list-item {

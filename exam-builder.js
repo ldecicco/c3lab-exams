@@ -39,6 +39,7 @@ let activeImageQuestionId = null;
 let lastPdfBlob = null;
 let lastPdfLatex = "";
 let imagePickerTarget = null;
+let examStatsCache = {};
 
 const metaFields = {
   metaExamName: "examName",
@@ -1198,69 +1199,58 @@ const loadExamHistory = async () => {
     const payload = await apiFetch("/api/exams");
     const exams = payload.exams || [];
     const filtered = filterExamHistory(exams);
+    examStatsCache = await loadExamStats();
     renderExamHistory(filtered);
   } catch (err) {
     examHistory.textContent = err.message;
   }
 };
 
-const renderExamHistory = (exams) => {
-  if (!examHistory) return;
-  examHistory.innerHTML = "";
-  if (!exams.length) {
-    examHistory.textContent = "Nessuna traccia salvata.";
-    return;
+const loadExamStats = async () => {
+  try {
+    const payload = await apiFetch("/api/exams/stats");
+    return payload.stats || {};
+  } catch {
+    return {};
   }
-  exams.forEach((exam) => {
-    const hasResults = Boolean(exam.has_results);
-    const item = createEl("div", "history-card");
-    const band = createEl("div", "history-card-band");
-    const body = createEl("div", "history-card-body");
-    const title = createEl("div", "history-card-title", exam.title);
-    const metaDate = exam.date ? formatDateDisplay(exam.date) : "data n/d";
-    const meta = createEl(
-      "div",
-      "history-card-meta",
-      `${exam.course_name} • ${metaDate} • ${exam.question_count} domande`
-    );
-    const statusLabel = exam.is_draft
-      ? "Bozza"
-      : hasResults
-        ? "Chiusa con valutazione"
-        : "Chiusa";
-    const status = createEl("span", "history-card-status", statusLabel);
-    status.classList.toggle("is-draft", exam.is_draft);
-    status.classList.toggle("is-locked", !exam.is_draft && !hasResults);
-    status.classList.toggle("is-graded", !exam.is_draft && hasResults);
-    const actions = createEl("div", "history-card-actions");
-    const loadBtn = createEl("button", "btn btn-outline-primary btn-sm", "Carica");
-    loadBtn.type = "button";
-    loadBtn.addEventListener("click", () => loadExam(exam.id));
-    const duplicateBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Duplica");
-    duplicateBtn.type = "button";
-    duplicateBtn.addEventListener("click", () => duplicateExam(exam.id));
-    const clearBtn = createEl("button", "btn btn-outline-warning btn-sm", "Svuota risultati");
-    clearBtn.type = "button";
-    clearBtn.classList.toggle("is-hidden", !hasResults);
-    clearBtn.addEventListener("click", () => clearExamResults(exam.id));
-    const deleteBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
-    deleteBtn.type = "button";
-    deleteBtn.disabled = hasResults;
-    deleteBtn.title = hasResults
-      ? "Esistono risultati salvati: svuota i risultati per eliminare."
-      : "";
-    deleteBtn.addEventListener("click", () => deleteExam(exam.id, hasResults));
-    actions.appendChild(loadBtn);
-    actions.appendChild(duplicateBtn);
-    actions.appendChild(clearBtn);
-    actions.appendChild(deleteBtn);
-    body.appendChild(title);
-    body.appendChild(meta);
-    body.appendChild(status);
-    item.appendChild(band);
-    item.appendChild(body);
-    item.appendChild(actions);
-    examHistory.appendChild(item);
+};
+
+const renderExamHistory = (exams) => {
+  if (!examHistory || !window.ExamCards) return;
+  ExamCards.render(examHistory, exams, {
+    emptyText: "Nessuna traccia salvata.",
+    stats: examStatsCache,
+    dateFormatter: formatDateDisplay,
+    actions: (exam) => {
+      const hasResults = Boolean(exam.has_results || exam.hasResults);
+      return [
+        {
+          label: "Carica",
+          className: "btn btn-outline-primary btn-sm",
+          onClick: () => loadExam(exam.id),
+        },
+        {
+          label: "Duplica",
+          className: "btn btn-outline-secondary btn-sm",
+          onClick: () => duplicateExam(exam.id),
+        },
+        {
+          label: "Svuota risultati",
+          className: "btn btn-outline-warning btn-sm",
+          hidden: !hasResults,
+          onClick: () => clearExamResults(exam.id),
+        },
+        {
+          label: "Elimina",
+          className: "btn btn-outline-danger btn-sm",
+          disabled: hasResults,
+          title: hasResults
+            ? "Esistono risultati salvati: svuota i risultati per eliminare."
+            : "",
+          onClick: () => deleteExam(exam.id, hasResults),
+        },
+      ];
+    },
   });
 };
 

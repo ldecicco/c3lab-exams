@@ -1,0 +1,372 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <title>Admin - Banco Domande</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <%- include('partials/nav', { active: 'admin' }) %>
+    <div class="bg-orbit"></div>
+    <div class="bg-grid"></div>
+
+    <!-- <header class="hero py-4">
+      <div class="brand container">
+        <div class="badge">FA</div>
+        <div>
+          <p class="overline mb-1">C3LAB • Fondamenti di Automatica</p>
+          <h1 class="h2 mb-0">Admin Banco Domande</h1>
+          <p class="subtitle">Gestisci corsi, argomenti e domande riutilizzabili.</p>
+        </div>
+      </div>
+    </header> -->
+
+    <main class="layout container-fluid admin-layout py-4">
+      <div class="builder-topbar grading-topbar admin-topbar">
+        <div class="builder-topbar-left">
+          <span class="builder-current-title">Banco domande</span>
+          <span class="chip is-hidden" id="adminEditBadgeTop">In modifica</span>
+        </div>
+        <div class="builder-topbar-right">
+          <div class="admin-course-picker">
+            <span class="admin-course-label">Corso</span>
+            <select id="adminCoursePicker" class="form-select"></select>
+          </div>
+          <button class="btn btn-outline-secondary" id="adminToolbarNew" type="button">
+            <i class="fa-solid fa-plus"></i>
+            Nuova domanda
+          </button>
+          <button class="btn btn-outline-secondary" id="adminToolbarBank" type="button">
+            <i class="fa-solid fa-layer-group"></i>
+            Lista domande
+          </button>
+          <button class="btn btn-outline-secondary" id="adminToolbarDuplicate" type="button">
+            <i class="fa-regular fa-clone"></i>
+            Duplica
+          </button>
+          <button class="btn btn-outline-primary" id="adminToolbarSave" type="button">
+            <i class="fa-regular fa-floppy-disk"></i>
+            Salva domanda
+          </button>
+          <button class="btn btn-outline-secondary" id="adminToolbarReset" type="button">
+            <i class="fa-solid fa-rotate-left"></i>
+            Reset
+          </button>
+        </div>
+      </div>
+      <div class="admin-actions">
+        <button class="btn btn-outline-primary" type="button" id="toggleCourses">Gestisci corsi</button>
+        <button class="btn btn-outline-primary" type="button" id="toggleTopics">Gestisci argomenti</button>
+        <button class="btn btn-outline-primary" type="button" id="toggleImages">Gestisci immagini</button>
+      </div>
+
+      <section class="card shadow-sm is-hidden" id="adminCoursesSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Corsi</h2>
+          <p class="text-secondary mb-0">Crea o elimina corsi disponibili.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Nuovo corso</span>
+            <div class="inline-actions">
+              <input id="adminCourseNew" class="form-control" type="text" placeholder="Fondamenti di Automatica" />
+              <button id="adminAddCourse" class="btn btn-outline-primary" type="button">Crea</button>
+            </div>
+          </label>
+        </div>
+        <div id="adminCourseList" class="list-panel"></div>
+      </section>
+
+      <section class="card shadow-sm is-hidden" id="adminTopicsSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Argomenti</h2>
+          <p class="text-secondary mb-0">Gestisci gli argomenti per corso.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Corso</span>
+            <select id="adminTopicCourse" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Nuovo argomento</span>
+            <div class="inline-actions">
+              <input id="adminTopicNew" class="form-control" type="text" placeholder="stabilita" />
+              <button id="adminAddTopic" class="btn btn-outline-primary" type="button">Crea</button>
+            </div>
+          </label>
+        </div>
+        <div id="adminTopicList" class="list-panel"></div>
+      </section>
+
+      <section class="card shadow-sm is-hidden" id="adminImagesSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Banco immagini</h2>
+          <p class="text-secondary mb-0">Carica e riusa immagini per corso.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Corso</span>
+            <select id="adminImageCourse" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Nome immagine</span>
+            <input id="adminImageName" class="form-control" type="text" placeholder="Sistema in anello chiuso" />
+          </label>
+          <label class="field">
+            <span>Descrizione (opzionale)</span>
+            <input id="adminImageDescription" class="form-control" type="text" placeholder="schema di controllo" />
+          </label>
+          <label class="field">
+            <span>File</span>
+            <input id="adminImageFile" class="form-control" type="file" />
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-primary" id="adminUploadImage" type="button">Carica immagine</button>
+        </div>
+        <div class="text-secondary small mt-2" id="adminImageStatus"></div>
+        <div id="adminImageList" class="image-bank"></div>
+      </section>
+
+      <div class="empty-state is-hidden" id="adminCourseEmpty">
+        <div class="empty-state-content">
+          <strong>Seleziona corso</strong>
+          <div class="text-secondary">Scegli un corso per iniziare a creare le domande.</div>
+        </div>
+      </div>
+
+      <div class="admin-question-layout" id="adminEditorWrap">
+          <div class="admin-question-block">
+            <div class="admin-question-header">
+              <h3 class="h6 mb-0">Nuova domanda</h3>
+              <span class="chip is-hidden" id="adminEditBadge">In modifica</span>
+            </div>
+            <!-- <div class="mini-steps">
+              <div class="mini-step is-active">Testo</div>
+              <span class="mini-step-sep"></span>
+              <div class="mini-step">Risposte</div>
+              <span class="mini-step-sep"></span>
+              <div class="mini-step">Immagine</div>
+              <span class="mini-step-sep"></span>
+              <div class="mini-step">Argomenti</div>
+            </div> -->
+            <div class="section-label">Impostazioni</div>
+            <details class="admin-accordion" open>
+              <summary>
+                <span>Argomenti</span>
+                <i class="fa-solid fa-chevron-down"></i>
+              </summary>
+              <div class="admin-accordion-body">
+                <div class="grid">
+                  <label class="field">
+                    <span>Tipo domanda</span>
+                    <div class="radio-group" id="adminQuestionType">
+                      <label class="radio-pill">
+                        <input type="radio" name="adminQuestionTypeOption" value="singola" checked />
+                        <span>Singola</span>
+                      </label>
+                      <label class="radio-pill">
+                        <input type="radio" name="adminQuestionTypeOption" value="multipla" />
+                        <span>Multipla</span>
+                      </label>
+                    </div>
+                  </label>
+                </div>
+                <div class="field">
+                  <span>Argomenti</span>
+                  <div id="adminQuestionTopics" class="topic-pills"></div>
+                </div>
+              </div>
+            </details>
+            <div class="section-divider"></div>
+            <div class="section-label">Testo domanda</div>
+            <label class="field">
+              <textarea id="adminQuestionText" class="form-control" rows="4"></textarea>
+            </label>
+            <div class="text-danger small is-hidden" id="adminQuestionError">
+              Errore LaTeX: controlla la sintassi della formula.
+            </div>
+            <div class="section-divider"></div>
+            <details class="admin-accordion" id="adminImageAccordion">
+              <summary>
+                <span class="accordion-title">Immagine</span>
+                <label class="accordion-toggle" title="Attiva layout con immagine">
+                  <input class="form-check-input" type="checkbox" id="adminQuestionImageLayout" />
+                </label>
+                <i class="fa-solid fa-chevron-down"></i>
+              </summary>
+              <div class="admin-accordion-body">
+                <label class="field">
+                  <span>Immagine</span>
+                  <div class="inline-actions">
+                    <button class="btn btn-outline-secondary" id="adminPickImage" type="button">Seleziona</button>
+                  </div>
+                </label>
+                <div class="layout-fields is-hidden" id="adminQuestionLayoutFields">
+                  <div class="layout-controls">
+                    <div class="field">
+                      <div class="field-header">
+                        <span>Layout colonne</span>
+                        <span class="field-hint" id="adminImageSplitLabel">Immagine 50% • Risposte 50%</span>
+                      </div>
+                      <div class="layout-preview" id="adminImageSplitPreview">
+                        <div class="layout-preview-image" style="width: 50%"></div>
+                        <div class="layout-preview-text" style="width: 50%"></div>
+                      </div>
+                      <input id="adminImageSplit" class="form-range" type="range" min="30" max="70" value="50" />
+                      <div class="preset-row" id="adminImageSplitPresets">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-split="40">40/60</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-split="50">50/50</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-split="60">60/40</button>
+                      </div>
+                    </div>
+                    <div class="field">
+                      <div class="field-header">
+                        <span>Dimensione immagine</span>
+                        <span class="field-hint" id="adminImageScaleLabel">96% della colonna</span>
+                      </div>
+                      <input id="adminImageScaleRange" class="form-range" type="range" min="60" max="100" value="96" />
+                      <div class="preset-row" id="adminImageScalePresets">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-scale="80">80%</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-scale="90">90%</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-scale="96">96%</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-scale="100">100%</button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </details>
+            <div class="section-divider"></div>
+            <div class="section-label">Risposte</div>
+            <div class="answers-builder">
+              <div class="answers-title">Risposte</div>
+              <div class="answers-actions">
+                <button class="btn btn-outline-secondary btn-sm" id="adminTemplateAnswers" type="button">
+                  Template A-D
+                </button>
+              </div>
+              <div class="text-danger small is-hidden" id="adminAnswersError">
+                Errore LaTeX in una risposta.
+              </div>
+              <div id="adminAnswers"></div>
+              <button class="btn btn-outline-primary btn-sm" id="adminAddAnswer" type="button">Aggiungi risposta</button>
+            </div>
+            <div class="actions">
+              <button class="btn btn-primary" id="adminSaveQuestion" type="button">Salva nel banco</button>
+              <button class="btn btn-outline-secondary" id="adminResetQuestion" type="button">Reset</button>
+            </div>
+            <div class="text-secondary small mt-2" id="adminQuestionStatus"></div>
+          </div>
+          <aside class="admin-preview-card">
+            <div class="preview-card-header">
+              <div>
+                <h3 class="h6 mb-1">Anteprima domanda</h3>
+                <div class="text-secondary small" id="adminPreviewMeta">Compila i campi per vedere l'anteprima.</div>
+              </div>
+              <div class="preview-toolbar">
+                <button class="btn btn-outline-secondary btn-sm" id="adminPreviewRefresh" type="button">
+                  <i class="fa-solid fa-rotate"></i>
+                  Aggiorna
+                </button>
+              </div>
+            </div>
+            <div id="adminPreviewQuestion" class="latex-preview-block"></div>
+            <div class="preview-image is-hidden" id="adminPreviewImageWrap">
+              <img id="adminPreviewImage" alt="" />
+              <div class="preview-image-meta" id="adminPreviewImageMeta"></div>
+            </div>
+            <div id="adminPreviewAnswers" class="preview-answer-list"></div>
+          </aside>
+      </div>
+    </main>
+
+    <!-- <footer class="footer">
+      <p>Gestione catalogo domande, corsi e argomenti.</p>
+    </footer> -->
+
+    <div class="modal-backdrop is-hidden" id="imagePickerBackdrop"></div>
+    <div class="modal-panel is-hidden" id="imagePickerModal" role="dialog" aria-modal="true" aria-labelledby="imagePickerTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="imagePickerTitle">Seleziona immagine</h3>
+        <button class="btn btn-outline-secondary btn-sm" type="button" id="imagePickerClose">Chiudi</button>
+      </div>
+      <div class="modal-body">
+        <div class="text-secondary small" id="imagePickerStatus"></div>
+        <div id="imagePickerList" class="image-bank modal-bank"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="imagePreviewBackdrop"></div>
+    <div class="modal-panel is-hidden" id="imagePreviewModal" role="dialog" aria-modal="true" aria-labelledby="imagePreviewTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="imagePreviewTitle">Anteprima immagine</h3>
+        <button class="btn btn-outline-secondary btn-sm" type="button" id="imagePreviewClose">Chiudi</button>
+      </div>
+      <div class="modal-body">
+        <div class="image-preview">
+          <img id="imagePreviewImg" alt="" />
+        </div>
+        <div class="image-preview-meta" id="imagePreviewMeta"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="bankModalBackdrop"></div>
+    <div class="modal-panel is-hidden" id="bankModal" role="dialog" aria-modal="true" aria-labelledby="bankModalTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="bankModalTitle">Banco domande</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="bankModalClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="grid">
+          <label class="field">
+            <span>Corso</span>
+            <select id="bankCourse" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Argomento</span>
+            <select id="bankTopic" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Ricerca</span>
+            <input id="bankSearch" class="form-control" type="text" placeholder="parola chiave" />
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-primary" id="refreshBank">Aggiorna elenco</button>
+        </div>
+        <div id="bankList" class="list-panel"></div>
+      </div>
+    </div>
+
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"
+    ></script>
+    <script
+      defer
+      src="https://cdn.jsdelivr.net/npm/latex.js/dist/latex.min.js"
+    ></script>
+    <script defer src="admin.js?v=5"></script>
+  </body>
+</html>

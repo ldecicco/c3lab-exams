@@ -19,6 +19,7 @@ const analysisTopbarSelectExam = document.getElementById("analysisTopbarSelectEx
 const analysisTopbarStatus = document.getElementById("analysisTopbarStatus");
 
 let examsCache = [];
+let examStatsCache = {};
 let currentExamId = null;
 let currentSessionId = null;
 let mapping = null;
@@ -173,48 +174,21 @@ const closeExamModal = () => {
 };
 
 const renderExamList = (exams) => {
-  if (!analysisExamList) return;
-  analysisExamList.innerHTML = "";
-  const closed = (exams || []).filter((exam) => !exam.is_draft);
-  if (!closed.length) {
-    analysisExamList.textContent = "Nessuna traccia chiusa disponibile.";
-    return;
-  }
-  closed.forEach((exam) => {
-    const card = document.createElement("div");
-    card.className = "history-card";
-    const band = document.createElement("div");
-    band.className = "history-card-band";
-    const body = document.createElement("div");
-    body.className = "history-card-body";
-    const title = document.createElement("div");
-    title.className = "history-card-title";
-    title.textContent = exam.title;
-    const metaDate = exam.date ? exam.date : "data n/d";
-    const meta = document.createElement("div");
-    meta.className = "history-card-meta";
-    meta.textContent = `${exam.course_name} • ${metaDate} • ${exam.question_count} domande`;
-    const status = document.createElement("span");
-    status.className = "history-card-status is-locked";
-    status.textContent = "Chiusa";
-    const actions = document.createElement("div");
-    actions.className = "history-card-actions";
-    const selectBtn = document.createElement("button");
-    selectBtn.className = "btn btn-outline-primary btn-sm";
-    selectBtn.type = "button";
-    selectBtn.textContent = "Seleziona";
-    selectBtn.addEventListener("click", () => {
-      loadExam(exam.id);
-      closeExamModal();
-    });
-    actions.appendChild(selectBtn);
-    body.appendChild(title);
-    body.appendChild(meta);
-    body.appendChild(status);
-    card.appendChild(band);
-    card.appendChild(body);
-    card.appendChild(actions);
-    analysisExamList.appendChild(card);
+  if (!analysisExamList || !window.ExamCards) return;
+  ExamCards.render(analysisExamList, exams, {
+    emptyText: "Nessuna traccia chiusa disponibile.",
+    filter: (exam) => !exam.is_draft,
+    stats: examStatsCache,
+    actions: (exam) => [
+      {
+        label: "Seleziona",
+        className: "btn btn-outline-primary btn-sm",
+        onClick: () => {
+          loadExam(exam.id);
+          closeExamModal();
+        },
+      },
+    ],
   });
 };
 
@@ -526,6 +500,7 @@ const loadExams = async () => {
     }
     const payload = await response.json();
     examsCache = payload.exams || [];
+    examStatsCache = await loadExamStats();
     renderExamList(examsCache);
     updateDashboardVisibility(false);
     updateTopbarStatus("Nessuna traccia", false);
@@ -533,6 +508,17 @@ const loadExams = async () => {
     analysisExamList.textContent = "Errore nel caricamento tracce.";
     updateTopbarStatus("Nessuna traccia", false);
     updateDashboardVisibility(false);
+  }
+};
+
+const loadExamStats = async () => {
+  try {
+    const response = await fetch("/api/exams/stats");
+    if (!response.ok) return {};
+    const payload = await response.json();
+    return payload.stats || {};
+  } catch {
+    return {};
   }
 };
 
