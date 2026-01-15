@@ -23,11 +23,12 @@
       <a href="exam-builder.html" class="nav-link">Tracce</a>
       <a href="admin.html" class="nav-link">Admin</a>
       <a href="index.html" class="nav-link active">Registro</a>
+      <a href="dashboard.html" class="nav-link">Analisi</a>
     </nav>
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
 
-    <main class="layout container py-4">
+    <main class="layout container-fluid admin-layout py-4">
       <div class="builder-topbar grading-topbar">
         <div class="builder-topbar-left">
           <button class="btn btn-outline-secondary" id="topbarSelectExam" type="button">
@@ -238,6 +239,19 @@
       <div class="modal-body">
         <div class="template-status text-secondary" id="mappingStatus">Nessuna traccia selezionata.</div>
         <div class="text-secondary small" id="examInfo"></div>
+        <details class="session-panel">
+          <summary>Sessioni di correzione</summary>
+          <div class="session-panel-body">
+            <label class="field">
+              <span>Sessione</span>
+              <select id="sessionSelect" class="form-select"></select>
+            </label>
+            <button class="btn btn-outline-secondary" id="newSession" type="button">
+              <i class="fa-solid fa-plus"></i>
+              Nuova sessione
+            </button>
+          </div>
+        </details>
         <div id="examHistory" class="history-grid"></div>
       </div>
     </div>

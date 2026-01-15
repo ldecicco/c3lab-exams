@@ -55,6 +55,8 @@ const topbarExportPdf = document.getElementById("topbarExportPdf");
 const topbarExportXls = document.getElementById("topbarExportXls");
 const topbarClear = document.getElementById("topbarClear");
 const emptySelectExam = document.getElementById("emptySelectExam");
+const sessionSelect = document.getElementById("sessionSelect");
+const newSessionBtn = document.getElementById("newSession");
 
 let questionCount = 0;
 let students = [];
@@ -64,6 +66,9 @@ let esse3Base64 = "";
 let examsCache = [];
 let examQuestions = [];
 let toastTimer = null;
+let currentExamId = null;
+let currentSessionId = null;
+let sessionSaveTimer = null;
 
 const showToast = (message, tone = "info") => {
   if (!gradingToast) return;
@@ -94,6 +99,115 @@ const updateExamVisibility = (hasExam) => {
   examSections.forEach((section) => {
     section.classList.toggle("is-hidden", !hasExam);
   });
+};
+
+const formatSessionTitle = (dateValue) => {
+  const label = dateValue ? `Sessione ${dateValue}` : "Sessione";
+  const suffix = new Date().toLocaleString("it-IT", { dateStyle: "short", timeStyle: "short" });
+  return `${label} · ${suffix}`;
+};
+
+const renderSessionSelect = (sessions, selectedId) => {
+  if (!sessionSelect) return;
+  sessionSelect.innerHTML = "";
+  if (!sessions.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Nessuna sessione";
+    sessionSelect.appendChild(opt);
+    sessionSelect.disabled = true;
+    return;
+  }
+  sessions.forEach((session) => {
+    const opt = document.createElement("option");
+    opt.value = String(session.id);
+    const dateLabel = session.result_date ? ` · ${session.result_date}` : "";
+    const title = session.title ? session.title : `Sessione ${session.id}`;
+    opt.textContent = `${title}${dateLabel}`;
+    if (session.id === selectedId) opt.selected = true;
+    sessionSelect.appendChild(opt);
+  });
+  sessionSelect.disabled = false;
+};
+
+const loadSession = async (sessionId) => {
+  if (!sessionId) return;
+  try {
+    const response = await fetch(`/api/sessions/${sessionId}`);
+    if (!response.ok) {
+      showToast("Errore nel caricamento sessione.", "error");
+      return;
+    }
+    const payload = await response.json();
+    currentSessionId = payload.session.id;
+    students = payload.students || [];
+    persistStudents();
+    resultDateInput.value = payload.session.result_date || "";
+    renderTable();
+    renderGrading();
+    showToast("Sessione caricata.", "success");
+  } catch {
+    showToast("Errore nel caricamento sessione.", "error");
+  }
+};
+
+const saveSession = async () => {
+  if (!currentSessionId) return;
+  try {
+    const payload = {
+      title: sessionSelect?.selectedOptions?.[0]?.textContent || null,
+      resultDate: resultDateInput.value || "",
+      students,
+    };
+    await fetch(`/api/sessions/${currentSessionId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    showToast("Errore nel salvataggio sessione.", "error");
+  }
+};
+
+const scheduleSaveSession = () => {
+  if (!currentSessionId) return;
+  if (sessionSaveTimer) clearTimeout(sessionSaveTimer);
+  sessionSaveTimer = setTimeout(() => {
+    saveSession();
+  }, 500);
+};
+
+const loadSessionsForExam = async (examId) => {
+  if (!examId) return;
+  try {
+    const response = await fetch(`/api/exams/${examId}/sessions`);
+    if (!response.ok) {
+      renderSessionSelect([], null);
+      return;
+    }
+    const payload = await response.json();
+    const sessions = payload.sessions || [];
+    renderSessionSelect(sessions, currentSessionId);
+    if (!sessions.length) {
+      const title = formatSessionTitle(resultDateInput.value || "");
+      const createResponse = await fetch(`/api/exams/${examId}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
+      });
+      if (!createResponse.ok) return;
+      const info = await createResponse.json();
+      currentSessionId = info.id;
+      await loadSessionsForExam(examId);
+      return;
+    }
+    if (!currentSessionId) {
+      currentSessionId = sessions[0].id;
+      await loadSession(currentSessionId);
+    }
+  } catch {
+    renderSessionSelect([], null);
+  }
 };
 
 const renderLatexHtml = (source, target) => {
@@ -435,6 +549,7 @@ const addStudent = (event) => {
   persistStudents();
   renderTable();
   renderGrading();
+  scheduleSaveSession();
   studentForm.reset();
   clearSelections();
   editingIndex = null;
@@ -510,6 +625,7 @@ const renderTable = () => {
       persistStudents();
       renderTable();
       renderGrading();
+      scheduleSaveSession();
     });
   });
 
@@ -697,6 +813,7 @@ const loadMappingFromExam = async (selectedId) => {
     updateExamVisibility(false);
     return;
   }
+  currentExamId = parsedId;
   mappingStatus.textContent = "Caricamento mapping in corso...";
   try {
     const response = await fetch(`/api/exams/${parsedId}/mapping`);
@@ -730,6 +847,7 @@ const loadMappingFromExam = async (selectedId) => {
     applyCorrectHints();
     updatePerQuestionScores();
     updateExamInfo(parsedId);
+    await loadSessionsForExam(parsedId);
   } catch {
     mappingStatus.textContent = "Errore nel mapping.";
     setMappingBadge("Nessuna traccia", false);
@@ -853,6 +971,7 @@ const importEsse3 = async () => {
   persistStudents();
   renderTable();
   renderGrading();
+  scheduleSaveSession();
   skipped = (payload.students || []).length - added;
   showToast(
     `${file.name} • Import completato: ${added} aggiunti, ${skipped} duplicati ignorati.`,
@@ -1089,6 +1208,7 @@ const clearAll = () => {
   persistStudents();
   renderTable();
   renderGrading();
+  scheduleSaveSession();
 };
 
 const openClearResultsModal = () => {
@@ -1185,6 +1305,11 @@ if (esse3FileInput) {
     importEsse3();
   });
 }
+if (resultDateInput) {
+  resultDateInput.addEventListener("change", () => {
+    scheduleSaveSession();
+  });
+}
 if (studentSearchInput) {
   studentSearchInput.addEventListener("input", renderTable);
 }
@@ -1216,6 +1341,39 @@ if (topbarExportXls) {
 if (topbarClear) {
   topbarClear.addEventListener("click", () => {
     if (clearBtn) clearBtn.click();
+  });
+}
+if (sessionSelect) {
+  sessionSelect.addEventListener("change", () => {
+    const nextId = Number(sessionSelect.value);
+    if (!Number.isFinite(nextId)) return;
+    loadSession(nextId);
+  });
+}
+if (newSessionBtn) {
+  newSessionBtn.addEventListener("click", async () => {
+    if (!currentExamId) {
+      showToast("Seleziona una traccia prima di creare una sessione.", "error");
+      return;
+    }
+    const title = formatSessionTitle(resultDateInput.value || "");
+    try {
+      const response = await fetch(`/api/exams/${currentExamId}/sessions`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
+      });
+      if (!response.ok) {
+        showToast("Errore nella creazione sessione.", "error");
+        return;
+      }
+      const info = await response.json();
+      currentSessionId = info.id;
+      await loadSessionsForExam(currentExamId);
+      await loadSession(currentSessionId);
+    } catch {
+      showToast("Errore nella creazione sessione.", "error");
+    }
   });
 }
 exportResultsPdfBtn.addEventListener("click", async () => {

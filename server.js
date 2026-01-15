@@ -1376,6 +1376,165 @@ app.get("/api/exams/:id/mapping", (req, res) => {
   res.json({ mapping: JSON.parse(row.mapping_json) });
 });
 
+app.get("/api/exams/:id/sessions", (req, res) => {
+  const examId = Number(req.params.id);
+  if (!Number.isFinite(examId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const exists = db.prepare("SELECT id FROM exams WHERE id = ?").get(examId);
+  if (!exists) {
+    res.status(404).json({ error: "Esame non trovato" });
+    return;
+  }
+  const rows = db
+    .prepare(
+      `SELECT s.id, s.title, s.result_date, s.created_at, s.updated_at,
+              COUNT(st.id) AS student_count
+         FROM exam_sessions s
+         LEFT JOIN exam_session_students st ON st.session_id = s.id
+        WHERE s.exam_id = ?
+        GROUP BY s.id
+        ORDER BY s.created_at DESC`
+    )
+    .all(examId);
+  res.json({ sessions: rows });
+});
+
+app.post("/api/exams/:id/sessions", (req, res) => {
+  const examId = Number(req.params.id);
+  if (!Number.isFinite(examId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const exists = db.prepare("SELECT id FROM exams WHERE id = ?").get(examId);
+  if (!exists) {
+    res.status(404).json({ error: "Esame non trovato" });
+    return;
+  }
+  const payload = req.body || {};
+  const title = payload.title ? String(payload.title).trim() : null;
+  const resultDate = payload.resultDate ? String(payload.resultDate).trim() : null;
+  const info = db
+    .prepare(
+      `INSERT INTO exam_sessions (exam_id, title, result_date, created_at, updated_at)
+       VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+    )
+    .run(examId, title, resultDate);
+  res.status(201).json({ id: info.lastInsertRowid });
+});
+
+app.get("/api/sessions/:id", (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isFinite(sessionId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const session = db
+    .prepare(
+      `SELECT id, exam_id, title, result_date, created_at, updated_at
+         FROM exam_sessions WHERE id = ?`
+    )
+    .get(sessionId);
+  if (!session) {
+    res.status(404).json({ error: "Sessione non trovata" });
+    return;
+  }
+  const students = db
+    .prepare(
+      `SELECT matricola, nome, cognome, versione, answers_json, overrides_json
+         FROM exam_session_students
+        WHERE session_id = ?
+        ORDER BY created_at DESC`
+    )
+    .all(sessionId)
+    .map((row) => ({
+      matricola: row.matricola,
+      nome: row.nome || "",
+      cognome: row.cognome || "",
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    }));
+  res.json({ session, students });
+});
+
+app.put("/api/sessions/:id", (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isFinite(sessionId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const session = db.prepare("SELECT id FROM exam_sessions WHERE id = ?").get(sessionId);
+  if (!session) {
+    res.status(404).json({ error: "Sessione non trovata" });
+    return;
+  }
+  const payload = req.body || {};
+  const title = payload.title ? String(payload.title).trim() : null;
+  const resultDate = payload.resultDate ? String(payload.resultDate).trim() : null;
+  const students = Array.isArray(payload.students) ? payload.students : [];
+
+  const updateSession = db.prepare(
+    `UPDATE exam_sessions
+        SET title = ?, result_date = ?, updated_at = datetime('now')
+      WHERE id = ?`
+  );
+  const deleteStudents = db.prepare(
+    "DELETE FROM exam_session_students WHERE session_id = ?"
+  );
+  const insertStudent = db.prepare(
+    `INSERT INTO exam_session_students
+      (session_id, matricola, nome, cognome, versione, answers_json, overrides_json, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+  );
+
+  const tx = db.transaction(() => {
+    updateSession.run(title, resultDate, sessionId);
+    deleteStudents.run(sessionId);
+    students.forEach((student) => {
+      if (!student || !student.matricola) return;
+      const answers = Array.isArray(student.answers) ? student.answers : [];
+      const overrides = Array.isArray(student.overrides) ? student.overrides : [];
+      insertStudent.run(
+        sessionId,
+        String(student.matricola).trim(),
+        student.nome ? String(student.nome).trim() : "",
+        student.cognome ? String(student.cognome).trim() : "",
+        student.versione ? Number(student.versione) : null,
+        JSON.stringify(answers),
+        JSON.stringify(overrides)
+      );
+    });
+  });
+
+  try {
+    tx();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: err.message || "Errore salvataggio sessione" });
+  }
+});
+
+app.delete("/api/sessions/:id", (req, res) => {
+  const sessionId = Number(req.params.id);
+  if (!Number.isFinite(sessionId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const session = db.prepare("SELECT id FROM exam_sessions WHERE id = ?").get(sessionId);
+  if (!session) {
+    res.status(404).json({ error: "Sessione non trovata" });
+    return;
+  }
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM exam_session_students WHERE session_id = ?").run(sessionId);
+    db.prepare("DELETE FROM exam_sessions WHERE id = ?").run(sessionId);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 app.delete("/api/exams/:id", (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
