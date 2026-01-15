@@ -677,7 +677,40 @@ const renderMathPreview = (source, target, input) => {
 const renderMathDisplay = (source, target) => {
   if (!target) return;
   const trimmed = String(source || "").trim();
-  target.textContent = trimmed;
+  target.innerHTML = "";
+  if (!trimmed) return;
+  let rendered = false;
+  if (window.latexjs && typeof window.latexjs.parse === "function") {
+    try {
+      const generator = window.latexjs.parse(trimmed, { strict: false });
+      let html = "";
+      if (typeof generator.htmlDocument === "function") {
+        html = generator.htmlDocument();
+      } else if (typeof generator.html === "function") {
+        html = generator.html();
+      } else if (typeof generator.toHTML === "function") {
+        html = generator.toHTML();
+      } else if (generator.html) {
+        html = generator.html;
+      }
+      if (html) {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        const body = template.content.querySelector("body");
+        if (body) {
+          target.append(...Array.from(body.childNodes));
+        } else {
+          target.append(...Array.from(template.content.childNodes));
+        }
+        rendered = true;
+      }
+    } catch {
+      rendered = false;
+    }
+  }
+  if (!rendered) {
+    target.textContent = trimmed;
+  }
   if (typeof window.renderMathInElement !== "function") return;
   try {
     window.renderMathInElement(target, {
@@ -690,7 +723,7 @@ const renderMathDisplay = (source, target) => {
       throwOnError: false,
     });
   } catch {
-    target.textContent = trimmed;
+    if (!rendered) target.textContent = trimmed;
   }
 };
 

@@ -106,9 +106,34 @@ db.exec(`
     FOREIGN KEY(exam_id) REFERENCES exams(id),
     FOREIGN KEY(question_id) REFERENCES questions(id)
   );
+  CREATE TABLE IF NOT EXISTS exam_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    exam_id INTEGER NOT NULL,
+    title TEXT,
+    result_date TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(exam_id) REFERENCES exams(id)
+  );
+  CREATE TABLE IF NOT EXISTS exam_session_students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    session_id INTEGER NOT NULL,
+    matricola TEXT NOT NULL,
+    nome TEXT,
+    cognome TEXT,
+    versione INTEGER,
+    answers_json TEXT NOT NULL,
+    overrides_json TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(session_id, matricola),
+    FOREIGN KEY(session_id) REFERENCES exam_sessions(id)
+  );
   CREATE INDEX IF NOT EXISTS idx_images_course ON images(course_id);
   CREATE INDEX IF NOT EXISTS idx_exam_questions_exam ON exam_questions(exam_id);
   CREATE INDEX IF NOT EXISTS idx_questions_updated ON questions(updated_at);
+  CREATE INDEX IF NOT EXISTS idx_exam_sessions_exam ON exam_sessions(exam_id);
+  CREATE INDEX IF NOT EXISTS idx_exam_session_students_session ON exam_session_students(session_id);
 `);
 
 const ensureColumn = (table, column, definition) => {
@@ -1372,6 +1397,8 @@ app.post("/api/results-pdf", (req, res) => {
     const uni = `Politecnico di Bari${date ? " - " + date : ""}`;
     // const note = "N.B. E' obbligatorio scrivere il proprio nome, cognome e matricola su tutti i fogli.";
     const logoPath = path.join(__dirname, "logo_poliba_esteso_trasparente.png");
+    const fontRegularPath = path.join(__dirname, "fonts", "Roboto-Regular.ttf");
+    const fontBoldPath = path.join(__dirname, "fonts", "Roboto-Bold.ttf");
 
     const doc = new PDFDocument({ size: "A4", margin: 40 });
     res.setHeader("Content-Type", "application/pdf");
@@ -1382,9 +1409,18 @@ app.post("/api/results-pdf", (req, res) => {
       doc.image(logoPath, 40, 32, { width: 120 });
     }
 
-    doc.font("Times-Bold").fontSize(14).text(title, 180, 36, { align: "right" });
-    doc.font("Times-Roman").fontSize(11).text(department, 180, 56, { align: "right" });
-    doc.font("Times-Roman").fontSize(11).text(uni, 180, 72, { align: "right" });
+    let fontRegular = "Times-Roman";
+    let fontBold = "Times-Bold";
+    if (fs.existsSync(fontRegularPath) && fs.existsSync(fontBoldPath)) {
+      doc.registerFont("Roboto", fontRegularPath);
+      doc.registerFont("Roboto-Bold", fontBoldPath);
+      fontRegular = "Roboto";
+      fontBold = "Roboto-Bold";
+    }
+
+    doc.font(fontBold).fontSize(14).text(title, 180, 36, { align: "right" });
+    doc.font(fontRegular).fontSize(11).text(department, 180, 56, { align: "right" });
+    doc.font(fontRegular).fontSize(11).text(uni, 180, 72, { align: "right" });
     // doc.font("Times-Italic").fontSize(9).text(note, 180, 90, { align: "right" });
 
     doc.moveDown(4);
@@ -1393,8 +1429,11 @@ app.post("/api/results-pdf", (req, res) => {
 
     const startY = doc.y;
     const colX = [40, 160, 290, 400, 480];
+    const tableLeft = 40;
+    const tableRight = 555;
+    const rowHeight = 16;
     const headers = ["Matricola", "Nome", "Cognome", "Voto / 30", "Voto norm."];
-    doc.font("Times-Bold").fontSize(10);
+    doc.font(fontBold).fontSize(10);
     headers.forEach((h, idx) => {
       doc.text(h, colX[idx], startY, { width: colX[idx + 1] ? colX[idx + 1] - colX[idx] - 10 : 80 });
     });
@@ -1402,18 +1441,26 @@ app.post("/api/results-pdf", (req, res) => {
     doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
     doc.moveDown(0.4);
 
-    doc.font("Times-Roman").fontSize(10);
-    rows.forEach((row) => {
-      const y = doc.y;
-      if (y > 760) {
+    doc.font(fontRegular).fontSize(10);
+    rows.forEach((row, idx) => {
+      let y = doc.y;
+      if (y + rowHeight > 760) {
         doc.addPage();
+        y = doc.y;
       }
-      doc.text(String(row.matricola || ""), colX[0], y, { width: 110 });
-      doc.text(String(row.nome || ""), colX[1], y, { width: 120 });
-      doc.text(String(row.cognome || ""), colX[2], y, { width: 100 });
-      doc.text(String(row.grade || ""), colX[3], y, { width: 70 });
-      doc.text(String(row.gradeNorm || ""), colX[4], y, { width: 60 });
-      doc.moveDown(0.4);
+      if (idx % 2 === 0) {
+        doc.save();
+        doc.fillColor("#f3f6fb");
+        doc.rect(tableLeft, y - 2, tableRight - tableLeft, rowHeight).fill();
+        doc.restore();
+      }
+      doc.fillColor("#000");
+      doc.text(String(row.matricola ?? ""), colX[0], y, { width: 110, lineBreak: false });
+      doc.text(String(row.nome ?? ""), colX[1], y, { width: 120, lineBreak: false });
+      doc.text(String(row.cognome ?? ""), colX[2], y, { width: 100, lineBreak: false });
+      doc.text(String(row.grade ?? ""), colX[3], y, { width: 70, lineBreak: false });
+      doc.text(String(row.gradeNorm ?? ""), colX[4], y, { width: 60, lineBreak: false });
+      doc.y = y + rowHeight;
     });
 
     doc.end();

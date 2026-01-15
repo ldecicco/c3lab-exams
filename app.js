@@ -1,15 +1,12 @@
 const STORAGE_KEY = "c3lab-exam-registry";
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
 
-const templateStatus = document.getElementById("templateStatus");
 const answersGrid = document.getElementById("answersGrid");
 const mappingStatus = document.getElementById("mappingStatus");
-const examSelect = document.getElementById("examSelect");
-const loadExamMappingBtn = document.getElementById("loadExamMapping");
+const examHistory = document.getElementById("examHistory");
 const examInfo = document.getElementById("examInfo");
 const esse3FileInput = document.getElementById("esse3File");
 const importEsse3Btn = document.getElementById("importEsse3");
-const esse3Status = document.getElementById("esse3Status");
 
 const studentForm = document.getElementById("studentForm");
 const matricolaInput = document.getElementById("matricola");
@@ -23,6 +20,11 @@ const studentsTable = document.getElementById("studentsTable");
 const exportBtn = document.getElementById("exportCsv");
 const exportRBtn = document.getElementById("exportCsvR");
 const clearBtn = document.getElementById("clearAll");
+const clearResultsBackdrop = document.getElementById("clearResultsBackdrop");
+const clearResultsModal = document.getElementById("clearResultsModal");
+const clearResultsCloseBtn = document.getElementById("clearResultsClose");
+const clearResultsCancelBtn = document.getElementById("clearResultsCancel");
+const confirmClearResultsBtn = document.getElementById("confirmClearResults");
 const gradingStatus = document.getElementById("gradingStatus");
 const gradingStats = document.getElementById("gradingStats");
 const exportGradedBtn = document.getElementById("exportGradedCsv");
@@ -32,9 +34,27 @@ const exportResultsPdfBtn = document.getElementById("exportResultsPdf");
 const exportResultsXlsBtn = document.getElementById("exportResultsXls");
 const resultDateInput = document.getElementById("resultDate");
 const esse3ResultsFileInput = document.getElementById("esse3ResultsFile");
-const currentTopGradeInput = document.getElementById("currentTopGrade");
 const targetTopGradeInput = document.getElementById("targetTopGrade");
+const currentTopGradeBadge = document.getElementById("currentTopGradeBadge");
 const gradingFactor = document.getElementById("gradingFactor");
+const gradingToast = document.getElementById("gradingToast");
+const studentSearchInput = document.getElementById("studentSearch");
+const gradingProgress = document.getElementById("gradingProgress");
+const gradingProgressLabel = document.getElementById("gradingProgressLabel");
+const examPreviewBackdrop = document.getElementById("examPreviewBackdrop");
+const examPreviewModal = document.getElementById("examPreviewModal");
+const examPreviewCloseBtn = document.getElementById("examPreviewClose");
+const examPreviewBody = document.getElementById("examPreviewBody");
+const examHistoryBackdrop = document.getElementById("examHistoryBackdrop");
+const examHistoryModal = document.getElementById("examHistoryModal");
+const examHistoryCloseBtn = document.getElementById("examHistoryClose");
+const mappingBadge = document.getElementById("mappingBadge");
+const topbarSelectExam = document.getElementById("topbarSelectExam");
+const topbarImportEsse3 = document.getElementById("topbarImportEsse3");
+const topbarExportPdf = document.getElementById("topbarExportPdf");
+const topbarExportXls = document.getElementById("topbarExportXls");
+const topbarClear = document.getElementById("topbarClear");
+const emptySelectExam = document.getElementById("emptySelectExam");
 
 let questionCount = 0;
 let students = [];
@@ -42,6 +62,235 @@ let mapping = null;
 let editingIndex = null;
 let esse3Base64 = "";
 let examsCache = [];
+let examQuestions = [];
+let toastTimer = null;
+
+const showToast = (message, tone = "info") => {
+  if (!gradingToast) return;
+  gradingToast.textContent = message;
+  gradingToast.classList.remove("is-error", "is-success");
+  if (tone === "error") gradingToast.classList.add("is-error");
+  if (tone === "success") gradingToast.classList.add("is-success");
+  gradingToast.classList.add("show");
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => {
+    gradingToast.classList.remove("show");
+  }, 2600);
+};
+
+const setMappingBadge = (text, isActive = false) => {
+  if (!mappingBadge) return;
+  mappingBadge.textContent = text;
+  mappingBadge.classList.toggle("is-active", isActive);
+};
+
+const examSections = Array.from(document.querySelectorAll(".exam-section"));
+const examEmptyState = document.getElementById("examEmptyState");
+
+const updateExamVisibility = (hasExam) => {
+  if (examEmptyState) {
+    examEmptyState.classList.toggle("is-hidden", hasExam);
+  }
+  examSections.forEach((section) => {
+    section.classList.toggle("is-hidden", !hasExam);
+  });
+};
+
+const renderLatexHtml = (source, target) => {
+  if (!target) return;
+  const trimmed = String(source || "").trim();
+  target.innerHTML = "";
+  if (!trimmed) return;
+  let rendered = false;
+  if (window.latexjs && typeof window.latexjs.parse === "function") {
+    try {
+      const generator = window.latexjs.parse(trimmed, { strict: false });
+      let html = "";
+      if (typeof generator.htmlDocument === "function") {
+        html = generator.htmlDocument();
+      } else if (typeof generator.html === "function") {
+        html = generator.html();
+      } else if (typeof generator.toHTML === "function") {
+        html = generator.toHTML();
+      } else if (generator.html) {
+        html = generator.html;
+      }
+      if (html) {
+        const template = document.createElement("template");
+        template.innerHTML = html;
+        const body = template.content.querySelector("body");
+        if (body) {
+          target.append(...Array.from(body.childNodes));
+        } else {
+          target.append(...Array.from(template.content.childNodes));
+        }
+        rendered = true;
+      }
+    } catch {
+      rendered = false;
+    }
+  }
+  if (!rendered) {
+    target.textContent = trimmed;
+  }
+  if (typeof window.renderMathInElement !== "function") return;
+  try {
+    window.renderMathInElement(target, {
+      delimiters: [
+        { left: "$$", right: "$$", display: true },
+        { left: "$", right: "$", display: false },
+        { left: "\\(", right: "\\)", display: false },
+        { left: "\\[", right: "\\]", display: true },
+      ],
+      throwOnError: false,
+    });
+  } catch {
+    if (!rendered) target.textContent = trimmed;
+  }
+};
+
+const formatName = (value) => {
+  const cleaned = String(value || "").trim().toLowerCase();
+  if (!cleaned) return "";
+  const cap = (word) => {
+    return word
+      .split("'")
+      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
+      .join("'");
+  };
+  return cleaned
+    .split(/\s+/)
+    .map((word) =>
+      word
+        .split("-")
+        .map((part) => cap(part))
+        .join("-")
+    )
+    .join(" ");
+};
+
+const buildDisplayedAnswers = (question, originalIndex, version) => {
+  const rawAnswers = Array.isArray(question.answers) ? question.answers : [];
+  if (!mapping || !mapping.randomizedanswersdictionary) {
+    return rawAnswers.map((ans) => ({
+      text: ans.text || "",
+      isCorrect: Boolean(ans.isCorrect),
+    }));
+  }
+  const adict = mapping.randomizedanswersdictionary[version - 1];
+  const cdict = mapping.correctiondictionary;
+  if (!adict || !adict[originalIndex] || !cdict || !cdict[originalIndex]) {
+    return rawAnswers.map((ans) => ({
+      text: ans.text || "",
+      isCorrect: Boolean(ans.isCorrect),
+    }));
+  }
+  const displayedOrder = adict[originalIndex];
+  return displayedOrder
+    .map((origIdx) => {
+      const answer = rawAnswers[origIdx - 1];
+      if (!answer) return null;
+      const correctRow = cdict[originalIndex] || [];
+      return {
+        text: answer.text || "",
+        isCorrect: Boolean(correctRow[origIdx - 1] > 0),
+      };
+    })
+    .filter(Boolean);
+};
+
+const renderExamPreview = (question, index, originalIndex, version) => {
+  if (!examPreviewBody) return;
+  examPreviewBody.innerHTML = "";
+  const badgeRow = document.createElement("div");
+  badgeRow.className = "preview-badges";
+  const badge = document.createElement("div");
+  badge.className = "selected-question-badge";
+  badge.style.position = "static";
+  badge.textContent = `Es. ${index}`;
+  const versionBadge = document.createElement("span");
+  versionBadge.className = "preview-badge-muted";
+  versionBadge.textContent = `Versione ${version}`;
+  const text = document.createElement("div");
+  text.className = "selected-question-text";
+  renderLatexHtml(question.text || "", text);
+  badgeRow.appendChild(badge);
+  badgeRow.appendChild(versionBadge);
+  examPreviewBody.appendChild(badgeRow);
+  examPreviewBody.appendChild(text);
+  if (question.imagePath) {
+    const imgWrap = document.createElement("div");
+    imgWrap.className = "selected-question-image";
+    const img = document.createElement("img");
+    img.className = "selected-preview-thumb";
+    img.src = question.imagePath;
+    img.alt = question.imagePath;
+    imgWrap.appendChild(img);
+    examPreviewBody.appendChild(imgWrap);
+  }
+  const displayedAnswers = buildDisplayedAnswers(question, originalIndex, version);
+  if (displayedAnswers.length) {
+    const list = document.createElement("div");
+    list.className = "selected-question-answers";
+    displayedAnswers
+      .filter((ans) => String(ans.text || "").trim() !== "")
+      .forEach((answer, idx) => {
+        const row = document.createElement("div");
+        row.className = "selected-question-answer";
+        const label = document.createElement("span");
+        label.className = "selected-preview-answer-label";
+        label.textContent = `${idx + 1}.`;
+        const textEl = document.createElement("span");
+        textEl.className = "selected-preview-answer-text";
+        renderLatexHtml(answer.text || "", textEl);
+        row.appendChild(label);
+        row.appendChild(textEl);
+        if (answer.isCorrect) {
+          const tick = document.createElement("span");
+          tick.className = "answer-tick";
+          tick.innerHTML =
+            '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+          row.appendChild(tick);
+        }
+        list.appendChild(row);
+      });
+    examPreviewBody.appendChild(list);
+  }
+};
+
+const getQuestionIndexForVersion = (displayedIndex, version) => {
+  if (!mapping || !mapping.questiondictionary) return displayedIndex - 1;
+  const qdict = mapping.questiondictionary[version - 1];
+  if (!qdict || !Array.isArray(qdict)) return displayedIndex - 1;
+  const mapped = qdict[displayedIndex - 1];
+  if (!mapped) return displayedIndex - 1;
+  return mapped - 1;
+};
+
+const openExamPreview = (index, version) => {
+  if (!examPreviewModal || !examPreviewBackdrop) return;
+  if (!examQuestions.length) {
+    mappingStatus.textContent = "Nessuna domanda disponibile per l'anteprima.";
+    showToast("Nessuna domanda disponibile per l'anteprima.", "error");
+    return;
+  }
+  const mappedIndex = getQuestionIndexForVersion(index, version);
+  const question = examQuestions[mappedIndex];
+  if (!question) {
+    mappingStatus.textContent = "Domanda non trovata.";
+    showToast("Domanda non trovata.", "error");
+    return;
+  }
+  renderExamPreview(question, index, mappedIndex, version);
+  examPreviewModal.classList.remove("is-hidden");
+  examPreviewBackdrop.classList.remove("is-hidden");
+};
+
+const closeExamPreview = () => {
+  if (examPreviewModal) examPreviewModal.classList.add("is-hidden");
+  if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
+  if (examPreviewBody) examPreviewBody.innerHTML = "";
+};
 
 const renderAnswerGrid = () => {
   answersGrid.innerHTML = "";
@@ -55,8 +304,17 @@ const renderAnswerGrid = () => {
     row.className = "answer-row";
 
     const label = document.createElement("div");
-    label.className = "answer-label";
+    label.className = "answer-label is-clickable";
     label.textContent = `Es. ${i}`;
+    label.addEventListener("click", () => {
+      const version = Number(versioneInput?.value || "");
+      if (!Number.isFinite(version) || version < 1) {
+        mappingStatus.textContent = "Inserisci la versione del compito per l'anteprima.";
+        showToast("Inserisci la versione del compito per l'anteprima.", "error");
+        return;
+      }
+      openExamPreview(i, version);
+    });
 
     const options = document.createElement("div");
     options.className = "answer-options";
@@ -185,28 +443,61 @@ const addStudent = (event) => {
 
 const renderTable = () => {
   studentsTable.innerHTML = "";
+  const query = String(studentSearchInput?.value || "").trim().toLowerCase();
+  const filtered = students
+    .map((student, index) => ({ student, index }))
+    .filter(({ student }) => {
+      if (!query) return true;
+      return (
+        String(student.matricola || "").toLowerCase().includes(query) ||
+        String(student.nome || "").toLowerCase().includes(query) ||
+        String(student.cognome || "").toLowerCase().includes(query)
+      );
+    });
   if (students.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
-    cell.colSpan = 7;
+    cell.colSpan = 9;
     cell.textContent = "Nessun risultato inserito.";
     row.appendChild(cell);
     studentsTable.appendChild(row);
+    updateStudentProgress();
+    if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
     return;
   }
-  students.forEach((student, index) => {
+  if (filtered.length === 0) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 9;
+    cell.textContent = "Nessun risultato corrispondente.";
+    row.appendChild(cell);
+    studentsTable.appendChild(row);
+    updateStudentProgress();
+    if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
+    return;
+  }
+  const maxPoints = mapping ? getMaxPoints() : 0;
+  filtered.forEach(({ student, index }) => {
     const score = mapping ? gradeStudent(student) : null;
+    const grade = score === null ? null : toThirty(score, maxPoints);
+    const normalized = grade === null ? null : normalizeGrade(grade);
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${student.matricola}</td>
-      <td>${student.nome}</td>
-      <td>${student.cognome}</td>
+      <td>${formatName(student.cognome)}</td>
+      <td>${formatName(student.nome)}</td>
       <td>${student.versione}</td>
       <td>${student.answers.join(" | ")}</td>
       <td>${score === null ? "-" : score}</td>
+      <td>${grade === null ? "-" : grade.toFixed(2)}</td>
+      <td>${normalized === null ? "-" : normalized}</td>
       <td class="row-actions">
-        <button class="btn btn-sm btn-outline-secondary mini load" data-index="${index}">Carica</button>
-        <button class="btn btn-sm btn-outline-danger mini remove" data-index="${index}">Rimuovi</button>
+        <button class="btn btn-sm btn-outline-secondary mini load" data-index="${index}">
+          <i class="fa-solid fa-pen-to-square"></i>
+        </button>
+        <button class="btn btn-sm btn-outline-danger mini remove" data-index="${index}">
+          <i class="fa-regular fa-trash-can"></i>
+        </button>
       </td>
     `;
     studentsTable.appendChild(row);
@@ -258,6 +549,12 @@ const renderTable = () => {
       studentForm.scrollIntoView({ behavior: "smooth", block: "start" });
     });
   });
+  updateStudentProgress();
+  if (currentTopGradeBadge) {
+    const bestGrade = getCurrentTopGrade();
+    currentTopGradeBadge.textContent =
+      bestGrade === null ? "-" : bestGrade.toFixed(1);
+  }
 };
 
 const renderGrading = () => {
@@ -267,19 +564,21 @@ const renderGrading = () => {
     gradingTable.innerHTML = "";
     gradeHistogram.innerHTML = "";
     gradingFactor.textContent = "Fattore: -";
-    currentTopGradeInput.value = "";
-    currentTopGradeInput.disabled = true;
     targetTopGradeInput.disabled = true;
-    exportGradedBtn.disabled = true;
+    if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
+    if (exportGradedBtn) exportGradedBtn.disabled = true;
     exportResultsPdfBtn.disabled = true;
     exportResultsXlsBtn.disabled = true;
+    if (topbarExportPdf) topbarExportPdf.disabled = true;
+    if (topbarExportXls) topbarExportXls.disabled = true;
     return;
   }
   gradingStatus.textContent = "Grading attivo. I punteggi sono calcolati automaticamente.";
-  exportGradedBtn.disabled = false;
+  if (exportGradedBtn) exportGradedBtn.disabled = false;
   exportResultsPdfBtn.disabled = false;
   exportResultsXlsBtn.disabled = false;
-  currentTopGradeInput.disabled = false;
+  if (topbarExportPdf) topbarExportPdf.disabled = false;
+  if (topbarExportXls) topbarExportXls.disabled = false;
   targetTopGradeInput.disabled = false;
   const maxPoints = getMaxPoints();
   const scores = students.map((student) => gradeStudent(student)).filter((val) => val !== null);
@@ -287,9 +586,12 @@ const renderGrading = () => {
     gradingStats.innerHTML = "";
     gradingTable.innerHTML = "";
     gradeHistogram.innerHTML = "";
-    exportGradedBtn.disabled = true;
+    if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
+    if (exportGradedBtn) exportGradedBtn.disabled = true;
     exportResultsPdfBtn.disabled = true;
     exportResultsXlsBtn.disabled = true;
+    if (topbarExportPdf) topbarExportPdf.disabled = true;
+    if (topbarExportXls) topbarExportXls.disabled = true;
     return;
   }
   const total = scores.reduce((sum, val) => sum + val, 0);
@@ -299,9 +601,7 @@ const renderGrading = () => {
   const grades = scores.map((points) => toThirty(points, maxPoints));
   const avgGrade = grades.reduce((sum, val) => sum + val, 0) / grades.length;
   const bestGrade = Math.max(...grades);
-  if (currentTopGradeInput.value === "") {
-    currentTopGradeInput.value = bestGrade.toFixed(1);
-  }
+  if (currentTopGradeBadge) currentTopGradeBadge.textContent = bestGrade.toFixed(1);
   const factor = getNormalizationFactor();
   gradingFactor.textContent = factor ? `Fattore: ${factor.toFixed(3)}` : "Fattore: -";
   gradingStats.innerHTML = `
@@ -321,8 +621,8 @@ const renderGrading = () => {
     const row = document.createElement("tr");
     row.innerHTML = `
       <td>${student.matricola}</td>
-      <td>${student.nome}</td>
-      <td>${student.cognome}</td>
+      <td>${formatName(student.cognome)}</td>
+      <td>${formatName(student.nome)}</td>
       <td>${student.versione}</td>
       <td>${score}</td>
       <td>${grade.toFixed(2)}</td>
@@ -389,50 +689,97 @@ const exportCsvForR = () => {
   URL.revokeObjectURL(link.href);
 };
 
-const loadMappingFromExam = async () => {
-  const selectedId = Number(examSelect?.value || "");
-  if (!Number.isFinite(selectedId)) {
+const loadMappingFromExam = async (selectedId) => {
+  const parsedId = Number(selectedId);
+  if (!Number.isFinite(parsedId)) {
     mappingStatus.textContent = "Seleziona una traccia.";
+    setMappingBadge("Nessuna traccia", false);
+    updateExamVisibility(false);
     return;
   }
   mappingStatus.textContent = "Caricamento mapping in corso...";
   try {
-    const response = await fetch(`/api/exams/${selectedId}/mapping`);
+    const response = await fetch(`/api/exams/${parsedId}/mapping`);
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
       mappingStatus.textContent = info.error || "Errore nel mapping.";
+      setMappingBadge("Nessuna traccia", false);
+      updateExamVisibility(false);
       return;
     }
     const payload = await response.json();
     mapping = payload.mapping;
     questionCount = mapping.Nquestions;
-    templateStatus.textContent = `Template attivo: ${mapping.Nquestions} domande.`;
     mappingStatus.textContent = `Mapping caricato: ${mapping.Nquestions} domande, ${mapping.Nversions} versioni.`;
+    setMappingBadge("Traccia selezionata", true);
+    updateExamVisibility(true);
+    try {
+      const examResponse = await fetch(`/api/exams/${parsedId}`);
+      if (examResponse.ok) {
+        const examPayload = await examResponse.json();
+        examQuestions = examPayload.questions || [];
+      } else {
+        examQuestions = [];
+      }
+    } catch {
+      examQuestions = [];
+    }
     renderTable();
     renderGrading();
     renderAnswerGrid();
     applyCorrectHints();
     updatePerQuestionScores();
-    updateExamInfo(selectedId);
+    updateExamInfo(parsedId);
   } catch {
     mappingStatus.textContent = "Errore nel mapping.";
+    setMappingBadge("Nessuna traccia", false);
+    updateExamVisibility(false);
   }
 };
 
-const renderExamOptions = (exams) => {
-  if (!examSelect) return;
-  examSelect.innerHTML = "";
-  const placeholder = document.createElement("option");
-  placeholder.value = "";
-  placeholder.textContent = "Seleziona traccia";
-  examSelect.appendChild(placeholder);
-  exams.forEach((exam) => {
-    if (exam.is_draft) return;
-    const opt = document.createElement("option");
-    opt.value = String(exam.id);
-    const dateText = exam.date ? ` • ${exam.date}` : "";
-    opt.textContent = `${exam.title} • ${exam.course_name}${dateText}`;
-    examSelect.appendChild(opt);
+const renderExamHistory = (exams) => {
+  if (!examHistory) return;
+  examHistory.innerHTML = "";
+  const closed = (exams || []).filter((exam) => !exam.is_draft);
+  if (!closed.length) {
+    examHistory.textContent = "Nessuna traccia chiusa disponibile.";
+    return;
+  }
+  closed.forEach((exam) => {
+    const card = document.createElement("div");
+    card.className = "history-card";
+    const band = document.createElement("div");
+    band.className = "history-card-band";
+    const body = document.createElement("div");
+    body.className = "history-card-body";
+    const title = document.createElement("div");
+    title.className = "history-card-title";
+    title.textContent = exam.title;
+    const metaDate = exam.date ? exam.date : "data n/d";
+    const meta = document.createElement("div");
+    meta.className = "history-card-meta";
+    meta.textContent = `${exam.course_name} • ${metaDate} • ${exam.question_count} domande`;
+    const status = document.createElement("span");
+    status.className = "history-card-status is-locked";
+    status.textContent = "Chiusa";
+    const actions = document.createElement("div");
+    actions.className = "history-card-actions";
+    const selectBtn = document.createElement("button");
+    selectBtn.className = "btn btn-outline-primary btn-sm";
+    selectBtn.textContent = "Seleziona";
+    selectBtn.type = "button";
+    selectBtn.addEventListener("click", () => {
+      loadMappingFromExam(exam.id);
+      closeExamHistoryModal();
+    });
+    actions.appendChild(selectBtn);
+    body.appendChild(title);
+    body.appendChild(meta);
+    body.appendChild(status);
+    card.appendChild(band);
+    card.appendChild(body);
+    card.appendChild(actions);
+    examHistory.appendChild(card);
   });
 };
 
@@ -456,16 +803,23 @@ const loadExams = async () => {
     }
     const payload = await response.json();
     examsCache = payload.exams || [];
-    renderExamOptions(examsCache);
+    renderExamHistory(examsCache);
+    if (!mapping) setMappingBadge("Nessuna traccia", false);
+    updateExamVisibility(Boolean(mapping));
   } catch {
     mappingStatus.textContent = "Errore caricamento tracce.";
+    setMappingBadge("Nessuna traccia", false);
+    updateExamVisibility(Boolean(mapping));
   }
 };
 
 const importEsse3 = async () => {
   const file = esse3FileInput.files && esse3FileInput.files[0];
-  if (!file) return;
-  esse3Status.textContent = "Import in corso...";
+  if (!file) {
+    showToast("Seleziona un file .xls.", "error");
+    return;
+  }
+  showToast("Import in corso...");
   const buffer = await file.arrayBuffer();
   esse3Base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
   const response = await fetch("/api/import-esse3", {
@@ -475,7 +829,7 @@ const importEsse3 = async () => {
   });
   if (!response.ok) {
     const info = await response.json().catch(() => ({}));
-    esse3Status.textContent = info.error || "Errore import.";
+    showToast(info.error || "Errore import.", "error");
     return;
   }
   const payload = await response.json();
@@ -500,10 +854,26 @@ const importEsse3 = async () => {
   renderTable();
   renderGrading();
   skipped = (payload.students || []).length - added;
-  esse3Status.textContent = `Import completato: ${added} aggiunti, ${skipped} duplicati ignorati.`;
+  showToast(
+    `${file.name} • Import completato: ${added} aggiunti, ${skipped} duplicati ignorati.`,
+    "success"
+  );
 };
 
 const normalizeSet = (arr) => Array.from(new Set(arr)).sort().join(",");
+
+const updateStudentProgress = () => {
+  if (!gradingProgress || !gradingProgressLabel) return;
+  if (!mapping || students.length === 0) {
+    gradingProgress.style.width = "0%";
+    gradingProgressLabel.textContent = "0%";
+    return;
+  }
+  const graded = students.filter((student) => gradeStudent(student) !== null).length;
+  const percent = Math.round((graded / students.length) * 100);
+  gradingProgress.style.width = `${percent}%`;
+  gradingProgressLabel.textContent = `${percent}%`;
+};
 
 const buildInverseQuestionMap = (qdict) => {
   const inverse = [];
@@ -598,8 +968,19 @@ const toThirty = (points, maxPoints) => {
   return (points / maxPoints) * 30;
 };
 
+const getCurrentTopGrade = () => {
+  if (!mapping) return null;
+  const maxPoints = getMaxPoints();
+  if (!maxPoints) return null;
+  const scores = students.map((student) => gradeStudent(student)).filter((val) => val !== null);
+  if (scores.length === 0) return null;
+  const grades = scores.map((points) => toThirty(points, maxPoints));
+  return Math.max(...grades);
+};
+
 const getNormalizationFactor = () => {
-  const current = Number(currentTopGradeInput.value);
+  const current = getCurrentTopGrade();
+  if (!targetTopGradeInput) return null;
   const target = Number(targetTopGradeInput.value);
   if (!Number.isFinite(current) || !Number.isFinite(target) || current <= 0) {
     return null;
@@ -704,11 +1085,30 @@ const gradeStudent = (student) => {
 };
 
 const clearAll = () => {
-  if (!confirm("Vuoi davvero svuotare tutto il registro?")) return;
   students = [];
   persistStudents();
   renderTable();
   renderGrading();
+};
+
+const openClearResultsModal = () => {
+  if (clearResultsBackdrop) clearResultsBackdrop.classList.remove("is-hidden");
+  if (clearResultsModal) clearResultsModal.classList.remove("is-hidden");
+};
+
+const closeClearResultsModal = () => {
+  if (clearResultsBackdrop) clearResultsBackdrop.classList.add("is-hidden");
+  if (clearResultsModal) clearResultsModal.classList.add("is-hidden");
+};
+
+const openExamHistoryModal = () => {
+  if (examHistoryBackdrop) examHistoryBackdrop.classList.remove("is-hidden");
+  if (examHistoryModal) examHistoryModal.classList.remove("is-hidden");
+};
+
+const closeExamHistoryModal = () => {
+  if (examHistoryBackdrop) examHistoryBackdrop.classList.add("is-hidden");
+  if (examHistoryModal) examHistoryModal.classList.add("is-hidden");
 };
 
 resetFormBtn.addEventListener("click", () => {
@@ -722,8 +1122,17 @@ resetFormBtn.addEventListener("click", () => {
 studentForm.addEventListener("submit", addStudent);
 if (exportBtn) exportBtn.addEventListener("click", exportCsv);
 if (exportRBtn) exportRBtn.addEventListener("click", exportCsvForR);
-clearBtn.addEventListener("click", clearAll);
-exportGradedBtn.addEventListener("click", () => {
+if (clearBtn) clearBtn.addEventListener("click", openClearResultsModal);
+if (clearResultsCloseBtn) clearResultsCloseBtn.addEventListener("click", closeClearResultsModal);
+if (clearResultsCancelBtn) clearResultsCancelBtn.addEventListener("click", closeClearResultsModal);
+if (clearResultsBackdrop) clearResultsBackdrop.addEventListener("click", closeClearResultsModal);
+if (confirmClearResultsBtn) {
+  confirmClearResultsBtn.addEventListener("click", () => {
+    clearAll();
+    closeClearResultsModal();
+  });
+}
+if (exportGradedBtn) exportGradedBtn.addEventListener("click", () => {
   if (!mapping || students.length === 0) return;
   const maxPoints = getMaxPoints();
   const header = [
@@ -756,20 +1165,59 @@ exportGradedBtn.addEventListener("click", () => {
   link.click();
   URL.revokeObjectURL(link.href);
 });
-if (loadExamMappingBtn) loadExamMappingBtn.addEventListener("click", loadMappingFromExam);
-if (examSelect) {
-  examSelect.addEventListener("change", () => {
-    const selectedId = Number(examSelect.value || "");
-    updateExamInfo(selectedId);
-  });
-}
+if (examPreviewCloseBtn) examPreviewCloseBtn.addEventListener("click", closeExamPreview);
+if (examPreviewBackdrop) examPreviewBackdrop.addEventListener("click", closeExamPreview);
+if (examHistoryCloseBtn) examHistoryCloseBtn.addEventListener("click", closeExamHistoryModal);
+if (examHistoryBackdrop) examHistoryBackdrop.addEventListener("click", closeExamHistoryModal);
 versioneInput.addEventListener("input", () => {
   applyCorrectHints();
   updatePerQuestionScores();
 });
-currentTopGradeInput.addEventListener("input", renderGrading);
 targetTopGradeInput.addEventListener("input", renderGrading);
-importEsse3Btn.addEventListener("click", importEsse3);
+if (importEsse3Btn) {
+  importEsse3Btn.addEventListener("click", () => {
+    if (esse3FileInput) esse3FileInput.click();
+  });
+}
+if (esse3FileInput) {
+  esse3FileInput.addEventListener("change", () => {
+    if (!esse3FileInput.files || esse3FileInput.files.length === 0) return;
+    importEsse3();
+  });
+}
+if (studentSearchInput) {
+  studentSearchInput.addEventListener("input", renderTable);
+}
+if (topbarSelectExam) {
+  topbarSelectExam.addEventListener("click", () => {
+    openExamHistoryModal();
+  });
+}
+if (emptySelectExam) {
+  emptySelectExam.addEventListener("click", () => {
+    openExamHistoryModal();
+  });
+}
+if (topbarImportEsse3) {
+  topbarImportEsse3.addEventListener("click", () => {
+    if (esse3FileInput) esse3FileInput.click();
+  });
+}
+if (topbarExportPdf) {
+  topbarExportPdf.addEventListener("click", () => {
+    if (exportResultsPdfBtn) exportResultsPdfBtn.click();
+  });
+}
+if (topbarExportXls) {
+  topbarExportXls.addEventListener("click", () => {
+    if (exportResultsXlsBtn) exportResultsXlsBtn.click();
+  });
+}
+if (topbarClear) {
+  topbarClear.addEventListener("click", () => {
+    if (clearBtn) clearBtn.click();
+  });
+}
 exportResultsPdfBtn.addEventListener("click", async () => {
   if (!mapping || students.length === 0) return;
   const maxPoints = getMaxPoints();
@@ -847,3 +1295,4 @@ exportResultsXlsBtn.addEventListener("click", async () => {
 loadStudents();
 renderGrading();
 loadExams();
+updateExamVisibility(Boolean(mapping));
