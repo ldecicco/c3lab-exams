@@ -10,6 +10,10 @@ node_modules/
 /pdf/
 risultati*.pdf
 
+# XLS files
+*.xls
+*.xlsx
+
 # LaTeX/build artifacts
 *.aux
 *.dvi
