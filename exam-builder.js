@@ -962,7 +962,7 @@ const renderSelectedQuestions = () => {
     if (question.image) {
       const imgWrap = createEl("div", "selected-question-image");
       const img = createEl("img", "selected-preview-thumb");
-      img.src = question.image;
+      img.src = question.imageThumbnail || question.image;
       img.alt = question.image;
       imgWrap.appendChild(img);
       body.appendChild(imgWrap);
@@ -1033,7 +1033,7 @@ const renderQuestionPreviewBody = (container, question) => {
   if (question.image) {
     const imgWrap = createEl("div", "selected-question-image");
     const img = createEl("img", "selected-preview-thumb");
-    img.src = question.image;
+    img.src = question.imageThumbnail || question.image;
     img.alt = question.image;
     imgWrap.appendChild(img);
     container.appendChild(imgWrap);
@@ -1082,6 +1082,7 @@ const importQuestionFromBank = async (questionId) => {
     newQuestion.text = q.text || "";
     newQuestion.sourceId = q.id;
     newQuestion.image = q.imagePath || "";
+    newQuestion.imageThumbnail = q.imageThumbnailPath || "";
     newQuestion.imageLayoutEnabled = Boolean(q.imageLayoutEnabled);
     newQuestion.imageWidthLeft = q.imageLeftWidth || newQuestion.imageWidthLeft;
     newQuestion.imageWidthRight = q.imageRightWidth || newQuestion.imageWidthRight;
@@ -1349,6 +1350,7 @@ const loadExam = async (examId) => {
       item.type = question.type || "singola";
       item.text = question.text || "";
       item.image = question.imagePath || "";
+      item.imageThumbnail = question.imageThumbnailPath || "";
       item.imageLayoutEnabled = Boolean(question.imageLayoutEnabled);
       item.imageWidthLeft = question.imageLeftWidth || item.imageWidthLeft;
       item.imageWidthRight = question.imageRightWidth || item.imageWidthRight;
@@ -1519,6 +1521,7 @@ const handleBankClick = async (event) => {
     const preview = {
       text: q.text || "",
       image: q.imagePath || "",
+      imageThumbnail: q.imageThumbnailPath || "",
       answers: (q.answers || []).map((ans) => ({
         text: ans.text || "",
         isCorrect: Boolean(ans.isCorrect),
@@ -1580,16 +1583,24 @@ const buildHeader = (meta) => {
   headerLines.push("\\itemsep 0em");
   headerLines.push("\\renewcommand{\\headrulewidth}{0pt}");
   headerLines.push("\\setlength{\\headheight}{65pt}");
-  headerLines.push("\\fancyhead[L]{\\includegraphics[height=1.5cm]{\\examlogo}}");
-  headerLines.push("\\fancyhead[C]{\\raisebox{-2.0em}{\\makebox[\\headwidth][c]{%}");
+  headerLines.push("\\fancyhead[LO]{\\raisebox{1.2em}{\\includegraphics[height=1.5cm]{\\examlogo}}}");
+  headerLines.push("\\fancyhead[CO]{\\raisebox{-2em}{\\makebox[\\headwidth][c]{%}");
   headerLines.push("Nome: \\underline{\\hspace{4cm}} \\quad Cognome: \\underline{\\hspace{4cm}} \\quad Matricola: \\underline{\\hspace{3cm}}}}}");
-  headerLines.push("\\fancyhead[R]{{\\bf \\examtitle - \\mctheversion}\\\\");
-  headerLines.push("\\examdepartment\\\\");
-  headerLines.push("\\examuniversity - \\examdate\\\\");
-  headerLines.push("\\footnotesize{\\emph{\\examnote}}}");
+  headerLines.push(
+    "\\fancyhead[RO]{\\raisebox{4.2em}{\\parbox[t]{\\headwidth}{\\raggedleft"
+  );
+  headerLines.push("{\\bf \\examtitle - \\mctheversion}\\par");
+  headerLines.push("\\examdepartment\\par");
+  headerLines.push("\\examuniversity - \\examdate\\par");
+  headerLines.push("\\footnotesize{\\emph{\\examnote}}}}}");
   headerLines.push("\\fancyfoot[L]{}");
   headerLines.push("\\fancyfoot[C]{\\footnotesize {\\em Legenda}: \\singola risposta singola, \\multipla risposta multipla}");
   headerLines.push("\\fancyfoot[R]{}");
+  headerLines.push("\\makeatletter");
+  headerLines.push("\\patchcmd\\@outputpage{\\headheight}{\\ifodd\\count\\z@ 1.5cm\\else 0.5cm\\fi}{}{}");
+  headerLines.push("\\patchcmd\\@outputpage{\\headsep}{\\ifodd\\count\\z@ 1.5cm\\else 0cm\\fi}{}{}");
+  headerLines.push("\\patchcmd\\@outputpage{\\global\\@colht\\textheight}{\\global\\advance\\textheight by\\ifodd\\count\\z@ 2.5cm\\else -2.5cm\\fi\\global\\@colht\\textheight}{}{}");
+  headerLines.push("\\makeatother");
   headerLines.push("\\usepackage{subfigure}");
   headerLines.push("\\usepackage{sectsty}");
   headerLines.push("\\newcommand{\\singola}{\\circledtext[charf=\\sffamily\\bfseries\\Large]{S} }");

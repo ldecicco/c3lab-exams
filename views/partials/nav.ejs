@@ -1,13 +1,27 @@
+<% if (user) { %>
 <nav class="top-nav">
-  <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">Domande</a>
-  <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">Tracce</a>
-  <a href="/index" class="nav-link <%= active === 'index' ? 'active' : '' %>">Valutazione</a>
-  <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">Analisi</a>
-  <a href="/admin" class="nav-link admin-link <%= active === 'admin' ? 'active' : '' %>">Admin</a>
-  <% if (user) { %>
-    <span class="nav-user"><%= user.username %> • <%= user.role %></span>
-    <a href="/logout" class="nav-link">Esci</a>
-  <% } else { %>
-    <a href="/login" class="nav-link">Accedi</a>
+  <% const role = user?.role || ""; %>
+  <% const isAdmin = role === "admin"; %>
+  <% const isCreator = role === "creator"; %>
+  <% const isEvaluator = role === "evaluator"; %>
+  <% const canBuild = isAdmin || isCreator; %>
+  <% const canGrade = isAdmin || isCreator || isEvaluator; %>
+  <% const canAnalyze = isAdmin || isCreator; %>
+  <% if (canBuild) { %>
+    <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">Domande</a>
+    <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">Tracce</a>
   <% } %>
+  <a href="/index" class="nav-link <%= active === 'index' ? 'active' : '' %>">Valutazione</a>
+  <% if (canAnalyze) { %>
+    <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">Analisi</a>
+  <% } %>
+  <% if (isAdmin) { %>
+    <a href="/admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">
+      <i class="fa-solid fa-user-gear"></i>
+    </a>
+  <% } %>
+  <a href="/logout" class="nav-link nav-icon" title="Esci" aria-label="Esci">
+    <i class="fa-solid fa-right-from-bracket"></i>
+  </a>
 </nav>
+<% } %>

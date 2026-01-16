@@ -108,6 +108,18 @@ h1 {
   box-shadow: 0 8px 16px var(--shadow);
 }
 
+.chip.is-success {
+  border-color: rgba(16, 122, 74, 0.35);
+  color: #0b6b3a;
+  background: #ecfdf3;
+}
+
+.chip.is-error {
+  border-color: rgba(176, 42, 55, 0.35);
+  color: #b02a37;
+  background: #fff1f2;
+}
+
 .layout {
   position: relative;
   z-index: 1;
@@ -427,6 +439,7 @@ h1 {
   display: flex;
   gap: 16px;
   padding: 18px 8vw 0;
+  align-items: center;
 }
 
 .top-nav .nav-link {
@@ -435,6 +448,20 @@ h1 {
   font-weight: 600;
   border-bottom: 2px solid transparent;
   padding-bottom: 6px;
+}
+
+.top-nav .nav-link.nav-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding-bottom: 0;
+  border-radius: 999px;
+}
+
+.top-nav .nav-link.nav-icon i {
+  font-size: 1rem;
 }
 
 .top-nav .nav-link.admin-link {
@@ -672,6 +699,12 @@ input {
   border-radius: 12px;
   border: 1px solid var(--line);
   background: transparent;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.answer-row.is-active {
+  border-color: rgba(13, 74, 124, 0.6);
+  box-shadow: 0 0 0 2px rgba(13, 74, 124, 0.12);
 }
 
 .answer-label {
@@ -769,6 +802,11 @@ input {
   color: #ffffff;
   border: 3px double #07542c;
   font-weight: 700;
+}
+
+.toggle.is-focused {
+  outline: 2px solid rgba(13, 74, 124, 0.45);
+  outline-offset: 2px;
 }
 
 .admin-topbar .btn.is-active {
@@ -917,6 +955,75 @@ input {
 
 .table-wrap {
   overflow-x: auto;
+}
+
+.students-table {
+  border-collapse: separate;
+  border-spacing: 0 8px;
+}
+
+.students-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f5f7fb;
+  border-bottom: 1px solid var(--line);
+  font-size: 0.82rem;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--muted);
+}
+
+.students-table tbody tr {
+  background: #ffffff;
+  box-shadow: 0 6px 14px rgba(13, 31, 48, 0.06);
+  border-radius: 12px;
+  border-left: 4px solid #0d4a7c;
+}
+
+.students-table tbody tr td:first-child,
+.students-table tbody tr th:first-child {
+  border-top-left-radius: 12px;
+  border-bottom-left-radius: 12px;
+}
+
+.students-table tbody tr td:last-child,
+.students-table tbody tr th:last-child {
+  border-top-right-radius: 12px;
+  border-bottom-right-radius: 12px;
+}
+
+.students-table tbody td,
+.students-table tbody th {
+  padding: 12px 10px;
+  vertical-align: middle;
+  border-top: none;
+}
+
+.students-table tbody tr:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 18px rgba(13, 31, 48, 0.1);
+}
+
+.students-table .row-actions .btn {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #ffffff;
+}
+
+.students-table .row-actions .btn i {
+  font-size: 1.05rem;
+}
+
+.students-table .table-actions {
+  display: inline-flex;
+  gap: 6px;
 }
 
 .table-wrap .table {
@@ -1456,6 +1563,26 @@ input {
   box-shadow: 0 12px 24px rgba(13, 31, 48, 0.08);
 }
 
+.questions-topbar {
+  position: sticky;
+  top: 12px;
+  z-index: 20;
+}
+
+.questions-page .admin-question-layout {
+  grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
+}
+
+.questions-page .admin-preview-card {
+  top: 96px;
+  max-height: calc(100vh - 140px);
+  overflow: auto;
+}
+
+.questions-page .admin-question-block {
+  min-height: 60vh;
+}
+
 .preview-card-header {
   display: flex;
   align-items: flex-start;
@@ -1747,6 +1874,26 @@ input {
   margin-top: 12px;
 }
 
+.question-bank-card .list-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.question-bank-card .list-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.question-bank-card .chip {
+  padding: 4px 10px;
+  font-size: 0.75rem;
+  box-shadow: none;
+}
+
 .exam-grid {
   margin-top: 16px;
   display: grid;
@@ -1881,6 +2028,20 @@ input {
   margin: 8px 0 14px;
 }
 
+.shortcut-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  align-items: center;
+  margin: 6px 0 6px;
+}
+
+.shortcut-label {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
 .chip-action {
   border: 1px solid var(--line);
   background: #ffffff;
@@ -1908,6 +2069,19 @@ input {
 .list-meta {
   color: var(--muted);
   font-size: 0.85rem;
+}
+
+.pill-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: #eef4ff;
+  border: 1px solid rgba(13, 74, 124, 0.2);
+  color: #0d4a7c;
+  font-weight: 700;
+  font-size: 0.75rem;
 }
 
 .list-actions {

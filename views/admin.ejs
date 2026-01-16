@@ -53,6 +53,10 @@
             <i class="fa-solid fa-list"></i>
             Argomenti
           </button>
+          <button class="btn btn-outline-secondary" type="button" id="toggleShortcuts">
+            <i class="fa-solid fa-bolt"></i>
+            Scorciatoie
+          </button>
           <button class="btn btn-outline-secondary" type="button" id="toggleImages">
             <i class="fa-regular fa-image"></i>
             Immagini
@@ -71,9 +75,12 @@
             <div class="inline-actions">
               <input id="adminCourseNew" class="form-control" type="text" placeholder="Fondamenti di Automatica" />
               <button id="adminAddCourse" class="btn btn-outline-primary" type="button">Crea</button>
+              <button id="adminUpdateCourse" class="btn btn-outline-primary is-hidden" type="button">Aggiorna</button>
+              <button id="adminCancelCourse" class="btn btn-outline-secondary is-hidden" type="button">Annulla</button>
             </div>
           </label>
         </div>
+        <div class="text-secondary small" id="adminCourseStatus"></div>
         <div id="adminCourseList" class="list-panel"></div>
       </section>
 
@@ -92,10 +99,45 @@
             <div class="inline-actions">
               <input id="adminTopicNew" class="form-control" type="text" placeholder="stabilita" />
               <button id="adminAddTopic" class="btn btn-outline-primary" type="button">Crea</button>
+              <button id="adminUpdateTopic" class="btn btn-outline-primary is-hidden" type="button">Aggiorna</button>
+              <button id="adminCancelTopic" class="btn btn-outline-secondary is-hidden" type="button">Annulla</button>
             </div>
           </label>
         </div>
+        <div class="text-secondary small" id="adminTopicStatus"></div>
         <div id="adminTopicList" class="list-panel"></div>
+      </section>
+
+      <section class="card shadow-sm is-hidden" id="adminShortcutsSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Scorciatoie</h2>
+          <p class="text-secondary mb-0">Gestisci le scorciatoie LaTeX per corso.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Corso</span>
+            <select id="adminShortcutCourse" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Descrizione breve</span>
+            <input id="adminShortcutLabel" class="form-control" type="text" placeholder="Funzione di trasferimento" />
+          </label>
+          <label class="field">
+            <span>Testo da inserire</span>
+            <input id="adminShortcutSnippet" class="form-control" type="text" placeholder="$G_0(s)=\\frac{}{}$" />
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-primary" id="adminCreateShortcut" type="button">Crea scorciatoia</button>
+          <button class="btn btn-outline-primary is-hidden" id="adminUpdateShortcut" type="button">
+            Aggiorna scorciatoia
+          </button>
+          <button class="btn btn-outline-secondary is-hidden" id="adminCancelShortcut" type="button">
+            Annulla
+          </button>
+          <div class="text-secondary small" id="adminShortcutStatus"></div>
+        </div>
+        <div id="adminShortcutList" class="list-panel"></div>
       </section>
 
       <section class="card shadow-sm is-hidden" id="adminImagesSection">
@@ -119,6 +161,10 @@
           <label class="field">
             <span>File</span>
             <input id="adminImageFile" class="form-control" type="file" />
+          </label>
+          <label class="field">
+            <span>Sorgente (opzionale)</span>
+            <input id="adminImageSourceFile" class="form-control" type="file" />
           </label>
         </div>
         <div class="actions">
@@ -153,6 +199,12 @@
         </div>
         <div class="actions">
           <button class="btn btn-outline-primary" id="adminCreateUser" type="button">Crea utente</button>
+          <button class="btn btn-outline-primary is-hidden" id="adminUpdateUser" type="button">
+            Aggiorna utente
+          </button>
+          <button class="btn btn-outline-secondary is-hidden" id="adminCancelUser" type="button">
+            Annulla
+          </button>
           <div class="text-secondary small" id="adminUserStatus"></div>
         </div>
         <div id="adminUserList" class="list-panel"></div>

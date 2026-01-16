@@ -18,6 +18,9 @@
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     />
     <link rel="stylesheet" href="styles.css" />
+    <script>
+      window.APP_USER = <%- JSON.stringify(user || null) %>;
+    </script>
   </head>
   <body>
     <%- include('partials/nav', { active: 'questions' }) %>
@@ -35,13 +38,14 @@
       </div>
     </header> -->
 
-    <main class="layout container-fluid admin-layout py-4">
-      <div class="builder-topbar grading-topbar admin-topbar">
+    <main class="layout container-fluid admin-layout py-4 questions-page">
+      <div class="builder-topbar grading-topbar admin-topbar questions-topbar">
         <div class="builder-topbar-left">
           <span class="builder-current-title">Domande</span>
           <span class="chip is-hidden" id="adminEditBadgeTop">In modifica</span>
         </div>
         <div class="builder-topbar-right">
+          <span class="chip" id="adminSaveState">Non salvato</span>
           <div class="admin-course-picker">
             <span class="admin-course-label">Corso</span>
             <select id="adminCoursePicker" class="form-select"></select>
@@ -97,6 +101,10 @@
             <span>File</span>
             <input id="adminImageFile" class="form-control" type="file" />
           </label>
+          <label class="field">
+            <span>Sorgente (opzionale)</span>
+            <input id="adminImageSourceFile" class="form-control" type="file" />
+          </label>
         </div>
         <div class="actions">
           <button class="btn btn-outline-primary" id="adminUploadImage" type="button">Carica immagine</button>
@@ -129,7 +137,7 @@
             <div class="section-label">Impostazioni</div>
             <details class="admin-accordion" open>
               <summary>
-                <span>Argomenti</span>
+                <span>Dettagli domanda</span>
                 <i class="fa-solid fa-chevron-down"></i>
               </summary>
               <div class="admin-accordion-body">
@@ -156,6 +164,18 @@
             </details>
             <div class="section-divider"></div>
             <div class="section-label">Testo domanda</div>
+            <div class="shortcut-toolbar">
+              <span class="shortcut-label">Scorciatoie</span>
+              <div class="chip-row" id="adminShortcutBar"></div>
+              <% if (user && user.role === 'admin') { %>
+                <button class="btn btn-outline-secondary btn-sm" id="adminShortcutAdd" type="button">
+                  <i class="fa-solid fa-plus"></i>
+                </button>
+              <% } %>
+            </div>
+            <div class="text-secondary small is-hidden" id="adminShortcutEmpty">
+              Nessuna scorciatoia disponibile per questo corso.
+            </div>
             <label class="field">
               <textarea id="adminQuestionText" class="form-control" rows="4"></textarea>
             </label>
@@ -189,11 +209,13 @@
                         <div class="layout-preview-image" style="width: 50%"></div>
                         <div class="layout-preview-text" style="width: 50%"></div>
                       </div>
-                      <input id="adminImageSplit" class="form-range" type="range" min="30" max="70" value="50" />
+                      <input id="adminImageSplit" class="form-range" type="range" min="10" max="90" value="50" />
                       <div class="preset-row" id="adminImageSplitPresets">
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-split="30">30/70</button>
                         <button class="btn btn-outline-secondary btn-sm" type="button" data-split="40">40/60</button>
                         <button class="btn btn-outline-secondary btn-sm" type="button" data-split="50">50/50</button>
                         <button class="btn btn-outline-secondary btn-sm" type="button" data-split="60">60/40</button>
+                        <button class="btn btn-outline-secondary btn-sm" type="button" data-split="70">70/30</button>
                       </div>
                     </div>
                     <div class="field">
@@ -227,10 +249,6 @@
               </div>
               <div id="adminAnswers"></div>
               <button class="btn btn-outline-primary btn-sm" id="adminAddAnswer" type="button">Aggiungi risposta</button>
-            </div>
-            <div class="actions">
-              <button class="btn btn-primary" id="adminSaveQuestion" type="button">Salva nel banco</button>
-              <button class="btn btn-outline-secondary" id="adminResetQuestion" type="button">Reset</button>
             </div>
             <div class="text-secondary small mt-2" id="adminQuestionStatus"></div>
           </div>
@@ -316,6 +334,49 @@
         <div id="bankList" class="list-panel"></div>
       </div>
     </div>
+
+    <div class="modal-backdrop is-hidden" id="questionPreviewBackdrop"></div>
+    <div class="modal-panel is-hidden" id="questionPreviewModal" role="dialog" aria-modal="true" aria-labelledby="questionPreviewTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="questionPreviewTitle">Anteprima domanda</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="questionPreviewClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="question-preview" id="questionPreviewBody"></div>
+      </div>
+    </div>
+
+    <% if (user && user.role === 'admin') { %>
+      <div class="modal-backdrop is-hidden" id="shortcutModalBackdrop"></div>
+      <div class="modal-panel is-hidden" id="shortcutModal" role="dialog" aria-modal="true" aria-labelledby="shortcutModalTitle">
+        <div class="modal-header">
+          <h3 class="h5 mb-0" id="shortcutModalTitle">Nuova scorciatoia</h3>
+          <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="shortcutModalClose" aria-label="Chiudi">
+            <i class="fa-solid fa-xmark"></i>
+          </button>
+        </div>
+        <div class="modal-body">
+          <div class="grid">
+            <label class="field">
+              <span>Descrizione breve</span>
+              <input id="shortcutModalLabel" class="form-control" type="text" placeholder="Funzione di trasferimento" />
+            </label>
+            <label class="field">
+              <span>Testo da inserire</span>
+              <input id="shortcutModalSnippet" class="form-control" type="text" placeholder="$G_0(s)=\\frac{}{}$" />
+            </label>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline-primary" id="shortcutModalSave" type="button">Salva scorciatoia</button>
+          </div>
+          <div class="text-secondary small" id="shortcutModalStatus"></div>
+        </div>
+      </div>
+    <% } %>
+
+    <div class="toast-notify" id="adminToast" role="status" aria-live="polite"></div>
 
     <script
       defer

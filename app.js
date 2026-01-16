@@ -90,6 +90,8 @@ let currentExamId = null;
 let currentExam = null;
 let currentSessionId = null;
 let sessionSaveTimer = null;
+let activeQuestionIndex = 1;
+let activeAnswerIndex = 0;
 
 const showToast = (message, tone = "info") => {
   if (!gradingToast) return;
@@ -603,7 +605,7 @@ const renderExamPreview = (question, index, originalIndex, version) => {
     imgWrap.className = "selected-question-image";
     const img = document.createElement("img");
     img.className = "selected-preview-thumb";
-    img.src = question.imagePath;
+    img.src = question.imageThumbnailPath || question.imagePath;
     img.alt = question.imagePath;
     imgWrap.appendChild(img);
     examPreviewBody.appendChild(imgWrap);
@@ -682,6 +684,7 @@ const renderAnswerGrid = () => {
   for (let i = 1; i <= questionCount; i += 1) {
     const row = document.createElement("div");
     row.className = "answer-row";
+    row.dataset.question = String(i);
 
     const label = document.createElement("div");
     label.className = "answer-label is-clickable";
@@ -704,10 +707,13 @@ const renderAnswerGrid = () => {
       btn.type = "button";
       btn.className = "toggle";
       btn.dataset.question = String(i);
-      btn.dataset.answer = letter;
+    btn.dataset.answer = letter;
       btn.textContent = letter;
       btn.addEventListener("click", () => {
         btn.classList.toggle("active");
+        activeQuestionIndex = i;
+        activeAnswerIndex = ANSWER_OPTIONS.indexOf(letter);
+        updateAnswerRowFocus();
         updatePerQuestionScores();
       });
       options.appendChild(btn);
@@ -739,6 +745,7 @@ const renderAnswerGrid = () => {
   }
   applyCorrectHints();
   updatePerQuestionScores();
+  updateAnswerRowFocus();
 };
 
 const loadStudents = () => {
@@ -822,10 +829,8 @@ const addStudent = (event) => {
   if (submitBtn) submitBtn.textContent = "Aggiungi studente";
 };
 
-const renderTable = () => {
-  studentsTable.innerHTML = "";
-  const query = String(studentSearchInput?.value || "").trim().toLowerCase();
-  const filtered = students
+const filterStudents = (query) =>
+  students
     .map((student, index) => ({ student, index }))
     .filter(({ student }) => {
       if (!query) return true;
@@ -835,6 +840,116 @@ const renderTable = () => {
         String(student.cognome || "").toLowerCase().includes(query)
       );
     });
+
+const loadStudentForEdit = (idx) => {
+  const student = students[idx];
+  if (!student) return;
+  editingIndex = idx;
+  if (submitBtn) submitBtn.textContent = "Aggiorna studente";
+  matricolaInput.value = student.matricola || "";
+  nomeInput.value = student.nome || "";
+  cognomeInput.value = student.cognome || "";
+  versioneInput.value = student.versione || "";
+  if (studentSearchInput) studentSearchInput.value = "";
+  renderTable();
+  versioneInput.focus();
+  renderAnswerGrid();
+  activeQuestionIndex = 1;
+  const answers = student.answers || [];
+  answers.forEach((value, i) => {
+    const letters = String(value || "").split("");
+    letters.forEach((letter) => {
+      const btnEl = answersGrid.querySelector(
+        `.toggle[data-question="${i + 1}"][data-answer="${letter}"]`
+      );
+      if (btnEl) btnEl.classList.add("active");
+    });
+  });
+  const overrides = student.overrides || [];
+  overrides.forEach((val, i) => {
+    const input = answersGrid.querySelector(
+      `.override input[data-question="${i + 1}"]`
+    );
+    if (input && val !== null && val !== undefined) {
+      input.value = String(val);
+    }
+  });
+  applyCorrectHints();
+  updatePerQuestionScores();
+  studentForm.scrollIntoView({ behavior: "smooth", block: "start" });
+};
+
+const updateAnswerRowFocus = () => {
+  if (!answersGrid) return;
+  answersGrid.querySelectorAll(".answer-row").forEach((row) => {
+    const idx = Number(row.dataset.question);
+    row.classList.toggle("is-active", idx === activeQuestionIndex);
+  });
+  updateAnswerButtonFocus();
+};
+
+const updateAnswerButtonFocus = () => {
+  if (!answersGrid) return;
+  const row = answersGrid.querySelector(
+    `.answer-row[data-question="${activeQuestionIndex}"]`
+  );
+  if (!row) return;
+  row.querySelectorAll(".toggle").forEach((btn, idx) => {
+    btn.classList.toggle("is-focused", idx === activeAnswerIndex);
+  });
+};
+
+const setActiveQuestion = (nextIndex) => {
+  if (!Number.isFinite(nextIndex)) return;
+  const clamped = Math.min(questionCount, Math.max(1, nextIndex));
+  activeQuestionIndex = clamped;
+  activeAnswerIndex = 0;
+  updateAnswerRowFocus();
+  const row = answersGrid.querySelector(`.answer-row[data-question="${activeQuestionIndex}"]`);
+  if (row) row.scrollIntoView({ behavior: "smooth", block: "center" });
+};
+
+const handleAnswerShortcut = (event) => {
+  if (!answersGrid || questionCount < 1) return;
+  const target = event.target;
+  if (target && (target.tagName === "INPUT" || target.tagName === "TEXTAREA")) return;
+  const key = event.key.toUpperCase();
+  if (!ANSWER_OPTIONS.includes(key)) {
+    if (event.key === "ArrowDown") {
+      event.preventDefault();
+      setActiveQuestion(activeQuestionIndex + 1);
+    }
+    if (event.key === "ArrowUp") {
+      event.preventDefault();
+      setActiveQuestion(activeQuestionIndex - 1);
+    }
+    if (event.key === "ArrowRight") {
+      event.preventDefault();
+      activeAnswerIndex = Math.min(ANSWER_OPTIONS.length - 1, activeAnswerIndex + 1);
+      updateAnswerButtonFocus();
+    }
+    if (event.key === "ArrowLeft") {
+      event.preventDefault();
+      activeAnswerIndex = Math.max(0, activeAnswerIndex - 1);
+      updateAnswerButtonFocus();
+    }
+    return;
+  }
+  event.preventDefault();
+  const btn = answersGrid.querySelector(
+    `.toggle[data-question="${activeQuestionIndex}"][data-answer="${key}"]`
+  );
+  if (btn) {
+    btn.click();
+    activeAnswerIndex = ANSWER_OPTIONS.indexOf(key);
+    updateAnswerButtonFocus();
+  }
+};
+
+const renderTable = () => {
+  studentsTable.innerHTML = "";
+  const query = String(studentSearchInput?.value || "").trim().toLowerCase();
+  const filtered = filterStudents(query);
   if (students.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
@@ -873,11 +988,11 @@ const renderTable = () => {
       <td>${grade === null ? "-" : grade.toFixed(2)}</td>
       <td>${normalized === null ? "-" : normalized}</td>
       <td class="row-actions">
-        <button class="btn btn-sm btn-outline-secondary mini load" data-index="${index}">
-          <i class="fa-solid fa-pen-to-square"></i>
+        <button class="btn btn-sm btn-outline-secondary mini load" data-index="${index}" title="Modifica studente" aria-label="Modifica studente">
+          <i class="fa-solid fa-user-pen"></i>
         </button>
-        <button class="btn btn-sm btn-outline-danger mini remove" data-index="${index}">
-          <i class="fa-regular fa-trash-can"></i>
+        <button class="btn btn-sm btn-outline-danger mini remove" data-index="${index}" title="Elimina studente" aria-label="Elimina studente">
+          <i class="fa-solid fa-user-xmark"></i>
         </button>
       </td>
     `;
@@ -898,37 +1013,7 @@ const renderTable = () => {
   studentsTable.querySelectorAll(".mini.load").forEach((btn) => {
     btn.addEventListener("click", () => {
       const idx = Number(btn.dataset.index);
-      const student = students[idx];
-      if (!student) return;
-      editingIndex = idx;
-      if (submitBtn) submitBtn.textContent = "Aggiorna studente";
-      matricolaInput.value = student.matricola || "";
-      nomeInput.value = student.nome || "";
-      cognomeInput.value = student.cognome || "";
-      versioneInput.value = student.versione || "";
-      renderAnswerGrid();
-      const answers = student.answers || [];
-      answers.forEach((value, i) => {
-        const letters = String(value || "").split("");
-        letters.forEach((letter) => {
-          const btnEl = answersGrid.querySelector(
-            `.toggle[data-question="${i + 1}"][data-answer="${letter}"]`
-          );
-          if (btnEl) btnEl.classList.add("active");
-        });
-      });
-      const overrides = student.overrides || [];
-      overrides.forEach((val, i) => {
-        const input = answersGrid.querySelector(
-          `.override input[data-question="${i + 1}"]`
-        );
-        if (input && val !== null && val !== undefined) {
-          input.value = String(val);
-        }
-      });
-      applyCorrectHints();
-      updatePerQuestionScores();
-      studentForm.scrollIntoView({ behavior: "smooth", block: "start" });
+      loadStudentForEdit(idx);
     });
   });
   updateStudentProgress();
@@ -1595,7 +1680,38 @@ if (!appUser) {
       scheduleSaveSession();
     });
   }
-  if (studentSearchInput) studentSearchInput.addEventListener("input", renderTable);
+  if (studentSearchInput) {
+    studentSearchInput.addEventListener("input", renderTable);
+    studentSearchInput.addEventListener("keydown", (event) => {
+      if (event.key !== "Enter") return;
+      const query = String(studentSearchInput.value || "").trim().toLowerCase();
+      const filtered = filterStudents(query);
+      if (filtered.length === 1) {
+        event.preventDefault();
+        loadStudentForEdit(filtered[0].index);
+      }
+    });
+  }
+  if (answersGrid) {
+    answersGrid.addEventListener("click", (event) => {
+      const row = event.target.closest(".answer-row");
+      if (!row) return;
+      const idx = Number(row.dataset.question);
+      if (Number.isFinite(idx)) {
+        activeQuestionIndex = idx;
+        updateAnswerRowFocus();
+      }
+    });
+  }
+  document.addEventListener("keydown", handleAnswerShortcut);
+  document.addEventListener("keydown", (event) => {
+    if (!studentSearchInput) return;
+    if (event.ctrlKey && event.key.toLowerCase() === "f") {
+      event.preventDefault();
+      studentSearchInput.focus();
+      studentSearchInput.select();
+    }
+  });
   if (topbarSelectExam) {
     topbarSelectExam.addEventListener("click", () => {
       openExamHistoryModal();

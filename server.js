@@ -6,7 +6,7 @@ const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
-const { spawn } = require("child_process");
+const { spawn, spawnSync } = require("child_process");
 const Database = require("better-sqlite3");
 const PDFDocument = require("pdfkit");
 const xlsx = require("xlsx");
@@ -59,6 +59,16 @@ db.exec(`
     UNIQUE(course_id, name),
     FOREIGN KEY(course_id) REFERENCES courses(id)
   );
+  CREATE TABLE IF NOT EXISTS course_shortcuts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    course_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    snippet TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(course_id, label),
+    FOREIGN KEY(course_id) REFERENCES courses(id)
+  );
   CREATE TABLE IF NOT EXISTS questions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL,
@@ -79,6 +89,9 @@ db.exec(`
     original_name TEXT,
     file_path TEXT NOT NULL,
     mime_type TEXT,
+    source_name TEXT,
+    source_path TEXT,
+    source_mime_type TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(course_id) REFERENCES courses(id)
@@ -157,6 +170,7 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_exam_sessions_exam ON exam_sessions(exam_id);
   CREATE INDEX IF NOT EXISTS idx_exam_session_students_session ON exam_session_students(session_id);
   CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token);
+  CREATE INDEX IF NOT EXISTS idx_course_shortcuts_course ON course_shortcuts(course_id);
 `);
 
 const ensureColumn = (table, column, definition) => {
@@ -173,6 +187,10 @@ ensureColumn("exams", "mapping_json", "TEXT");
 ensureColumn("exams", "public_access_enabled", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("exams", "public_access_password_hash", "TEXT");
 ensureColumn("exams", "public_access_expires_at", "TEXT");
+ensureColumn("images", "source_name", "TEXT");
+ensureColumn("images", "source_path", "TEXT");
+ensureColumn("images", "source_mime_type", "TEXT");
+ensureColumn("images", "thumbnail_path", "TEXT");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 app.use(express.text({ type: ["text/plain", "application/octet-stream"], limit: "5mb" }));
@@ -402,8 +420,12 @@ app.put("/api/users/:id", requireRole("admin"), (req, res) => {
     return;
   }
   params.push(userId);
-  db.prepare(`UPDATE users SET ${updates.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...params);
-  res.json({ ok: true });
+  try {
+    db.prepare(`UPDATE users SET ${updates.join(", ")}, updated_at = datetime('now') WHERE id = ?`).run(...params);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "Username già presente" });
+  }
 });
 
 app.delete("/api/users/:id", requireRole("admin"), (req, res) => {
@@ -674,6 +696,39 @@ const detectExtension = (originalName, dataBase64) => {
   return map[mime] || "";
 };
 
+const canThumbnailExtension = (ext) => [".pdf", ".ps", ".eps"].includes(ext);
+
+const generateThumbnail = (inputPath, destDir, baseName, ext = "") => {
+  const thumbName = `${baseName}-thumb.png`;
+  const thumbPath = path.join(destDir, thumbName);
+  const cropFlags = [];
+  if (ext === ".pdf") {
+    cropFlags.push("-dUseCropBox");
+  } else if (ext === ".eps" || ext === ".ps") {
+    cropFlags.push("-dEPSCrop");
+  }
+  const args = [
+    "-dSAFER",
+    "-dBATCH",
+    "-dNOPAUSE",
+    "-sDEVICE=pngalpha",
+    "-r150",
+    "-dFirstPage=1",
+    "-dLastPage=1",
+    ...cropFlags,
+    `-sOutputFile=${thumbPath}`,
+    inputPath,
+  ];
+  const result = spawnSync("gs", args, { stdio: "ignore" });
+  if (result.status === 0 && fs.existsSync(thumbPath)) {
+    return thumbPath;
+  }
+  if (fs.existsSync(thumbPath)) {
+    fs.unlinkSync(thumbPath);
+  }
+  return null;
+};
+
 const stripDataUrl = (dataBase64) => {
   const parts = String(dataBase64 || "").split(",");
   return parts.length > 1 ? parts[1] : parts[0];
@@ -821,6 +876,34 @@ app.post("/api/courses", requireRole("admin"), (req, res) => {
   res.json({ course });
 });
 
+app.put("/api/courses/:id", requireRole("admin"), (req, res) => {
+  const courseId = Number(req.params.id);
+  if (!Number.isFinite(courseId)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const payload = req.body || {};
+  const name = String(payload.name || "").trim();
+  const code = String(payload.code || "").trim();
+  if (!name) {
+    res.status(400).json({ error: "Nome corso mancante" });
+    return;
+  }
+  const exists = db.prepare("SELECT id FROM courses WHERE id = ?").get(courseId);
+  if (!exists) {
+    res.status(404).json({ error: "Corso non trovato" });
+    return;
+  }
+  try {
+    db.prepare(
+      "UPDATE courses SET name = ?, code = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(name, code || null, courseId);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "Nome corso già esistente" });
+  }
+});
+
 app.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
@@ -828,9 +911,129 @@ app.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
     return;
   }
   const rows = db
-    .prepare("SELECT id, name FROM topics WHERE course_id = ? ORDER BY name")
+    .prepare(
+      `SELECT t.id, t.name, COUNT(qt.question_id) AS question_count
+         FROM topics t
+         LEFT JOIN question_topics qt ON qt.topic_id = t.id
+        WHERE t.course_id = ?
+        GROUP BY t.id
+        ORDER BY t.name`
+    )
     .all(courseId);
   res.json({ topics: rows });
+});
+
+app.get("/api/shortcuts", requireRole("admin", "creator"), (req, res) => {
+  const courseId = Number(req.query.courseId);
+  if (!Number.isFinite(courseId)) {
+    res.status(400).json({ error: "courseId non valido." });
+    return;
+  }
+  const shortcuts = db
+    .prepare(
+      `SELECT id, course_id AS courseId, label, snippet, created_at AS createdAt, updated_at AS updatedAt
+         FROM course_shortcuts
+        WHERE course_id = ?
+        ORDER BY label COLLATE NOCASE`
+    )
+    .all(courseId);
+  res.json({ shortcuts });
+});
+
+app.post("/api/shortcuts", requireRole("admin"), (req, res) => {
+  const courseId = Number(req.body?.courseId);
+  const label = String(req.body?.label || "").trim();
+  const snippet = String(req.body?.snippet || "").trim();
+  if (!Number.isFinite(courseId)) {
+    res.status(400).json({ error: "Corso non valido." });
+    return;
+  }
+  if (!label || !snippet) {
+    res.status(400).json({ error: "Label e testo sono obbligatori." });
+    return;
+  }
+  try {
+    const result = db
+      .prepare(
+        `INSERT INTO course_shortcuts (course_id, label, snippet)
+         VALUES (?, ?, ?)`
+      )
+      .run(courseId, label, snippet);
+    const shortcut = db
+      .prepare(
+        `SELECT id, course_id AS courseId, label, snippet, created_at AS createdAt, updated_at AS updatedAt
+           FROM course_shortcuts
+          WHERE id = ?`
+      )
+      .get(result.lastInsertRowid);
+    res.status(201).json({ shortcut });
+  } catch (err) {
+    if (String(err.message || "").includes("UNIQUE")) {
+      res.status(400).json({ error: "Esiste già una scorciatoia con questa descrizione." });
+      return;
+    }
+    res.status(500).json({ error: "Errore creazione scorciatoia." });
+  }
+});
+
+app.put("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
+  const id = Number(req.params.id);
+  const courseId = Number(req.body?.courseId);
+  const label = String(req.body?.label || "").trim();
+  const snippet = String(req.body?.snippet || "").trim();
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido." });
+    return;
+  }
+  if (!Number.isFinite(courseId)) {
+    res.status(400).json({ error: "Corso non valido." });
+    return;
+  }
+  if (!label || !snippet) {
+    res.status(400).json({ error: "Label e testo sono obbligatori." });
+    return;
+  }
+  try {
+    const updated = db
+      .prepare(
+        `UPDATE course_shortcuts
+            SET course_id = ?, label = ?, snippet = ?, updated_at = datetime('now')
+          WHERE id = ?`
+      )
+      .run(courseId, label, snippet, id);
+    if (updated.changes === 0) {
+      res.status(404).json({ error: "Scorciatoia non trovata." });
+      return;
+    }
+    const shortcut = db
+      .prepare(
+        `SELECT id, course_id AS courseId, label, snippet, created_at AS createdAt, updated_at AS updatedAt
+           FROM course_shortcuts
+          WHERE id = ?`
+      )
+      .get(id);
+    res.json({ shortcut });
+  } catch (err) {
+    if (String(err.message || "").includes("UNIQUE")) {
+      res.status(400).json({ error: "Esiste già una scorciatoia con questa descrizione." });
+      return;
+    }
+    res.status(500).json({ error: "Errore aggiornamento scorciatoia." });
+  }
+});
+
+app.delete("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido." });
+    return;
+  }
+  const result = db.prepare("DELETE FROM course_shortcuts WHERE id = ?").run(id);
+  if (result.changes === 0) {
+    res.status(404).json({ error: "Scorciatoia non trovata." });
+    return;
+  }
+  res.json({ ok: true });
 });
 
 app.post("/api/topics", requireRole("admin"), (req, res) => {
@@ -855,6 +1058,34 @@ app.post("/api/topics", requireRole("admin"), (req, res) => {
     .prepare("SELECT id, name FROM topics WHERE id = ?")
     .get(info.lastInsertRowid);
   res.json({ topic });
+});
+
+app.put("/api/topics/:id", requireRole("admin"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const payload = req.body || {};
+  const courseId = Number(payload.courseId);
+  const name = String(payload.name || "").trim();
+  if (!Number.isFinite(courseId) || !name) {
+    res.status(400).json({ error: "Payload non valido" });
+    return;
+  }
+  const exists = db.prepare("SELECT id FROM topics WHERE id = ?").get(id);
+  if (!exists) {
+    res.status(404).json({ error: "Argomento non trovato" });
+    return;
+  }
+  try {
+    db.prepare(
+      "UPDATE topics SET course_id = ?, name = ?, updated_at = datetime('now') WHERE id = ?"
+    ).run(courseId, name, id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: "Argomento già esistente" });
+  }
 });
 
 app.delete("/api/topics/:id", requireRole("admin"), (req, res) => {
@@ -882,13 +1113,36 @@ app.get("/api/images", requireRole("admin", "creator"), (req, res) => {
   }
   const rows = db
     .prepare(
-      `SELECT id, name, description, original_name, file_path, mime_type
+      `SELECT id, name, description, original_name, file_path, mime_type,
+              thumbnail_path,
+              source_name, source_path, source_mime_type
          FROM images
         WHERE course_id = ?
         ORDER BY created_at DESC`
     )
     .all(courseId);
-  res.json({ images: rows });
+  const updatedRows = rows.map((row) => {
+    if (!row.thumbnail_path) {
+      const ext = path.extname(row.file_path || "").toLowerCase();
+      if (canThumbnailExtension(ext)) {
+        const absPath = path.join(__dirname, row.file_path);
+        if (fs.existsSync(absPath)) {
+          const baseName = path.parse(absPath).name;
+          const destDir = path.dirname(absPath);
+          const thumbAbs = generateThumbnail(absPath, destDir, baseName, ext);
+          if (thumbAbs) {
+            const thumbRel = path.relative(__dirname, thumbAbs).replace(/\\/g, "/");
+            db.prepare(
+              "UPDATE images SET thumbnail_path = ?, updated_at = datetime('now') WHERE id = ?"
+            ).run(thumbRel, row.id);
+            return { ...row, thumbnail_path: thumbRel };
+          }
+        }
+      }
+    }
+    return row;
+  });
+  res.json({ images: updatedRows });
 });
 
 app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
@@ -898,6 +1152,8 @@ app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   const description = String(payload.description || "").trim();
   const originalName = String(payload.originalName || "").trim();
   const dataBase64 = String(payload.dataBase64 || "").trim();
+  const sourceOriginalName = String(payload.sourceOriginalName || "").trim();
+  const sourceBase64 = String(payload.sourceBase64 || "").trim();
   if (!Number.isFinite(courseId) || !dataBase64) {
     res.status(400).json({ error: "Payload non valido" });
     return;
@@ -920,10 +1176,38 @@ app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   const buffer = Buffer.from(stripDataUrl(dataBase64), "base64");
   fs.writeFileSync(filePath, buffer);
   const relPath = path.relative(__dirname, filePath).replace(/\\/g, "/");
+  const baseName = path.parse(fileName).name;
+  const thumbnailAbs = canThumbnailExtension(ext)
+    ? generateThumbnail(filePath, destDir, baseName, ext)
+    : null;
+  const thumbnailRel = thumbnailAbs
+    ? path.relative(__dirname, thumbnailAbs).replace(/\\/g, "/")
+    : null;
+  let sourceRelPath = null;
+  if (sourceBase64) {
+    const sourceExt =
+      detectExtension(sourceOriginalName, sourceBase64) || ".bin";
+    const sourceName = `${Date.now()}-${base || "immagine"}-source${sourceExt}`;
+    const sourcePath = path.join(destDir, sourceName);
+    const sourceBuffer = Buffer.from(stripDataUrl(sourceBase64), "base64");
+    fs.writeFileSync(sourcePath, sourceBuffer);
+    sourceRelPath = path.relative(__dirname, sourcePath).replace(/\\/g, "/");
+  }
   const info = db
     .prepare(
-      `INSERT INTO images (course_id, name, description, original_name, file_path, mime_type)
-       VALUES (?, ?, ?, ?, ?, ?)`
+      `INSERT INTO images (
+        course_id,
+        name,
+        description,
+        original_name,
+        file_path,
+        mime_type,
+        thumbnail_path,
+        source_name,
+        source_path,
+        source_mime_type
+      )
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       courseId,
@@ -931,11 +1215,17 @@ app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
       description || null,
       originalName || null,
       relPath,
-      String(payload.mimeType || "") || null
+      String(payload.mimeType || "") || null,
+      thumbnailRel,
+      sourceOriginalName || null,
+      sourceRelPath,
+      String(payload.sourceMimeType || "") || null
     );
   const image = db
     .prepare(
-      `SELECT id, name, description, original_name, file_path, mime_type
+      `SELECT id, name, description, original_name, file_path, mime_type,
+              thumbnail_path,
+              source_name, source_path, source_mime_type
          FROM images WHERE id = ?`
     )
     .get(info.lastInsertRowid);
@@ -949,7 +1239,7 @@ app.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
     return;
   }
   const image = db
-    .prepare("SELECT id, file_path FROM images WHERE id = ?")
+    .prepare("SELECT id, file_path, source_path, thumbnail_path FROM images WHERE id = ?")
     .get(id);
   if (!image) {
     res.status(404).json({ error: "Immagine non trovata" });
@@ -966,8 +1256,59 @@ app.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   if (fs.existsSync(absPath)) {
     fs.unlinkSync(absPath);
   }
+  if (image.thumbnail_path) {
+    const thumbAbs = path.join(__dirname, image.thumbnail_path);
+    if (fs.existsSync(thumbAbs)) {
+      fs.unlinkSync(thumbAbs);
+    }
+  }
+  if (image.source_path) {
+    const sourceAbs = path.join(__dirname, image.source_path);
+    if (fs.existsSync(sourceAbs)) {
+      fs.unlinkSync(sourceAbs);
+    }
+  }
   db.prepare("DELETE FROM images WHERE id = ?").run(id);
   res.json({ ok: true });
+});
+
+app.post("/api/images/:id/thumbnail", requireRole("admin", "creator"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const image = db
+    .prepare(
+      "SELECT id, file_path, thumbnail_path FROM images WHERE id = ?"
+    )
+    .get(id);
+  if (!image) {
+    res.status(404).json({ error: "Immagine non trovata" });
+    return;
+  }
+  const absPath = path.join(__dirname, image.file_path);
+  if (!fs.existsSync(absPath)) {
+    res.status(404).json({ error: "File immagine non trovato" });
+    return;
+  }
+  const ext = path.extname(absPath).toLowerCase();
+  if (!canThumbnailExtension(ext)) {
+    res.status(400).json({ error: "Thumbnail non supportata per questo formato" });
+    return;
+  }
+  const baseName = path.parse(absPath).name;
+  const destDir = path.dirname(absPath);
+  const thumbAbs = generateThumbnail(absPath, destDir, baseName, ext);
+  if (!thumbAbs) {
+    res.status(500).json({ error: "Impossibile generare la thumbnail" });
+    return;
+  }
+  const thumbRel = path.relative(__dirname, thumbAbs).replace(/\\/g, "/");
+  db.prepare(
+    "UPDATE images SET thumbnail_path = ?, updated_at = datetime('now') WHERE id = ?"
+  ).run(thumbRel, id);
+  res.json({ thumbnail_path: thumbRel });
 });
 
 app.delete("/api/courses/:id", requireRole("admin"), (req, res) => {
@@ -1022,13 +1363,14 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   }
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const stmt = db.prepare(`
-    SELECT q.id, q.text, q.type, q.image_path,
+    SELECT q.id, q.text, q.type, q.image_path, i.thumbnail_path AS image_thumbnail_path,
            GROUP_CONCAT(DISTINCT t.name) AS topics,
            MAX(e.date) AS last_exam_date
       FROM questions q
       LEFT JOIN question_topics qt ON qt.question_id = q.id
       LEFT JOIN topics t ON t.id = qt.topic_id
       LEFT JOIN courses c ON c.id = t.course_id
+      LEFT JOIN images i ON i.file_path = q.image_path
       LEFT JOIN exam_questions eq ON eq.question_id = q.id
       LEFT JOIN exams e ON e.id = eq.exam_id
       ${whereSql}
@@ -1070,10 +1412,12 @@ app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, 
   const requestedCourseId = Number((req.body || {}).courseId);
   const question = db
     .prepare(
-      `SELECT id, text, type, image_path, image_layout_enabled,
-              image_left_width, image_right_width, image_scale
-         FROM questions
-        WHERE id = ?`
+      `SELECT q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+              q.image_left_width, q.image_right_width, q.image_scale,
+              i.thumbnail_path AS image_thumbnail_path
+         FROM questions q
+         LEFT JOIN images i ON i.file_path = q.image_path
+        WHERE q.id = ?`
     )
     .get(id);
   if (!question) {
@@ -1257,6 +1601,7 @@ app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
       text: question.text,
       type: question.type,
       imagePath: question.image_path || "",
+      imageThumbnailPath: question.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(question.image_layout_enabled),
       imageLeftWidth: question.image_left_width || "",
       imageRightWidth: question.image_right_width || "",
@@ -1438,9 +1783,11 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
   const questionRows = db
     .prepare(
       `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale
+              q.image_left_width, q.image_right_width, q.image_scale,
+              i.thumbnail_path AS image_thumbnail_path
          FROM exam_questions eq
          JOIN questions q ON q.id = eq.question_id
+         LEFT JOIN images i ON i.file_path = q.image_path
         WHERE eq.exam_id = ?
         ORDER BY eq.position`
     )
@@ -1472,6 +1819,7 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
       text: row.text,
       type: row.type,
       imagePath: row.image_path || "",
+      imageThumbnailPath: row.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(row.image_layout_enabled),
       imageLeftWidth: row.image_left_width || "",
       imageRightWidth: row.image_right_width || "",
@@ -1587,9 +1935,11 @@ app.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
   const questionRows = db
     .prepare(
       `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale
+              q.image_left_width, q.image_right_width, q.image_scale,
+              i.thumbnail_path AS image_thumbnail_path
          FROM exam_questions eq
          JOIN questions q ON q.id = eq.question_id
+         LEFT JOIN images i ON i.file_path = q.image_path
         WHERE eq.exam_id = ?
         ORDER BY eq.position`
     )
@@ -1621,6 +1971,7 @@ app.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
       text: row.text,
       type: row.type,
       imagePath: row.image_path || "",
+      imageThumbnailPath: row.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(row.image_layout_enabled),
       imageLeftWidth: row.image_left_width || "",
       imageRightWidth: row.image_right_width || "",

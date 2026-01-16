@@ -1,5 +1,8 @@
 const adminCourseNewInput = document.getElementById("adminCourseNew");
 const adminAddCourseBtn = document.getElementById("adminAddCourse");
+const adminUpdateCourseBtn = document.getElementById("adminUpdateCourse");
+const adminCancelCourseBtn = document.getElementById("adminCancelCourse");
+const adminCourseStatus = document.getElementById("adminCourseStatus");
 const adminCourseList = document.getElementById("adminCourseList");
 const adminCoursePicker = document.getElementById("adminCoursePicker");
 const adminCourseEmpty = document.getElementById("adminCourseEmpty");
@@ -7,11 +10,15 @@ const adminEditorWrap = document.getElementById("adminEditorWrap");
 const adminTopicCourseSelect = document.getElementById("adminTopicCourse");
 const adminTopicNewInput = document.getElementById("adminTopicNew");
 const adminAddTopicBtn = document.getElementById("adminAddTopic");
+const adminUpdateTopicBtn = document.getElementById("adminUpdateTopic");
+const adminCancelTopicBtn = document.getElementById("adminCancelTopic");
+const adminTopicStatus = document.getElementById("adminTopicStatus");
 const adminTopicList = document.getElementById("adminTopicList");
 const adminImageCourseSelect = document.getElementById("adminImageCourse");
 const adminImageNameInput = document.getElementById("adminImageName");
 const adminImageDescriptionInput = document.getElementById("adminImageDescription");
 const adminImageFileInput = document.getElementById("adminImageFile");
+const adminImageSourceFileInput = document.getElementById("adminImageSourceFile");
 const adminUploadImageBtn = document.getElementById("adminUploadImage");
 const adminImageStatus = document.getElementById("adminImageStatus");
 const adminImageList = document.getElementById("adminImageList");
@@ -41,8 +48,6 @@ const adminImageScaleLabel = document.getElementById("adminImageScaleLabel");
 const adminImageScalePresets = document.getElementById("adminImageScalePresets");
 const adminAnswers = document.getElementById("adminAnswers");
 const adminAddAnswerBtn = document.getElementById("adminAddAnswer");
-const adminSaveQuestionBtn = document.getElementById("adminSaveQuestion");
-const adminResetQuestionBtn = document.getElementById("adminResetQuestion");
 const adminQuestionStatus = document.getElementById("adminQuestionStatus");
 const adminEditBadge = document.getElementById("adminEditBadge");
 const adminEditBadgeTop = document.getElementById("adminEditBadgeTop");
@@ -50,13 +55,19 @@ const adminQuestionError = document.getElementById("adminQuestionError");
 const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
+const toggleShortcutsBtn = document.getElementById("toggleShortcuts");
 const toggleImagesBtn = document.getElementById("toggleImages");
 const toggleUsersBtn = document.getElementById("toggleUsers");
-const adminActionButtons = [toggleUsersBtn, toggleCoursesBtn, toggleTopicsBtn, toggleImagesBtn].filter(
-  Boolean
-);
+const adminActionButtons = [
+  toggleUsersBtn,
+  toggleCoursesBtn,
+  toggleTopicsBtn,
+  toggleShortcutsBtn,
+  toggleImagesBtn,
+].filter(Boolean);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
+const adminShortcutsSection = document.getElementById("adminShortcutsSection");
 const adminImagesSection = document.getElementById("adminImagesSection");
 const adminUsersSection = document.getElementById("adminUsersSection");
 const adminEmptyState = document.getElementById("adminEmptyState");
@@ -64,8 +75,29 @@ const adminUserNameInput = document.getElementById("adminUserName");
 const adminUserPasswordInput = document.getElementById("adminUserPassword");
 const adminUserRoleSelect = document.getElementById("adminUserRole");
 const adminCreateUserBtn = document.getElementById("adminCreateUser");
+const adminUpdateUserBtn = document.getElementById("adminUpdateUser");
+const adminCancelUserBtn = document.getElementById("adminCancelUser");
 const adminUserStatus = document.getElementById("adminUserStatus");
 const adminUserList = document.getElementById("adminUserList");
+const adminToast = document.getElementById("adminToast");
+const adminShortcutAddBtn = document.getElementById("adminShortcutAdd");
+const shortcutModalBackdrop = document.getElementById("shortcutModalBackdrop");
+const shortcutModal = document.getElementById("shortcutModal");
+const shortcutModalClose = document.getElementById("shortcutModalClose");
+const shortcutModalLabel = document.getElementById("shortcutModalLabel");
+const shortcutModalSnippet = document.getElementById("shortcutModalSnippet");
+const shortcutModalSave = document.getElementById("shortcutModalSave");
+const shortcutModalStatus = document.getElementById("shortcutModalStatus");
+const adminShortcutBar = document.getElementById("adminShortcutBar");
+const adminShortcutEmpty = document.getElementById("adminShortcutEmpty");
+const adminShortcutCourse = document.getElementById("adminShortcutCourse");
+const adminShortcutLabel = document.getElementById("adminShortcutLabel");
+const adminShortcutSnippet = document.getElementById("adminShortcutSnippet");
+const adminCreateShortcutBtn = document.getElementById("adminCreateShortcut");
+const adminUpdateShortcutBtn = document.getElementById("adminUpdateShortcut");
+const adminCancelShortcutBtn = document.getElementById("adminCancelShortcut");
+const adminShortcutStatus = document.getElementById("adminShortcutStatus");
+const adminShortcutList = document.getElementById("adminShortcutList");
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
@@ -83,13 +115,40 @@ const adminToolbarReset = document.getElementById("adminToolbarReset");
 const adminTemplateAnswers = document.getElementById("adminTemplateAnswers");
 const adminPreviewRefresh = document.getElementById("adminPreviewRefresh");
 const adminToolbarBank = document.getElementById("adminToolbarBank");
+const adminSaveStateBadge = document.getElementById("adminSaveState");
 const bankModalBackdrop = document.getElementById("bankModalBackdrop");
 const bankModal = document.getElementById("bankModal");
 const bankModalClose = document.getElementById("bankModalClose");
 const adminImageAccordion = document.getElementById("adminImageAccordion");
+const questionPreviewBackdrop = document.getElementById("questionPreviewBackdrop");
+const questionPreviewModal = document.getElementById("questionPreviewModal");
+const questionPreviewCloseBtn = document.getElementById("questionPreviewClose");
+const questionPreviewBody = document.getElementById("questionPreviewBody");
 let editingQuestionId = null;
 let topicOptions = [];
 let userCache = [];
+let editingCourseId = null;
+let editingUserId = null;
+let editingTopicId = null;
+let lastSavedSnapshot = "";
+let shortcutCache = [];
+let editingShortcutId = null;
+let lastFocusedInput = null;
+let adminToastTimer = null;
+let imageCache = [];
+
+const showAdminToast = (message, tone = "info") => {
+  if (!adminToast) return;
+  adminToast.textContent = message;
+  adminToast.classList.remove("is-error", "is-success");
+  if (tone === "error") adminToast.classList.add("is-error");
+  if (tone === "success") adminToast.classList.add("is-success");
+  adminToast.classList.add("show");
+  if (adminToastTimer) clearTimeout(adminToastTimer);
+  adminToastTimer = setTimeout(() => {
+    adminToast.classList.remove("show");
+  }, 2400);
+};
 
 const updateQuestionTypePills = () => {
   if (!adminQuestionType) return;
@@ -125,7 +184,7 @@ const updateImageLayoutState = () => {
   const safeSplit = Number.isFinite(split) ? split : 50;
   const scale = Number(adminImageScaleRange?.value || 96);
   const safeScale = Number.isFinite(scale) ? scale : 96;
-  const left = Math.min(Math.max(safeSplit, 30), 70);
+  const left = Math.min(Math.max(safeSplit, 10), 90);
   const right = 100 - left;
   adminQuestionState.imageLeft = formatWidthPercent(left);
   adminQuestionState.imageRight = formatWidthPercent(right);
@@ -159,6 +218,259 @@ const createEl = (tag, className, text) => {
   if (className) el.className = className;
   if (text !== undefined) el.textContent = text;
   return el;
+};
+
+const setCourseEditState = (course) => {
+  editingCourseId = course ? course.id : null;
+  if (adminCourseNewInput) {
+    adminCourseNewInput.value = course ? course.name : "";
+  }
+  if (adminAddCourseBtn) adminAddCourseBtn.classList.toggle("is-hidden", Boolean(course));
+  if (adminUpdateCourseBtn) adminUpdateCourseBtn.classList.toggle("is-hidden", !course);
+  if (adminCancelCourseBtn) adminCancelCourseBtn.classList.toggle("is-hidden", !course);
+  if (adminCourseStatus) {
+    adminCourseStatus.textContent = course ? `Modifica corso: ${course.name}` : "";
+  }
+};
+
+const setTopicEditState = (topic) => {
+  editingTopicId = topic ? topic.id : null;
+  if (adminTopicNewInput) adminTopicNewInput.value = topic ? topic.name : "";
+  if (adminAddTopicBtn) adminAddTopicBtn.classList.toggle("is-hidden", Boolean(topic));
+  if (adminUpdateTopicBtn) adminUpdateTopicBtn.classList.toggle("is-hidden", !topic);
+  if (adminCancelTopicBtn) adminCancelTopicBtn.classList.toggle("is-hidden", !topic);
+  if (adminTopicStatus) {
+    adminTopicStatus.textContent = topic ? `Modifica argomento: ${topic.name}` : "";
+  }
+};
+
+const setUserEditState = (user) => {
+  editingUserId = user ? user.id : null;
+  if (adminUserNameInput) adminUserNameInput.value = user ? user.username : "";
+  if (adminUserPasswordInput) adminUserPasswordInput.value = "";
+  if (adminUserRoleSelect) {
+    adminUserRoleSelect.value = user ? user.role : "creator";
+    adminUserRoleSelect.disabled = Boolean(user && user.role === "admin");
+  }
+  if (adminCreateUserBtn) adminCreateUserBtn.classList.toggle("is-hidden", Boolean(user));
+  if (adminUpdateUserBtn) adminUpdateUserBtn.classList.toggle("is-hidden", !user);
+  if (adminCancelUserBtn) adminCancelUserBtn.classList.toggle("is-hidden", !user);
+  if (adminUserStatus) {
+    adminUserStatus.textContent = user ? `Modifica utente: ${user.username}` : "";
+  }
+};
+
+const setShortcutEditState = (shortcut) => {
+  editingShortcutId = shortcut ? shortcut.id : null;
+  if (adminShortcutLabel) adminShortcutLabel.value = shortcut ? shortcut.label : "";
+  if (adminShortcutSnippet) adminShortcutSnippet.value = shortcut ? shortcut.snippet : "";
+  if (adminCreateShortcutBtn)
+    adminCreateShortcutBtn.classList.toggle("is-hidden", Boolean(shortcut));
+  if (adminUpdateShortcutBtn)
+    adminUpdateShortcutBtn.classList.toggle("is-hidden", !shortcut);
+  if (adminCancelShortcutBtn)
+    adminCancelShortcutBtn.classList.toggle("is-hidden", !shortcut);
+  if (adminShortcutStatus) {
+    adminShortcutStatus.textContent = shortcut
+      ? `Modifica scorciatoia: ${shortcut.label}`
+      : "";
+  }
+};
+
+const setFocusedInput = (el) => {
+  if (!el) return;
+  lastFocusedInput = el;
+};
+
+const insertShortcutText = (snippet) => {
+  const target = lastFocusedInput || adminQuestionText;
+  if (!target) return;
+  const value = target.value || "";
+  const start = Number.isFinite(target.selectionStart) ? target.selectionStart : value.length;
+  const end = Number.isFinite(target.selectionEnd) ? target.selectionEnd : value.length;
+  const nextValue = `${value.slice(0, start)}${snippet}${value.slice(end)}`;
+  target.value = nextValue;
+  const cursor = start + snippet.length;
+  if (typeof target.setSelectionRange === "function") {
+    target.setSelectionRange(cursor, cursor);
+  }
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  target.focus();
+};
+
+const handleShortcutHotkeys = (event) => {
+  if (!event.ctrlKey) return;
+  if (!shortcutCache.length) return;
+  const key = event.key;
+  if (!/^[1-9]$/.test(key)) return;
+  const target = event.target;
+  if (!target || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+    return;
+  }
+  event.preventDefault();
+  const index = Number(key) - 1;
+  const shortcut = shortcutCache[index];
+  if (shortcut) insertShortcutText(shortcut.snippet);
+};
+
+const openShortcutModal = () => {
+  if (!shortcutModal || !shortcutModalBackdrop) return;
+  if (shortcutModalLabel) shortcutModalLabel.value = "";
+  if (shortcutModalSnippet) shortcutModalSnippet.value = "";
+  if (shortcutModalStatus) shortcutModalStatus.textContent = "";
+  shortcutModal.classList.remove("is-hidden");
+  shortcutModalBackdrop.classList.remove("is-hidden");
+  if (shortcutModalLabel) shortcutModalLabel.focus();
+};
+
+const closeShortcutModal = () => {
+  if (shortcutModal) shortcutModal.classList.add("is-hidden");
+  if (shortcutModalBackdrop) shortcutModalBackdrop.classList.add("is-hidden");
+};
+
+const createShortcutFromModal = async () => {
+  const courseId = readSelectNumber(adminCoursePicker);
+  const label = String(shortcutModalLabel?.value || "").trim();
+  const snippet = String(shortcutModalSnippet?.value || "").trim();
+  if (!Number.isFinite(courseId)) {
+    if (shortcutModalStatus) shortcutModalStatus.textContent = "Seleziona un corso.";
+    return;
+  }
+  if (!label || !snippet) {
+    if (shortcutModalStatus) shortcutModalStatus.textContent = "Descrizione e testo sono obbligatori.";
+    return;
+  }
+  try {
+    await apiFetch("/api/shortcuts", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId, label, snippet }),
+    });
+    await loadShortcutsForEditor(courseId);
+    closeShortcutModal();
+  } catch (err) {
+    if (shortcutModalStatus) {
+      shortcutModalStatus.textContent = err.message || "Errore creazione scorciatoia.";
+    }
+  }
+};
+
+const renderShortcutBar = (shortcuts) => {
+  if (!adminShortcutBar) return;
+  adminShortcutBar.innerHTML = "";
+  if (!shortcuts.length) {
+    if (adminShortcutEmpty) adminShortcutEmpty.classList.remove("is-hidden");
+    return;
+  }
+  if (adminShortcutEmpty) adminShortcutEmpty.classList.add("is-hidden");
+  shortcuts.forEach((shortcut) => {
+    const btn = createEl("button", "chip-action", shortcut.label);
+    btn.type = "button";
+    btn.addEventListener("click", () => insertShortcutText(shortcut.snippet));
+    adminShortcutBar.appendChild(btn);
+  });
+};
+
+const renderShortcutList = (shortcuts) => {
+  if (!adminShortcutList) return;
+  adminShortcutList.innerHTML = "";
+  if (!shortcuts.length) {
+    adminShortcutList.textContent = "Nessuna scorciatoia per il corso selezionato.";
+    return;
+  }
+  shortcuts.forEach((shortcut) => {
+    const item = createEl("div", "list-item");
+    const header = createEl("div", "list-item-title", shortcut.label);
+    const meta = createEl("div", "list-item-meta", shortcut.snippet);
+    const actions = createEl("div", "actions");
+    const editBtn = createEl("button", "btn btn-outline-primary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => setShortcutEditState(shortcut));
+    const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
+    delBtn.type = "button";
+    delBtn.addEventListener("click", () => deleteShortcut(shortcut.id));
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+    item.appendChild(header);
+    item.appendChild(meta);
+    item.appendChild(actions);
+    adminShortcutList.appendChild(item);
+  });
+};
+
+const loadShortcutsForEditor = async (courseId) => {
+  if (!Number.isFinite(courseId)) {
+    shortcutCache = [];
+    renderShortcutBar([]);
+    return;
+  }
+  const payload = await apiFetch(`/api/shortcuts?courseId=${courseId}`);
+  shortcutCache = payload.shortcuts || [];
+  renderShortcutBar(shortcutCache);
+};
+
+const loadShortcutsForAdmin = async (courseId) => {
+  if (!Number.isFinite(courseId)) {
+    renderShortcutList([]);
+    return;
+  }
+  const payload = await apiFetch(`/api/shortcuts?courseId=${courseId}`);
+  renderShortcutList(payload.shortcuts || []);
+};
+
+const createShortcut = async () => {
+  const courseId = readSelectNumber(adminShortcutCourse);
+  const label = String(adminShortcutLabel?.value || "").trim();
+  const snippet = String(adminShortcutSnippet?.value || "").trim();
+  if (!Number.isFinite(courseId)) {
+    if (adminShortcutStatus) adminShortcutStatus.textContent = "Seleziona un corso.";
+    return;
+  }
+  if (!label || !snippet) {
+    if (adminShortcutStatus) adminShortcutStatus.textContent = "Descrizione e testo sono obbligatori.";
+    return;
+  }
+  await apiFetch("/api/shortcuts", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ courseId, label, snippet }),
+  });
+  if (adminShortcutStatus) adminShortcutStatus.textContent = "Scorciatoia creata.";
+  setShortcutEditState(null);
+  await loadShortcutsForAdmin(courseId);
+  if (adminCoursePicker) await loadShortcutsForEditor(courseId);
+};
+
+const updateShortcut = async () => {
+  if (!editingShortcutId) return;
+  const courseId = readSelectNumber(adminShortcutCourse);
+  const label = String(adminShortcutLabel?.value || "").trim();
+  const snippet = String(adminShortcutSnippet?.value || "").trim();
+  if (!Number.isFinite(courseId)) {
+    if (adminShortcutStatus) adminShortcutStatus.textContent = "Seleziona un corso.";
+    return;
+  }
+  if (!label || !snippet) {
+    if (adminShortcutStatus) adminShortcutStatus.textContent = "Descrizione e testo sono obbligatori.";
+    return;
+  }
+  await apiFetch(`/api/shortcuts/${editingShortcutId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ courseId, label, snippet }),
+  });
+  if (adminShortcutStatus) adminShortcutStatus.textContent = "Scorciatoia aggiornata.";
+  setShortcutEditState(null);
+  await loadShortcutsForAdmin(courseId);
+  if (adminCoursePicker) await loadShortcutsForEditor(courseId);
+};
+
+const deleteShortcut = async (id) => {
+  await apiFetch(`/api/shortcuts/${id}`, { method: "DELETE" });
+  const courseId = readSelectNumber(adminShortcutCourse);
+  setShortcutEditState(null);
+  await loadShortcutsForAdmin(courseId);
+  if (adminCoursePicker) await loadShortcutsForEditor(courseId);
 };
 
 const readFileAsDataUrl = (file) =>
@@ -202,8 +514,115 @@ const closeBankModal = () => {
   if (bankModal) bankModal.classList.add("is-hidden");
 };
 
+const openQuestionPreviewModal = () => {
+  if (questionPreviewBackdrop) questionPreviewBackdrop.classList.remove("is-hidden");
+  if (questionPreviewModal) questionPreviewModal.classList.remove("is-hidden");
+};
+
+const closeQuestionPreviewModal = () => {
+  if (questionPreviewBackdrop) questionPreviewBackdrop.classList.add("is-hidden");
+  if (questionPreviewModal) questionPreviewModal.classList.add("is-hidden");
+  if (questionPreviewBody) questionPreviewBody.innerHTML = "";
+};
+
+const setSaveState = (state) => {
+  if (!adminSaveStateBadge) return;
+  if (state === "saved") {
+    adminSaveStateBadge.textContent = "Salvato";
+    adminSaveStateBadge.classList.remove("is-error");
+    adminSaveStateBadge.classList.add("is-success");
+  } else {
+    adminSaveStateBadge.textContent = "Modifiche non salvate";
+    adminSaveStateBadge.classList.remove("is-success");
+    adminSaveStateBadge.classList.add("is-error");
+  }
+};
+
+const getQuestionSnapshot = () => {
+  const answers = adminQuestionState.answers.map((answer) => ({
+    text: String(answer.text || "").trim(),
+    correct: Boolean(answer.correct),
+  }));
+  const topicIds = [...adminQuestionState.topicIds].sort((a, b) => a - b);
+  return JSON.stringify({
+    type: adminQuestionState.type,
+    text: String(adminQuestionState.text || "").trim(),
+    topicIds,
+    image: String(adminQuestionState.image || "").trim(),
+    imageLayoutEnabled: Boolean(adminQuestionState.imageLayoutEnabled),
+    imageLeft: String(adminQuestionState.imageLeft || "").trim(),
+    imageRight: String(adminQuestionState.imageRight || "").trim(),
+    imageScale: String(adminQuestionState.imageScale || "").trim(),
+    answers,
+  });
+};
+
+const updateSaveStateFromSnapshot = () => {
+  const snapshot = getQuestionSnapshot();
+  if (!lastSavedSnapshot) {
+    setSaveState("dirty");
+    return;
+  }
+  setSaveState(snapshot === lastSavedSnapshot ? "saved" : "dirty");
+};
+
+const renderQuestionPreview = (question) => {
+  if (!questionPreviewBody) return;
+  questionPreviewBody.innerHTML = "";
+  const header = createEl("div", "preview-card-header");
+  const title = createEl("div");
+  const label = createEl(
+    "div",
+    "text-secondary small",
+    question.type === "multipla" ? "Risposta multipla" : "Risposta singola"
+  );
+  title.appendChild(label);
+  header.appendChild(title);
+  questionPreviewBody.appendChild(header);
+
+  const textBlock = createEl("div", "latex-preview-block");
+  renderMathPreview(question.text, textBlock, null);
+  questionPreviewBody.appendChild(textBlock);
+
+  if (question.imageLayoutEnabled && question.imagePath) {
+    const imageWrap = createEl("div", "preview-image");
+    const img = document.createElement("img");
+    const thumb = question.imageThumbnailPath || question.imagePath;
+    img.src = thumb;
+    img.alt = "Anteprima immagine";
+    const meta = createEl("div", "preview-image-meta", question.imagePath.split("/").pop());
+    imageWrap.appendChild(img);
+    imageWrap.appendChild(meta);
+    questionPreviewBody.appendChild(imageWrap);
+  }
+
+  const answersWrap = createEl("div", "preview-answer-list");
+  question.answers.forEach((answer, idx) => {
+    const row = createEl("div", "preview-answer-row");
+    const label = createEl("div", "preview-answer-label", String.fromCharCode(65 + idx));
+    const text = createEl("div", "preview-answer-text");
+    renderMathDisplay(answer.text, text);
+    row.appendChild(label);
+    row.appendChild(text);
+    if (answer.isCorrect) {
+      const tick = createEl("span", "answer-tick");
+      tick.innerHTML =
+        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+      row.appendChild(tick);
+    }
+    answersWrap.appendChild(row);
+  });
+  questionPreviewBody.appendChild(answersWrap);
+};
+
 const showAdminSection = (section) => {
-  const sections = [adminUsersSection, adminCoursesSection, adminTopicsSection, adminImagesSection];
+  const sections = [
+    adminUsersSection,
+    adminCoursesSection,
+    adminTopicsSection,
+    adminShortcutsSection,
+    adminImagesSection,
+  ];
   sections.forEach((item) => {
     if (!item) return;
     item.classList.toggle("is-hidden", item !== section);
@@ -215,6 +634,8 @@ const showAdminSection = (section) => {
   if (section === adminUsersSection && toggleUsersBtn) toggleUsersBtn.classList.add("is-active");
   if (section === adminCoursesSection && toggleCoursesBtn) toggleCoursesBtn.classList.add("is-active");
   if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
+  if (section === adminShortcutsSection && toggleShortcutsBtn)
+    toggleShortcutsBtn.classList.add("is-active");
   if (section === adminImagesSection && toggleImagesBtn) toggleImagesBtn.classList.add("is-active");
 };
 
@@ -228,13 +649,14 @@ const renderImagePickerList = (images) => {
   images.forEach((image) => {
     const item = createEl("div", "image-item");
     const thumb = createEl("div", "image-thumb");
+    const previewPath = image.thumbnail_path || image.file_path || "";
     const filePath = image.file_path || "";
-    if (isPreviewableImage(filePath)) {
+    if (isPreviewableImage(previewPath)) {
       const img = document.createElement("img");
-      img.src = filePath;
+      img.src = previewPath;
       img.alt = image.name;
       img.addEventListener("click", () =>
-        openImagePreview(filePath, image.name, image.description)
+        openImagePreview(previewPath, image.name, image.description)
       );
       thumb.appendChild(img);
     } else {
@@ -454,6 +876,7 @@ const updateAdminPreviews = () => {
       adminQuestionText
     );
   }
+  updateSaveStateFromSnapshot();
   if (adminPreviewMeta) {
     const typeLabel = adminQuestionState.type === "multipla" ? "Multipla" : "Singola";
     const answersCount = adminQuestionState.answers.length;
@@ -463,8 +886,10 @@ const updateAdminPreviews = () => {
     const path = adminQuestionState.image || "";
     const showImage = Boolean(adminQuestionState.imageLayoutEnabled) && Boolean(path);
     if (showImage) {
+      const found = imageCache.find((image) => image.file_path === path);
+      const previewPath = found?.thumbnail_path || path;
       adminPreviewImageWrap.classList.remove("is-hidden");
-      adminPreviewImage.src = path;
+      adminPreviewImage.src = previewPath;
       adminPreviewImage.alt = "Anteprima immagine";
       if (adminPreviewImageMeta) {
         const name = path.split("/").pop() || path;
@@ -549,6 +974,7 @@ const renderAdminAnswers = () => {
     input.placeholder = "Testo risposta";
     input.value = answer.text;
     input.dataset.answerIndex = String(idx);
+    input.addEventListener("focus", () => setFocusedInput(input));
     input.addEventListener("input", () => {
       adminQuestionState.answers[idx].text = input.value;
       updateAdminPreviews();
@@ -603,19 +1029,21 @@ const resetAdminQuestion = () => {
   if (adminImageAccordion) adminImageAccordion.open = false;
   renderAdminAnswers();
   updateAdminPreviews();
-  if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Salva nel banco";
   if (adminEditBadge) adminEditBadge.classList.add("is-hidden");
   if (adminEditBadgeTop) adminEditBadgeTop.classList.add("is-hidden");
+  lastSavedSnapshot = getQuestionSnapshot();
+  setSaveState("saved");
 };
 
 const duplicateAdminQuestion = () => {
   if (!adminQuestionText) return;
   editingQuestionId = null;
-  if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Salva nel banco";
   if (adminEditBadge) adminEditBadge.classList.add("is-hidden");
   if (adminEditBadgeTop) adminEditBadgeTop.classList.add("is-hidden");
   if (adminQuestionStatus) adminQuestionStatus.textContent = "Duplica attiva: salva per creare una nuova domanda.";
   updateAdminPreviews();
+  lastSavedSnapshot = "";
+  setSaveState("dirty");
 };
 
 const applyAnswerTemplate = () => {
@@ -684,9 +1112,15 @@ const renderCourseList = (courses) => {
     const title = createEl("div", "list-title", course.name);
     const meta = createEl("div", "list-meta", course.code || "Codice n/d");
     const actions = createEl("div", "list-actions");
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => {
+      setCourseEditState(course);
+    });
     const deleteBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     deleteBtn.type = "button";
     deleteBtn.addEventListener("click", () => deleteCourse(course.id));
+    actions.appendChild(editBtn);
     actions.appendChild(deleteBtn);
     item.appendChild(title);
     item.appendChild(meta);
@@ -705,12 +1139,23 @@ const renderTopicList = (topics) => {
   topics.forEach((topic) => {
     const item = createEl("div", "list-item");
     const title = createEl("div", "list-title", topic.name);
+    const count = Number(topic.question_count || 0);
+    const meta = createEl("div", "list-meta");
+    const badge = createEl("span", "pill-badge", `Domande: ${count}`);
     const actions = createEl("div", "list-actions");
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => {
+      setTopicEditState(topic);
+    });
     const deleteBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     deleteBtn.type = "button";
     deleteBtn.addEventListener("click", () => deleteTopic(topic.id));
+    actions.appendChild(editBtn);
     actions.appendChild(deleteBtn);
     item.appendChild(title);
+    meta.appendChild(badge);
+    item.appendChild(meta);
     item.appendChild(actions);
     adminTopicList.appendChild(item);
   });
@@ -726,13 +1171,14 @@ const renderImageList = (images) => {
   images.forEach((image) => {
     const item = createEl("div", "image-item");
     const thumb = createEl("div", "image-thumb");
+    const previewPath = image.thumbnail_path || image.file_path || "";
     const filePath = image.file_path || "";
-    if (isPreviewableImage(filePath)) {
+    if (isPreviewableImage(previewPath)) {
       const img = document.createElement("img");
-      img.src = filePath;
+      img.src = previewPath;
       img.alt = image.name;
       img.addEventListener("click", () =>
-        openImagePreview(filePath, image.name, image.description)
+        openImagePreview(previewPath, image.name, image.description)
       );
       thumb.appendChild(img);
     } else {
@@ -748,6 +1194,11 @@ const renderImageList = (images) => {
       image.description || "Nessuna descrizione"
     );
     const meta = createEl("div", "image-meta", image.original_name || filePath);
+    const sourceMeta = createEl(
+      "div",
+      "list-meta",
+      image.source_name ? `Sorgente: ${image.source_name}` : "Sorgente non disponibile"
+    );
     const actions = createEl("div", "list-actions");
     const useBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa in domanda");
     useBtn.type = "button";
@@ -757,14 +1208,42 @@ const renderImageList = (images) => {
       updateAdminPreviews();
       if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine impostata nella domanda.";
     });
+    if (image.file_path) {
+      const ext = String(image.file_path).split(".").pop().toLowerCase();
+      if (["pdf", "ps", "eps"].includes(ext)) {
+        const regenBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Rigenera thumbnail");
+        regenBtn.type = "button";
+        regenBtn.addEventListener("click", async () => {
+          try {
+            await apiFetch(`/api/images/${image.id}/thumbnail`, { method: "POST" });
+            const courseId = Number(adminImageCourseSelect?.value || "");
+            await loadImages(courseId);
+            showAdminToast("Thumbnail rigenerata.", "success");
+          } catch (err) {
+            if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore thumbnail.";
+            showAdminToast("Errore nella rigenerazione.", "error");
+          }
+        });
+        actions.appendChild(regenBtn);
+      }
+    }
     const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     delBtn.type = "button";
     delBtn.addEventListener("click", () => deleteImage(image.id));
+    if (image.source_path) {
+      const sourceLink = document.createElement("a");
+      sourceLink.className = "btn btn-outline-secondary btn-sm";
+      sourceLink.href = image.source_path;
+      sourceLink.download = image.source_name || "sorgente";
+      sourceLink.textContent = "Sorgente";
+      actions.appendChild(sourceLink);
+    }
     actions.appendChild(useBtn);
     actions.appendChild(delBtn);
     details.appendChild(title);
     details.appendChild(desc);
     details.appendChild(meta);
+    details.appendChild(sourceMeta);
     details.appendChild(actions);
     item.appendChild(thumb);
     item.appendChild(details);
@@ -780,17 +1259,52 @@ const renderBankList = (questions) => {
     return;
   }
   questions.forEach((question) => {
-    const item = createEl("div", "list-item");
+    const item = createEl("div", "list-item question-bank-card");
+    const header = createEl("div", "list-row");
     const title = createEl("div", "list-title");
-    renderMathDisplay(question.text.slice(0, 120), title);
-    const dateLabel = question.last_exam_date
-      ? ` • ${formatDateDisplay(question.last_exam_date)}`
-      : "";
-    const metaText = question.topics.length
-      ? `${question.topics.join(", ")}${dateLabel}`
-      : `Nessun argomento${dateLabel}`;
-    const meta = createEl("div", "list-meta", metaText);
+    renderMathDisplay(question.text.slice(0, 160), title);
+    const badgeRow = createEl("div", "chip-row");
+    const typeChip = createEl(
+      "span",
+      "chip chip-action",
+      question.type === "multipla" ? "Multipla" : "Singola"
+    );
+    badgeRow.appendChild(typeChip);
+    if (question.image_path) {
+      const imageChip = createEl("span", "chip chip-action", "Immagine");
+      badgeRow.appendChild(imageChip);
+    }
+    if (question.last_exam_date) {
+      const dateChip = createEl(
+        "span",
+        "chip chip-action",
+        `Ultimo esame ${formatDateDisplay(question.last_exam_date)}`
+      );
+      badgeRow.appendChild(dateChip);
+    }
+    header.appendChild(title);
+    header.appendChild(badgeRow);
+    const meta = createEl("div", "list-meta");
+    if (question.topics.length) {
+      question.topics.forEach((topic) => {
+        const chip = createEl("span", "chip chip-action", topic);
+        meta.appendChild(chip);
+      });
+    } else {
+      meta.textContent = "Nessun argomento";
+    }
     const actions = createEl("div", "list-actions");
+    const previewBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Anteprima");
+    previewBtn.type = "button";
+    previewBtn.addEventListener("click", async () => {
+      try {
+        const payload = await apiFetch(`/api/questions/${question.id}`);
+        renderQuestionPreview(payload.question);
+        openQuestionPreviewModal();
+      } catch (err) {
+        if (adminQuestionStatus) adminQuestionStatus.textContent = err.message || "Errore anteprima.";
+      }
+    });
     const editBtn = createEl("button", "btn btn-outline-primary btn-sm", "Modifica");
     editBtn.type = "button";
     editBtn.addEventListener("click", () => loadQuestionForEdit(question.id));
@@ -800,10 +1314,11 @@ const renderBankList = (questions) => {
     const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     delBtn.type = "button";
     delBtn.addEventListener("click", () => deleteQuestion(question.id));
+    actions.appendChild(previewBtn);
     actions.appendChild(editBtn);
     actions.appendChild(dupBtn);
     actions.appendChild(delBtn);
-    item.appendChild(title);
+    item.appendChild(header);
     item.appendChild(meta);
     item.appendChild(actions);
     bankList.appendChild(item);
@@ -838,6 +1353,7 @@ const setActiveCourse = async (
     renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
     renderTopicOptions([]);
     renderImageList([]);
+    renderShortcutBar([]);
     if (adminCourseEmpty) adminCourseEmpty.classList.remove("is-hidden");
     if (adminEditorWrap) adminEditorWrap.classList.add("is-hidden");
     return;
@@ -862,6 +1378,7 @@ const setActiveCourse = async (
   await loadQuestionTopics(courseId);
   await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
   await loadImages(courseId);
+  await loadShortcutsForEditor(courseId);
   if (syncBank) {
     await refreshQuestionBank();
   }
@@ -875,6 +1392,7 @@ const loadCourses = async () => {
   renderSelectOptions(adminTopicCourseSelect, courses, "Seleziona corso");
   renderSelectOptions(adminCoursePicker, courses, "Seleziona corso");
   renderSelectOptions(adminImageCourseSelect, courses, "Seleziona corso");
+  renderSelectOptions(adminShortcutCourse, courses, "Seleziona corso");
   renderSelectOptions(bankCourseSelect, courses, "Tutti i corsi");
   renderCourseList(courses);
   const storedCourseId = getStoredAdminCourseId();
@@ -885,6 +1403,7 @@ const loadCourses = async () => {
   const preferredId = storedExists ? storedCourseId : fallbackId;
   if (Number.isFinite(preferredId)) {
     await setActiveCourse(preferredId, { persist: true });
+    if (adminShortcutCourse) adminShortcutCourse.value = String(preferredId);
   } else {
     await setActiveCourse(Number.NaN, { persist: false });
   }
@@ -892,23 +1411,25 @@ const loadCourses = async () => {
 };
 
 const loadTopics = async (courseId, select, placeholder) => {
-  if (!select) return;
   if (!Number.isFinite(courseId)) {
-    renderSelectOptions(select, [], placeholder);
+    if (select) renderSelectOptions(select, [], placeholder);
+    renderTopicList([]);
     return;
   }
   const payload = await apiFetch(`/api/topics?courseId=${courseId}`);
-  renderSelectOptions(select, payload.topics || [], placeholder);
+  if (select) renderSelectOptions(select, payload.topics || [], placeholder);
   renderTopicList(payload.topics || []);
 };
 
 const loadImages = async (courseId) => {
   if (!Number.isFinite(courseId)) {
+    imageCache = [];
     renderImageList([]);
     return;
   }
   const payload = await apiFetch(`/api/images?courseId=${courseId}`);
-  renderImageList(payload.images || []);
+  imageCache = payload.images || [];
+  renderImageList(imageCache);
 };
 
 const uploadImage = async () => {
@@ -924,8 +1445,10 @@ const uploadImage = async () => {
   }
   const name = String(adminImageNameInput?.value || "").trim();
   const description = String(adminImageDescriptionInput?.value || "").trim();
+  const sourceFile = adminImageSourceFileInput?.files?.[0];
   try {
     const dataBase64 = await readFileAsDataUrl(file);
+    const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
     await apiFetch("/api/images", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -936,11 +1459,15 @@ const uploadImage = async () => {
         originalName: file.name,
         dataBase64,
         mimeType: file.type,
+        sourceOriginalName: sourceFile?.name || "",
+        sourceBase64,
+        sourceMimeType: sourceFile?.type || "",
       }),
     });
     if (adminImageNameInput) adminImageNameInput.value = "";
     if (adminImageDescriptionInput) adminImageDescriptionInput.value = "";
     if (adminImageFileInput) adminImageFileInput.value = "";
+    if (adminImageSourceFileInput) adminImageSourceFileInput.value = "";
     if (adminImageStatus) adminImageStatus.textContent = "Immagine caricata.";
     await loadImages(courseId);
   } catch (err) {
@@ -975,6 +1502,11 @@ const renderUserList = () => {
     const metaParts = [user.role, formatUserDate(user.created_at)].filter(Boolean);
     const meta = createEl("div", "list-item-meta", metaParts.join(" • "));
     const actions = createEl("div", "table-actions");
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => {
+      setUserEditState(user);
+    });
     const removeBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
     removeBtn.type = "button";
     if (user.role === "admin") {
@@ -991,6 +1523,7 @@ const renderUserList = () => {
         }
       });
     }
+    actions.appendChild(editBtn);
     actions.appendChild(removeBtn);
     item.appendChild(header);
     item.appendChild(meta);
@@ -1033,16 +1566,78 @@ const createUser = async () => {
   }
 };
 
+const updateUser = async () => {
+  if (!editingUserId) return;
+  const username = String(adminUserNameInput?.value || "").trim();
+  const password = String(adminUserPasswordInput?.value || "");
+  const role = String(adminUserRoleSelect?.value || "").trim();
+  if (!username || !role) {
+    if (adminUserStatus) adminUserStatus.textContent = "Compila username e ruolo.";
+    return;
+  }
+  const payload = { username, role };
+  if (password) payload.password = password;
+  try {
+    await apiFetch(`/api/users/${editingUserId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    setUserEditState(null);
+    if (adminUserStatus) adminUserStatus.textContent = "Utente aggiornato.";
+    await loadUsers();
+  } catch (err) {
+    if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore aggiornamento utente.";
+  }
+};
+
+const cancelUserEdit = () => {
+  setUserEditState(null);
+};
+
 const createCourse = async () => {
   const name = adminCourseNewInput?.value.trim() || "";
-  if (!name) return;
-  await apiFetch("/api/courses", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ name }),
-  });
-  if (adminCourseNewInput) adminCourseNewInput.value = "";
-  await loadCourses();
+  if (!name) {
+    if (adminCourseStatus) adminCourseStatus.textContent = "Inserisci il nome del corso.";
+    return;
+  }
+  try {
+    await apiFetch("/api/courses", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    if (adminCourseNewInput) adminCourseNewInput.value = "";
+    if (adminCourseStatus) adminCourseStatus.textContent = "Corso creato.";
+    await loadCourses();
+  } catch (err) {
+    if (adminCourseStatus) adminCourseStatus.textContent = err.message || "Errore creazione corso.";
+  }
+};
+
+const updateCourse = async () => {
+  if (!editingCourseId) return;
+  const name = adminCourseNewInput?.value.trim() || "";
+  if (!name) {
+    if (adminCourseStatus) adminCourseStatus.textContent = "Inserisci il nome del corso.";
+    return;
+  }
+  try {
+    await apiFetch(`/api/courses/${editingCourseId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name }),
+    });
+    setCourseEditState(null);
+    if (adminCourseStatus) adminCourseStatus.textContent = "Corso aggiornato.";
+    await loadCourses();
+  } catch (err) {
+    if (adminCourseStatus) adminCourseStatus.textContent = err.message || "Errore aggiornamento corso.";
+  }
+};
+
+const cancelCourseEdit = () => {
+  setCourseEditState(null);
 };
 
 const deleteCourse = async (id) => {
@@ -1061,8 +1656,36 @@ const createTopic = async () => {
     body: JSON.stringify({ courseId, name }),
   });
   if (adminTopicNewInput) adminTopicNewInput.value = "";
+  if (adminTopicStatus) adminTopicStatus.textContent = "Argomento creato.";
   await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
   await loadQuestionTopics(courseId);
+};
+
+const updateTopic = async () => {
+  if (!editingTopicId) return;
+  const courseId = Number(adminTopicCourseSelect?.value || "");
+  const name = adminTopicNewInput?.value.trim() || "";
+  if (!Number.isFinite(courseId) || !name) {
+    if (adminTopicStatus) adminTopicStatus.textContent = "Inserisci il nome dell'argomento.";
+    return;
+  }
+  try {
+    await apiFetch(`/api/topics/${editingTopicId}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ courseId, name }),
+    });
+    setTopicEditState(null);
+    if (adminTopicStatus) adminTopicStatus.textContent = "Argomento aggiornato.";
+    await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
+    await loadQuestionTopics(courseId);
+  } catch (err) {
+    if (adminTopicStatus) adminTopicStatus.textContent = err.message || "Errore aggiornamento argomento.";
+  }
+};
+
+const cancelTopicEdit = () => {
+  setTopicEditState(null);
 };
 
 const deleteTopic = async (id) => {
@@ -1146,12 +1769,13 @@ const loadQuestionForEdit = async (questionId) => {
   renderAdminAnswers();
   renderTopicOptions(topicOptions);
   if (adminQuestionStatus) adminQuestionStatus.textContent = "Modifica attiva.";
-  if (adminSaveQuestionBtn) adminSaveQuestionBtn.textContent = "Aggiorna domanda";
   if (adminEditBadge) adminEditBadge.classList.remove("is-hidden");
   if (adminEditBadgeTop) adminEditBadgeTop.classList.remove("is-hidden");
   updateImageLayoutState();
   updateImagePickButton();
   updateAdminPreviews();
+  lastSavedSnapshot = getQuestionSnapshot();
+  setSaveState("saved");
 };
 
 const saveAdminQuestion = async () => {
@@ -1209,6 +1833,8 @@ const saveAdminQuestion = async () => {
     });
     if (adminQuestionStatus) adminQuestionStatus.textContent = "Domanda salvata nel banco.";
   }
+  lastSavedSnapshot = getQuestionSnapshot();
+  setSaveState("saved");
   resetAdminQuestion();
   await refreshQuestionBank();
 };
@@ -1238,26 +1864,32 @@ const init = async () => {
     });
   }
   if (adminQuestionText) {
+    adminQuestionText.addEventListener("focus", () => setFocusedInput(adminQuestionText));
     adminQuestionText.addEventListener("input", () => {
       adminQuestionState.text = adminQuestionText.value;
       updateAdminPreviews();
     });
   }
-if (adminSaveQuestionBtn) adminSaveQuestionBtn.addEventListener("click", saveAdminQuestion);
-if (adminResetQuestionBtn) adminResetQuestionBtn.addEventListener("click", resetAdminQuestion);
 if (adminToolbarReset) adminToolbarReset.addEventListener("click", resetAdminQuestion);
 if (adminToolbarNew) adminToolbarNew.addEventListener("click", resetAdminQuestion);
 if (adminToolbarDuplicate) adminToolbarDuplicate.addEventListener("click", duplicateAdminQuestion);
 if (adminToolbarSave) {
   adminToolbarSave.addEventListener("click", () => {
-    if (adminSaveQuestionBtn) adminSaveQuestionBtn.click();
+    saveAdminQuestion();
   });
 }
 if (adminTemplateAnswers) adminTemplateAnswers.addEventListener("click", applyAnswerTemplate);
-if (adminPreviewRefresh) adminPreviewRefresh.addEventListener("click", updateAdminPreviews);
-if (adminToolbarBank) adminToolbarBank.addEventListener("click", openBankModal);
-if (bankModalClose) bankModalClose.addEventListener("click", closeBankModal);
-if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModal);
+  if (adminPreviewRefresh) adminPreviewRefresh.addEventListener("click", updateAdminPreviews);
+  if (adminToolbarBank) adminToolbarBank.addEventListener("click", openBankModal);
+  if (bankModalClose) bankModalClose.addEventListener("click", closeBankModal);
+  if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModal);
+if (questionPreviewCloseBtn) questionPreviewCloseBtn.addEventListener("click", closeQuestionPreviewModal);
+if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", closeQuestionPreviewModal);
+  if (adminShortcutAddBtn) adminShortcutAddBtn.addEventListener("click", openShortcutModal);
+  if (shortcutModalClose) shortcutModalClose.addEventListener("click", closeShortcutModal);
+  if (shortcutModalBackdrop) shortcutModalBackdrop.addEventListener("click", closeShortcutModal);
+  if (shortcutModalSave) shortcutModalSave.addEventListener("click", createShortcutFromModal);
+  document.addEventListener("keydown", handleShortcutHotkeys);
   if (adminQuestionType) {
     adminQuestionType.addEventListener("change", (event) => {
       const target = event.target;
@@ -1343,6 +1975,12 @@ if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModa
       setActiveCourse(readSelectNumber(adminTopicCourseSelect));
     });
   }
+  if (adminShortcutCourse) {
+    adminShortcutCourse.addEventListener("change", () => {
+      setShortcutEditState(null);
+      loadShortcutsForAdmin(readSelectNumber(adminShortcutCourse));
+    });
+  }
   if (adminImageCourseSelect) {
     adminImageCourseSelect.addEventListener("change", () => {
       setActiveCourse(readSelectNumber(adminImageCourseSelect));
@@ -1368,6 +2006,18 @@ if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModa
       showAdminSection(willOpen ? adminTopicsSection : null);
     });
   }
+  if (toggleShortcutsBtn && adminShortcutsSection) {
+    toggleShortcutsBtn.addEventListener("click", () => {
+      const willOpen = adminShortcutsSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminShortcutsSection : null);
+      if (willOpen && adminShortcutCourse) {
+        if (!adminShortcutCourse.value && adminCoursePicker?.value) {
+          adminShortcutCourse.value = adminCoursePicker.value;
+        }
+        loadShortcutsForAdmin(readSelectNumber(adminShortcutCourse));
+      }
+    });
+  }
   if (toggleImagesBtn && adminImagesSection) {
     toggleImagesBtn.addEventListener("click", () => {
       const willOpen = adminImagesSection.classList.contains("is-hidden");
@@ -1381,7 +2031,17 @@ if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModa
       if (willOpen) loadUsers();
     });
   }
+  if (adminUpdateCourseBtn) adminUpdateCourseBtn.addEventListener("click", updateCourse);
+  if (adminCancelCourseBtn) adminCancelCourseBtn.addEventListener("click", cancelCourseEdit);
+  if (adminUpdateTopicBtn) adminUpdateTopicBtn.addEventListener("click", updateTopic);
+  if (adminCancelTopicBtn) adminCancelTopicBtn.addEventListener("click", cancelTopicEdit);
+  if (adminCreateShortcutBtn) adminCreateShortcutBtn.addEventListener("click", createShortcut);
+  if (adminUpdateShortcutBtn) adminUpdateShortcutBtn.addEventListener("click", updateShortcut);
+  if (adminCancelShortcutBtn)
+    adminCancelShortcutBtn.addEventListener("click", () => setShortcutEditState(null));
   if (adminCreateUserBtn) adminCreateUserBtn.addEventListener("click", createUser);
+  if (adminUpdateUserBtn) adminUpdateUserBtn.addEventListener("click", updateUser);
+  if (adminCancelUserBtn) adminCancelUserBtn.addEventListener("click", cancelUserEdit);
 };
 
 init();
