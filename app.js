@@ -38,6 +38,10 @@ const publicPassword = document.getElementById("publicPassword");
 const publicAccessError = document.getElementById("publicAccessError");
 const publicResultWrap = document.getElementById("publicResultWrap");
 const publicResultTitle = document.getElementById("publicResultTitle");
+const courseEmptyState = document.getElementById("courseEmptyState");
+const mainLayout = document.getElementById("mainLayout");
+
+let activeCourseId = null;
 const publicResultGrade = document.getElementById("publicResultGrade");
 const publicResultMeta = document.getElementById("publicResultMeta");
 const publicResultQuestions = document.getElementById("publicResultQuestions");
@@ -104,6 +108,68 @@ const showToast = (message, tone = "info") => {
   toastTimer = setTimeout(() => {
     gradingToast.classList.remove("show");
   }, 2600);
+};
+
+const fetchActiveCourse = async () => {
+  try {
+    const res = await fetch("/api/session/course");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.course || null;
+  } catch {
+    return null;
+  }
+};
+
+const fetchActiveExam = async () => {
+  try {
+    const res = await fetch("/api/session/exam");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.exam || null;
+  } catch {
+    return null;
+  }
+};
+
+const setActiveExam = async (examId) => {
+  if (!Number.isFinite(Number(examId))) return;
+  try {
+    await fetch("/api/session/exam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ examId }),
+    });
+  } catch {
+    // ignore
+  }
+};
+
+const initApp = async () => {
+  if (!appUser) {
+    loadStudents();
+    renderGrading();
+    loadExams();
+    updateExamVisibility(Boolean(mapping));
+    return;
+  }
+  const activeCourse = await fetchActiveCourse();
+  if (!activeCourse) {
+    if (courseEmptyState) courseEmptyState.classList.remove("is-hidden");
+    if (mainLayout) mainLayout.classList.add("is-hidden");
+    return;
+  }
+  activeCourseId = activeCourse.id;
+  if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
+  if (mainLayout) mainLayout.classList.remove("is-hidden");
+  const activeExam = await fetchActiveExam();
+  loadStudents();
+  renderGrading();
+  await loadExams();
+  if (activeExam?.id) {
+    loadMappingFromExam(activeExam.id);
+  }
+  updateExamVisibility(Boolean(mapping));
 };
 
 const formatDateLabel = (isoDate) => {
@@ -1200,6 +1266,7 @@ const loadMappingFromExam = async (selectedId) => {
       examQuestions = [];
       updatePublicAccessUI(null);
     }
+    setActiveExam(parsedId);
     renderTable();
     renderGrading();
     renderAnswerGrid();
@@ -1253,6 +1320,9 @@ const loadExams = async () => {
     }
     const payload = await response.json();
     examsCache = payload.exams || [];
+    if (Number.isFinite(activeCourseId)) {
+      examsCache = examsCache.filter((exam) => exam.course_id === activeCourseId);
+    }
     examStatsCache = await loadExamStats();
     renderExamHistory(examsCache);
     if (!mapping) setMappingBadge("Nessuna traccia", false);
@@ -1853,8 +1923,5 @@ if (!appUser) {
     });
   }
 
-  loadStudents();
-  renderGrading();
-  loadExams();
-  updateExamVisibility(Boolean(mapping));
+  initApp();
 }

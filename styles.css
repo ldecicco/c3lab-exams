@@ -120,6 +120,12 @@ h1 {
   background: #fff1f2;
 }
 
+.chip.is-warning {
+  border-color: rgba(158, 95, 16, 0.35);
+  color: #9e5f10;
+  background: #fff7ed;
+}
+
 .layout {
   position: relative;
   z-index: 1;
@@ -330,6 +336,17 @@ h1 {
   grid-template-columns: minmax(280px, 1fr) minmax(280px, 1fr);
 }
 
+.bank-column {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bank-column-header {
+  display: flex;
+  justify-content: flex-end;
+}
+
 .bank-selected-header {
   display: flex;
   align-items: center;
@@ -366,20 +383,21 @@ h1 {
   position: absolute;
   top: -10px;
   left: 16px;
-  background: #0b6b3a;
-  color: #ffffff;
+  background: #f1f5f9;
+  color: #1f2937;
   padding: 4px 10px;
-  border-radius: 8px;
-  font-weight: 700;
+  border-radius: 999px;
+  font-weight: 600;
   font-size: 0.75rem;
   letter-spacing: 0.04em;
-  box-shadow: 0 6px 14px rgba(11, 107, 58, 0.2);
+  border: 1px solid #e2e8f0;
+  box-shadow: none;
 }
 
 .selected-question-body {
   display: grid;
   gap: 10px;
-  padding-top: 8px;
+  padding-top: 0;
 }
 
 .selected-question-text {
@@ -393,7 +411,7 @@ h1 {
   object-fit: contain;
   border: 1px solid var(--line);
   border-radius: 10px;
-  background: #f8fafc;
+  background: #ffffff;
 }
 
 .selected-question-answers {
@@ -406,6 +424,35 @@ h1 {
   grid-template-columns: auto 1fr auto;
   gap: 8px;
   align-items: center;
+}
+
+.answer-accordion {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 8px 12px;
+  background: #fff;
+}
+
+.answer-accordion summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--ink);
+  list-style: none;
+}
+
+.answer-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.answer-accordion summary::after {
+  content: "▾";
+  float: right;
+  color: var(--muted);
+  font-weight: 700;
+}
+
+.answer-accordion[open] summary::after {
+  content: "▴";
 }
 
 .answer-tick {
@@ -465,7 +512,18 @@ h1 {
 }
 
 .top-nav .nav-link.admin-link {
+  margin-left: 0;
+}
+
+.top-nav .nav-chip {
   margin-left: auto;
+  background: #eef2ff;
+  border: 1px solid #d5ddf9;
+  color: #1f2a5a;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 0.82rem;
+  font-weight: 600;
 }
 
 .top-nav .nav-user {
@@ -1340,6 +1398,37 @@ input {
   box-shadow: 0 16px 28px rgba(13, 31, 48, 0.08);
 }
 
+.admin-question-status {
+  margin-top: 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  display: none;
+  font-weight: 600;
+}
+
+.admin-question-status.is-visible {
+  display: block;
+}
+
+.admin-question-status.is-error {
+  background: rgba(176, 42, 55, 0.12);
+  border-color: rgba(176, 42, 55, 0.35);
+  color: #9b111e;
+}
+
+.admin-question-status.is-success {
+  background: rgba(11, 107, 58, 0.12);
+  border-color: rgba(11, 107, 58, 0.35);
+  color: #0b6b3a;
+}
+
+.admin-question-status.is-info {
+  background: rgba(13, 74, 124, 0.08);
+  border-color: rgba(13, 74, 124, 0.2);
+  color: #0d4a7c;
+}
+
 .admin-question-header {
   display: flex;
   align-items: center;
@@ -1355,6 +1444,20 @@ input {
 .admin-question-block .field span,
 .admin-question-block .section-label {
   color: var(--muted);
+}
+
+.field-inline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.field-inline .field-label {
+  font-size: 0.9rem;
+  color: var(--muted);
+  font-weight: 600;
+  min-width: 120px;
 }
 
 .admin-question-block .form-control,
@@ -1569,6 +1672,14 @@ input {
   z-index: 20;
 }
 
+.questions-page .grading-topbar {
+  margin-bottom: 6px;
+}
+
+.questions-page .admin-question-layout {
+  margin-top: 4px;
+}
+
 .questions-page .admin-question-layout {
   grid-template-columns: minmax(0, 1.8fr) minmax(320px, 1fr);
 }
@@ -1603,6 +1714,16 @@ input {
   margin-bottom: 10px;
 }
 
+.admin-accordion.is-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
+.editor-disabled {
+  opacity: 0.55;
+  pointer-events: none;
+}
+
 .admin-accordion summary {
   cursor: pointer;
   display: flex;
@@ -1624,6 +1745,27 @@ input {
   gap: 6px;
   margin-right: auto;
   cursor: pointer;
+}
+
+.bank-filters summary {
+  gap: 12px;
+}
+
+.bank-search-inline {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 280px;
+}
+
+.bank-search-inline .field {
+  margin: 0;
+}
+
+.bank-search-inline .form-control {
+  height: 32px;
+  padding: 6px 10px;
 }
 
 .admin-accordion summary .accordion-toggle .form-check-input {
@@ -1911,6 +2053,15 @@ input {
   box-shadow: 0 12px 24px var(--shadow);
 }
 
+.exam-card.is-active {
+  border-color: rgba(13, 74, 124, 0.6);
+  box-shadow: 0 18px 32px rgba(13, 74, 124, 0.2);
+}
+
+.exam-card.is-active .exam-card-band {
+  background: linear-gradient(135deg, rgba(13, 74, 124, 0.2), rgba(13, 74, 124, 0.5));
+}
+
 .exam-card-band {
   min-height: 72px;
   background: linear-gradient(135deg, rgba(13, 74, 124, 0.12), rgba(13, 74, 124, 0.38));
@@ -1998,12 +2149,29 @@ input {
 }
 
 .list-item {
-  border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: 10px 12px;
+  border: 1px solid #d7dee7;
+  border-radius: 12px;
+  padding: 0;
   background: #ffffff;
   display: grid;
-  gap: 6px;
+  gap: 10px;
+  box-shadow: 0 10px 24px rgba(15, 23, 42, 0.06);
+  overflow: hidden;
+}
+
+.question-bank-card .question-card-content,
+.list-item .question-card-content {
+  padding: 14px 16px;
+  display: grid;
+  gap: 10px;
+}
+
+.question-card-band {
+  min-height: 54px;
+  background: linear-gradient(135deg, rgba(13, 74, 124, 0.08), rgba(13, 74, 124, 0.28));
+  display: flex;
+  align-items: flex-end;
+  padding: 8px 12px;
 }
 
 .list-item-title {
@@ -2034,6 +2202,14 @@ input {
   gap: 12px;
   align-items: center;
   margin: 6px 0 6px;
+}
+
+.shortcut-toolbar .btn {
+  align-self: center;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .shortcut-label {
@@ -2270,6 +2446,12 @@ input {
   align-items: center;
   padding: 18px 20px 12px;
   border-bottom: 1px solid var(--line);
+}
+
+.modal-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .modal-body {

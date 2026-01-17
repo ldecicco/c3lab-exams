@@ -24,7 +24,17 @@
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
 
-    <main class="layout container-fluid admin-layout py-4">
+    <div class="empty-state is-hidden" id="courseEmptyState">
+      <div class="empty-state-content">
+        <strong>Seleziona un corso per iniziare</strong>
+        <a class="btn btn-primary" href="/home">
+          <i class="fa-solid fa-graduation-cap"></i>
+          Vai ai corsi
+        </a>
+      </div>
+    </div>
+
+    <main class="layout container-fluid admin-layout py-4" id="mainLayout">
       <div class="builder-topbar grading-topbar">
         <div class="builder-topbar-left">
           <button class="btn btn-outline-secondary" id="analysisTopbarSelectExam" type="button">
@@ -77,6 +87,17 @@
         </div>
       </section>
 
+      <section class="empty-state is-hidden" id="analysisSessionEmpty">
+        <div class="empty-state-content">
+          <strong>Sessione vuota</strong>
+          <span class="text-secondary">Non ci sono studenti valutati in questa sessione.</span>
+          <a class="btn btn-primary" href="/valutazione">
+            <i class="fa-solid fa-pen-to-square"></i>
+            Correggi l'esame
+          </a>
+        </div>
+      </section>
+
       <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisSummary">
         <div class="card-header">
           <h2 class="h5 mb-1">Sintesi</h2>
@@ -121,6 +142,38 @@
               </tr>
             </thead>
             <tbody id="analysisTopics"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="card shadow-sm analysis-section is-hidden" id="analysisCheatingSection">
+        <div class="card-header">
+          <div class="card-header-row">
+            <div>
+              <h2 class="h5 mb-1">Similarità risposte</h2>
+              <p class="text-secondary mb-0">Coppie con S2 oltre la soglia statistica.</p>
+            </div>
+            <div class="header-actions">
+              <span class="toolbar-status" id="analysisCheatingStatus">Nessun calcolo</span>
+              <button class="btn btn-outline-primary btn-sm" type="button" id="analysisCheatingRun">
+                <i class="fa-solid fa-magnifying-glass-chart"></i>
+                Calcola
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="table table-sm align-middle analysis-table">
+            <thead>
+              <tr>
+                <th>Studente A</th>
+                <th>Studente B</th>
+                <th>S2</th>
+                <th>Match errati</th>
+                <th>Domande</th>
+              </tr>
+            </thead>
+            <tbody id="analysisCheating"></tbody>
           </table>
         </div>
       </section>

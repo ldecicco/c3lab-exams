@@ -35,7 +35,17 @@
       </div>
     </header> -->
 
-    <main class="layout container-fluid admin-layout py-4">
+    <div class="empty-state is-hidden" id="courseEmptyState">
+      <div class="empty-state-content">
+        <strong>Seleziona un corso per iniziare</strong>
+        <a class="btn btn-primary" href="/home">
+          <i class="fa-solid fa-graduation-cap"></i>
+          Vai ai corsi
+        </a>
+      </div>
+    </div>
+
+    <main class="layout container-fluid admin-layout py-4" id="mainLayout">
       <div class="builder-topbar grading-topbar admin-topbar">
         <div class="builder-topbar-left">
           <span class="builder-current-title">Amministrazione</span>
@@ -236,6 +246,7 @@
       </div>
     </div>
 
+    <script defer src="course-cards.js?v=1"></script>
     <script defer src="admin.js?v=5"></script>
   </body>
 </html>

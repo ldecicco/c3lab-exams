@@ -7,13 +7,20 @@
   <% const canBuild = isAdmin || isCreator; %>
   <% const canGrade = isAdmin || isCreator || isEvaluator; %>
   <% const canAnalyze = isAdmin || isCreator; %>
+  <a href="/home" class="nav-link <%= active === 'home' ? 'active' : '' %>">Corsi</a>
   <% if (canBuild) { %>
     <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">Domande</a>
     <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">Tracce</a>
   <% } %>
-  <a href="/index" class="nav-link <%= active === 'index' ? 'active' : '' %>">Valutazione</a>
+  <a href="/valutazione" class="nav-link <%= active === 'valutazione' ? 'active' : '' %>">Valutazione</a>
   <% if (canAnalyze) { %>
     <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">Analisi</a>
+  <% } %>
+  <% if (activeExamTitle) { %>
+    <span class="nav-chip">Traccia: <%= activeExamTitle %></span>
+  <% } %>
+  <% if (activeCourseName) { %>
+    <span class="nav-chip">Corso: <%= activeCourseName %></span>
   <% } %>
   <% if (isAdmin) { %>
     <a href="/admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">

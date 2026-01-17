@@ -141,6 +141,15 @@ db.exec(`
     FOREIGN KEY(exam_id) REFERENCES exams(id),
     FOREIGN KEY(question_id) REFERENCES questions(id)
   );
+  CREATE TABLE IF NOT EXISTS exam_question_snapshots (
+    exam_id INTEGER NOT NULL,
+    position INTEGER NOT NULL,
+    question_id INTEGER NOT NULL,
+    snapshot_json TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    PRIMARY KEY (exam_id, position),
+    FOREIGN KEY(exam_id) REFERENCES exams(id)
+  );
   CREATE TABLE IF NOT EXISTS exam_sessions (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     exam_id INTEGER NOT NULL,
@@ -166,6 +175,7 @@ db.exec(`
   );
   CREATE INDEX IF NOT EXISTS idx_images_course ON images(course_id);
   CREATE INDEX IF NOT EXISTS idx_exam_questions_exam ON exam_questions(exam_id);
+  CREATE INDEX IF NOT EXISTS idx_exam_snapshots_exam ON exam_question_snapshots(exam_id);
   CREATE INDEX IF NOT EXISTS idx_questions_updated ON questions(updated_at);
   CREATE INDEX IF NOT EXISTS idx_exam_sessions_exam ON exam_sessions(exam_id);
   CREATE INDEX IF NOT EXISTS idx_exam_session_students_session ON exam_session_students(session_id);
@@ -181,6 +191,8 @@ const ensureColumn = (table, column, definition) => {
   }
 };
 
+ensureColumn("auth_sessions", "active_course_id", "INTEGER");
+ensureColumn("auth_sessions", "active_exam_id", "INTEGER");
 ensureColumn("exams", "is_draft", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("exams", "locked_at", "TEXT");
 ensureColumn("exams", "mapping_json", "TEXT");
@@ -192,6 +204,111 @@ ensureColumn("images", "source_path", "TEXT");
 ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
+
+const isQuestionLocked = (questionId) =>
+  Boolean(
+    db
+      .prepare(
+        `SELECT 1
+           FROM exam_questions eq
+           JOIN exams e ON e.id = eq.exam_id
+          WHERE eq.question_id = ? AND e.is_draft = 0
+          LIMIT 1`
+      )
+      .get(questionId)
+  );
+
+const getExamQuestions = (examId) => {
+  const questionRows = db
+    .prepare(
+      `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+              q.image_left_width, q.image_right_width, q.image_scale,
+              i.thumbnail_path AS image_thumbnail_path
+         FROM exam_questions eq
+         JOIN questions q ON q.id = eq.question_id
+         LEFT JOIN images i ON i.file_path = q.image_path
+        WHERE eq.exam_id = ?
+        ORDER BY eq.position`
+    )
+    .all(examId);
+  return questionRows.map((row) => {
+    const answers = db
+      .prepare(
+        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      )
+      .all(row.id)
+      .map((ans) => ({
+        position: ans.position,
+        text: ans.text,
+        isCorrect: Boolean(ans.is_correct),
+      }));
+    const topics = db
+      .prepare(
+        `SELECT t.name
+           FROM question_topics qt
+           JOIN topics t ON t.id = qt.topic_id
+          WHERE qt.question_id = ?
+          ORDER BY t.name`
+      )
+      .all(row.id)
+      .map((t) => t.name);
+    return {
+      id: row.id,
+      position: row.position,
+      text: row.text,
+      type: row.type,
+      imagePath: row.image_path || "",
+      imageThumbnailPath: row.image_thumbnail_path || "",
+      imageLayoutEnabled: Boolean(row.image_layout_enabled),
+      imageLeftWidth: row.image_left_width || "",
+      imageRightWidth: row.image_right_width || "",
+      imageScale: row.image_scale || "",
+      answers,
+      topics,
+    };
+  });
+};
+
+const getExamSnapshotQuestions = (examId) => {
+  const rows = db
+    .prepare(
+      `SELECT position, snapshot_json
+         FROM exam_question_snapshots
+        WHERE exam_id = ?
+        ORDER BY position`
+    )
+    .all(examId);
+  return rows.map((row) => {
+    const snapshot = JSON.parse(row.snapshot_json);
+    return { ...snapshot, position: row.position };
+  });
+};
+
+const normalizeAnswerSet = (arr) =>
+  Array.from(new Set(arr))
+    .filter((val) => Number.isFinite(val))
+    .sort((a, b) => a - b)
+    .join(",");
+
+const getSelectedOriginalAnswers = (student, questionIndex, mapping) => {
+  if (!mapping) return [];
+  const version = Number(student.versione);
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    return [];
+  }
+  const qdict = mapping.questiondictionary?.[version - 1] || [];
+  const adict = mapping.randomizedanswersdictionary?.[version - 1] || [];
+  const displayedIndex = Number(qdict[questionIndex] || 0) - 1;
+  if (displayedIndex < 0) return [];
+  const selected = String(student.answers?.[displayedIndex] || "").split("");
+  const selectedIdx = selected
+    .map((letter) => ANSWER_OPTIONS.indexOf(letter) + 1)
+    .filter((idx) => idx > 0);
+  const answerMap = adict[questionIndex] || [];
+  return selectedIdx
+    .map((idx) => Number(answerMap[idx - 1]))
+    .filter((idx) => Number.isFinite(idx));
+};
 
 app.use(express.text({ type: ["text/plain", "application/octet-stream"], limit: "5mb" }));
 app.use(express.json({ limit: "10mb" }));
@@ -216,7 +333,7 @@ const getUserFromToken = (token) => {
   if (!token) return null;
   const row = db
     .prepare(
-      `SELECT u.id, u.username, u.role, s.expires_at
+      `SELECT u.id, u.username, u.role, s.expires_at, s.active_course_id, s.active_exam_id
          FROM auth_sessions s
          JOIN users u ON u.id = s.user_id
         WHERE s.token = ?`
@@ -227,14 +344,40 @@ const getUserFromToken = (token) => {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
     return null;
   }
-  return { id: row.id, username: row.username, role: row.role };
+  return {
+    id: row.id,
+    username: row.username,
+    role: row.role,
+    activeCourseId: row.active_course_id || null,
+    activeExamId: row.active_exam_id || null,
+  };
 };
 
 const loadUser = (req, res, next) => {
   const token = req.cookies?.session_token;
   const user = getUserFromToken(token);
   req.user = user || null;
+  req.activeCourseId = user?.activeCourseId ?? null;
+  req.activeExamId = user?.activeExamId ?? null;
+  req.sessionToken = token || null;
   res.locals.user = user || null;
+  res.locals.activeCourseId = user?.activeCourseId ?? null;
+  if (user?.activeCourseId) {
+    const course = db
+      .prepare("SELECT name FROM courses WHERE id = ?")
+      .get(user.activeCourseId);
+    res.locals.activeCourseName = course?.name || null;
+  } else {
+    res.locals.activeCourseName = null;
+  }
+  if (user?.activeExamId) {
+    const exam = db
+      .prepare("SELECT title FROM exams WHERE id = ?")
+      .get(user.activeExamId);
+    res.locals.activeExamTitle = exam?.title || null;
+  } else {
+    res.locals.activeExamTitle = null;
+  }
   next();
 };
 
@@ -286,10 +429,15 @@ const ensureAdminUser = () => {
 
 ensureAdminUser();
 
-app.get("/", (req, res) => res.redirect("/index"));
+app.get("/", (req, res) => res.redirect("/home"));
 app.get("/login", (req, res) => res.render("login"));
-app.get("/index", (req, res) => res.render("index"));
-app.get("/index.html", (req, res) => res.render("index"));
+app.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
+  res.render("home")
+);
+app.get("/valutazione", (req, res) => res.render("index"));
+app.get("/valutazione/", (req, res) => res.render("index"));
+app.get("/index", (req, res) => res.redirect("/valutazione"));
+app.get("/index.html", (req, res) => res.redirect("/valutazione"));
 app.get("/questions", requirePageRole("admin", "creator"), (req, res) =>
   res.render("questions")
 );
@@ -351,6 +499,83 @@ app.post("/auth/logout", (req, res) => {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
   }
   res.clearCookie("session_token");
+  res.json({ ok: true });
+});
+
+app.get("/api/session/course", requireAuth, (req, res) => {
+  const courseId = req.activeCourseId;
+  if (!Number.isFinite(Number(courseId))) {
+    res.json({ course: null });
+    return;
+  }
+  const course = db
+    .prepare("SELECT id, name, code FROM courses WHERE id = ?")
+    .get(courseId);
+  res.json({ course: course || null });
+});
+
+app.post("/api/session/course", requireAuth, (req, res) => {
+  const courseId = Number(req.body?.courseId);
+  if (!Number.isFinite(courseId)) {
+    res.status(400).json({ error: "courseId mancante" });
+    return;
+  }
+  const course = db.prepare("SELECT id FROM courses WHERE id = ?").get(courseId);
+  if (!course) {
+    res.status(404).json({ error: "Corso non trovato" });
+    return;
+  }
+  if (!req.sessionToken) {
+    res.status(400).json({ error: "Sessione non valida" });
+    return;
+  }
+  db.prepare(
+    "UPDATE auth_sessions SET active_course_id = ?, active_exam_id = NULL WHERE token = ?"
+  ).run(courseId, req.sessionToken);
+  res.json({ ok: true });
+});
+
+app.get("/api/session/exam", requireAuth, (req, res) => {
+  const examId = req.activeExamId;
+  if (!Number.isFinite(Number(examId))) {
+    res.json({ exam: null });
+    return;
+  }
+  const exam = db
+    .prepare("SELECT id, course_id, title, date FROM exams WHERE id = ?")
+    .get(examId);
+  if (!exam) {
+    res.json({ exam: null });
+    return;
+  }
+  res.json({ exam });
+});
+
+app.post("/api/session/exam", requireAuth, (req, res) => {
+  const examId = Number(req.body?.examId);
+  if (!Number.isFinite(examId)) {
+    res.status(400).json({ error: "examId mancante" });
+    return;
+  }
+  const exam = db
+    .prepare("SELECT id, course_id FROM exams WHERE id = ?")
+    .get(examId);
+  if (!exam) {
+    res.status(404).json({ error: "Traccia non trovata" });
+    return;
+  }
+  if (Number.isFinite(Number(req.activeCourseId)) && exam.course_id !== req.activeCourseId) {
+    res.status(400).json({ error: "Traccia non appartiene al corso attivo" });
+    return;
+  }
+  if (!req.sessionToken) {
+    res.status(400).json({ error: "Sessione non valida" });
+    return;
+  }
+  db.prepare("UPDATE auth_sessions SET active_exam_id = ? WHERE token = ?").run(
+    examId,
+    req.sessionToken
+  );
   res.json({ ok: true });
 });
 
@@ -852,8 +1077,99 @@ app.post("/api/mapping", (req, res) => {
 });
 
 app.get("/api/courses", requireRole("admin", "creator"), (req, res) => {
-  const rows = db.prepare("SELECT id, name, code FROM courses ORDER BY name").all();
-  res.json({ courses: rows });
+  const rows = db
+    .prepare(
+      `SELECT c.id, c.name, c.code,
+              EXISTS (SELECT 1 FROM exams e WHERE e.course_id = c.id LIMIT 1) AS has_exams,
+              EXISTS (SELECT 1 FROM topics t WHERE t.course_id = c.id LIMIT 1) AS has_topics,
+              EXISTS (SELECT 1 FROM images i WHERE i.course_id = c.id LIMIT 1) AS has_images
+         FROM courses c
+        ORDER BY c.name`
+    )
+    .all();
+
+  const exams = db
+    .prepare("SELECT id, course_id, mapping_json FROM exams")
+    .all()
+    .map((row) => ({
+      id: row.id,
+      courseId: row.course_id,
+      mappingJson: row.mapping_json,
+    }));
+  const students = db
+    .prepare(
+      `SELECT es.exam_id, ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id`
+    )
+    .all();
+
+  const byExam = new Map();
+  students.forEach((row) => {
+    if (!byExam.has(row.exam_id)) byExam.set(row.exam_id, []);
+    byExam.get(row.exam_id).push({
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    });
+  });
+
+  const courseStats = new Map();
+  exams.forEach((exam) => {
+    if (!courseStats.has(exam.courseId)) {
+      courseStats.set(exam.courseId, {
+        examsCount: 0,
+        studentsCount: 0,
+        normalizedSum: 0,
+      });
+    }
+    const stats = courseStats.get(exam.courseId);
+    stats.examsCount += 1;
+    if (!exam.mappingJson) return;
+    let mapping;
+    try {
+      mapping = JSON.parse(exam.mappingJson);
+    } catch {
+      return;
+    }
+    const examStudents = byExam.get(exam.id) || [];
+    const scores = examStudents
+      .map((student) => gradeStudent(student, mapping))
+      .filter((val) => val !== null);
+    if (!scores.length) return;
+    const maxPoints = getMaxPoints(mapping);
+    const grades = scores.map((points) => (maxPoints ? (points / maxPoints) * 30 : 0));
+    const top = Math.max(...grades);
+    const factor = top > 0 ? 30 / top : null;
+    const normalized = grades.map((grade) => Math.round((factor ? grade * factor : grade)));
+    const avg =
+      normalized.reduce((sum, val) => sum + val, 0) / normalized.length;
+    stats.studentsCount += normalized.length;
+    stats.normalizedSum += avg * normalized.length;
+  });
+
+  res.json({
+    courses: rows.map((row) => {
+      const stats = courseStats.get(row.id) || {
+        examsCount: 0,
+        studentsCount: 0,
+        normalizedSum: 0,
+      };
+      const avgNormalized =
+        stats.studentsCount > 0
+          ? Math.round((stats.normalizedSum / stats.studentsCount) * 10) / 10
+          : null;
+      return {
+        ...row,
+        has_exams: Boolean(row.has_exams),
+        has_topics: Boolean(row.has_topics),
+        has_images: Boolean(row.has_images),
+        exams_count: stats.examsCount,
+        students_count: stats.studentsCount,
+        avg_normalized: avgNormalized,
+      };
+    }),
+  });
 });
 
 app.post("/api/courses", requireRole("admin"), (req, res) => {
@@ -1363,9 +1679,21 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   }
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const stmt = db.prepare(`
-    SELECT q.id, q.text, q.type, q.image_path, i.thumbnail_path AS image_thumbnail_path,
+    SELECT q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+           q.image_left_width, q.image_right_width, q.image_scale,
+           i.thumbnail_path AS image_thumbnail_path,
            GROUP_CONCAT(DISTINCT t.name) AS topics,
-           MAX(e.date) AS last_exam_date
+           MAX(e.date) AS last_exam_date,
+           (
+             SELECT e2.title
+               FROM exam_questions eq2
+               JOIN exams e2 ON e2.id = eq2.exam_id
+              WHERE eq2.question_id = q.id
+              ORDER BY e2.date DESC, e2.id DESC
+              LIMIT 1
+           ) AS last_exam_title,
+           MAX(CASE WHEN e.id IS NOT NULL THEN 1 ELSE 0 END) AS is_used,
+           MAX(CASE WHEN e.is_draft = 0 THEN 1 ELSE 0 END) AS is_locked
       FROM questions q
       LEFT JOIN question_topics qt ON qt.question_id = q.id
       LEFT JOIN topics t ON t.id = qt.topic_id
@@ -1378,11 +1706,29 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
      ORDER BY q.updated_at DESC
      LIMIT ${limit}
   `);
-  const rows = stmt.all(...params).map((row) => ({
-    ...row,
-    topics: row.topics ? row.topics.split(",") : [],
-    last_exam_date: row.last_exam_date || "",
-  }));
+  const includeAnswers = String(req.query.includeAnswers || "") === "1";
+  const rows = stmt.all(...params).map((row) => {
+    const base = {
+      ...row,
+      topics: row.topics ? row.topics.split(",") : [],
+      last_exam_date: row.last_exam_date || "",
+      is_used: Boolean(row.is_used),
+      is_locked: Boolean(row.is_locked),
+      image_layout_enabled: Boolean(row.image_layout_enabled),
+    };
+    if (!includeAnswers) return base;
+    const answers = db
+      .prepare(
+        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      )
+      .all(row.id)
+      .map((ans) => ({
+        position: ans.position,
+        text: ans.text,
+        isCorrect: Boolean(ans.is_correct),
+      }));
+    return { ...base, answers };
+  });
   res.json({ questions: rows });
 });
 
@@ -1491,6 +1837,10 @@ app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const exists = db.prepare("SELECT id FROM questions WHERE id = ?").get(id);
   if (!exists) {
     res.status(404).json({ error: "Domanda non trovata" });
+    return;
+  }
+  if (isQuestionLocked(id)) {
+    res.status(400).json({ error: "Domanda bloccata: usata in una traccia chiusa" });
     return;
   }
   const tx = db.transaction(() => {
@@ -1780,54 +2130,15 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
     res.status(404).json({ error: "Esame non trovato" });
     return;
   }
-  const questionRows = db
-    .prepare(
-      `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale,
-              i.thumbnail_path AS image_thumbnail_path
-         FROM exam_questions eq
-         JOIN questions q ON q.id = eq.question_id
-         LEFT JOIN images i ON i.file_path = q.image_path
-        WHERE eq.exam_id = ?
-        ORDER BY eq.position`
-    )
-    .all(id);
-  const questions = questionRows.map((row) => {
-    const answers = db
-      .prepare(
-        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
-      )
-      .all(row.id)
-      .map((ans) => ({
-        position: ans.position,
-        text: ans.text,
-        isCorrect: Boolean(ans.is_correct),
-      }));
-    const topics = db
-      .prepare(
-        `SELECT t.name
-           FROM question_topics qt
-           JOIN topics t ON t.id = qt.topic_id
-          WHERE qt.question_id = ?
-          ORDER BY t.name`
-      )
-      .all(row.id)
-      .map((t) => t.name);
-    return {
-      id: row.id,
-      position: row.position,
-      text: row.text,
-      type: row.type,
-      imagePath: row.image_path || "",
-      imageThumbnailPath: row.image_thumbnail_path || "",
-      imageLayoutEnabled: Boolean(row.image_layout_enabled),
-      imageLeftWidth: row.image_left_width || "",
-      imageRightWidth: row.image_right_width || "",
-      imageScale: row.image_scale || "",
-      answers,
-      topics,
-    };
-  });
+  let questions = [];
+  if (exam.is_draft) {
+    questions = getExamQuestions(id);
+  } else {
+    questions = getExamSnapshotQuestions(id);
+    if (!questions.length) {
+      questions = getExamQuestions(id);
+    }
+  }
   res.json({
     exam: {
       id: exam.id,
@@ -1932,54 +2243,7 @@ app.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
     res.json({ exam: null, questions: [] });
     return;
   }
-  const questionRows = db
-    .prepare(
-      `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale,
-              i.thumbnail_path AS image_thumbnail_path
-         FROM exam_questions eq
-         JOIN questions q ON q.id = eq.question_id
-         LEFT JOIN images i ON i.file_path = q.image_path
-        WHERE eq.exam_id = ?
-        ORDER BY eq.position`
-    )
-    .all(draft.id);
-  const questions = questionRows.map((row) => {
-    const answers = db
-      .prepare(
-        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
-      )
-      .all(row.id)
-      .map((ans) => ({
-        position: ans.position,
-        text: ans.text,
-        isCorrect: Boolean(ans.is_correct),
-      }));
-    const topics = db
-      .prepare(
-        `SELECT t.name
-           FROM question_topics qt
-           JOIN topics t ON t.id = qt.topic_id
-          WHERE qt.question_id = ?
-          ORDER BY t.name`
-      )
-      .all(row.id)
-      .map((t) => t.name);
-    return {
-      id: row.id,
-      position: row.position,
-      text: row.text,
-      type: row.type,
-      imagePath: row.image_path || "",
-      imageThumbnailPath: row.image_thumbnail_path || "",
-      imageLayoutEnabled: Boolean(row.image_layout_enabled),
-      imageLeftWidth: row.image_left_width || "",
-      imageRightWidth: row.image_right_width || "",
-      imageScale: row.image_scale || "",
-      answers,
-      topics,
-    };
-  });
+  const questions = getExamQuestions(draft.id);
   res.json({
     exam: {
       id: draft.id,
@@ -2062,35 +2326,21 @@ const insertQuestion = (question, courseId) => {
   return questionId;
 };
 
-const replaceExamQuestions = (examId, questions, courseId, cleanupPrevious) => {
-  const prevRows = db
-    .prepare("SELECT question_id FROM exam_questions WHERE exam_id = ?")
-    .all(examId)
-    .map((row) => row.question_id);
+const replaceExamQuestions = (examId, questions, courseId) => {
   db.prepare("DELETE FROM exam_questions WHERE exam_id = ?").run(examId);
-  if (cleanupPrevious && prevRows.length) {
-    const unique = Array.from(new Set(prevRows));
-    const inUseStmt = db.prepare(
-      "SELECT 1 FROM exam_questions WHERE question_id = ? LIMIT 1"
-    );
-    const deleteAnswers = db.prepare("DELETE FROM answers WHERE question_id = ?");
-    const deleteTopics = db.prepare("DELETE FROM question_topics WHERE question_id = ?");
-    const deleteQuestion = db.prepare("DELETE FROM questions WHERE id = ?");
-    unique.forEach((qid) => {
-      const inUse = inUseStmt.get(qid);
-      if (!inUse) {
-        deleteAnswers.run(qid);
-        deleteTopics.run(qid);
-        deleteQuestion.run(qid);
-      }
-    });
-  }
   const insertEq = db.prepare(
     "INSERT INTO exam_questions (exam_id, question_id, position) VALUES (?, ?, ?)"
   );
   questions.forEach((question, idx) => {
-    const questionId = insertQuestion(question, courseId);
-    insertEq.run(examId, questionId, idx + 1);
+    const questionId = Number(question.questionId || question.id);
+    if (Number.isFinite(questionId)) {
+      insertEq.run(examId, questionId, idx + 1);
+      return;
+    }
+    if (question.text) {
+      const createdId = insertQuestion(question, courseId);
+      insertEq.run(examId, createdId, idx + 1);
+    }
   });
 };
 
@@ -2134,7 +2384,7 @@ app.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
       );
     const examId = info.lastInsertRowid;
     const questions = Array.isArray(payload.questions) ? payload.questions : [];
-    replaceExamQuestions(examId, questions, courseId, false);
+    replaceExamQuestions(examId, questions, courseId);
     return examId;
   });
   const examId = tx();
@@ -2181,7 +2431,7 @@ app.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
       examId
     );
     const questions = Array.isArray(payload.questions) ? payload.questions : [];
-    replaceExamQuestions(examId, questions, courseId, false);
+    replaceExamQuestions(examId, questions, courseId);
   });
   tx();
   res.json({ examId });
@@ -2225,7 +2475,7 @@ app.post("/api/exams/draft", (req, res) => {
         exam.headerLogo || null,
         existing.id
       );
-      replaceExamQuestions(existing.id, questions, courseId, true);
+      replaceExamQuestions(existing.id, questions, courseId);
       return existing.id;
     }
     const info = db
@@ -2254,7 +2504,7 @@ app.post("/api/exams/draft", (req, res) => {
         exam.headerLogo || null
       );
     const examId = info.lastInsertRowid;
-    replaceExamQuestions(examId, questions, courseId, false);
+    replaceExamQuestions(examId, questions, courseId);
     return examId;
   });
   const examId = tx();
@@ -2275,6 +2525,26 @@ app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res
     return;
   }
   if (!exam.is_draft && exam.mapping_json) {
+    const hasSnapshots = db
+      .prepare(
+        "SELECT 1 FROM exam_question_snapshots WHERE exam_id = ? LIMIT 1"
+      )
+      .get(examId);
+    if (!hasSnapshots) {
+      const questions = getExamQuestions(examId);
+      const insertSnapshot = db.prepare(
+        "INSERT INTO exam_question_snapshots (exam_id, position, question_id, snapshot_json) VALUES (?, ?, ?, ?)"
+      );
+      db.prepare("DELETE FROM exam_question_snapshots WHERE exam_id = ?").run(examId);
+      questions.forEach((question) => {
+        insertSnapshot.run(
+          examId,
+          question.position,
+          question.id,
+          JSON.stringify(question)
+        );
+      });
+    }
     res.json({ ok: true });
     return;
   }
@@ -2331,6 +2601,19 @@ app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res
     return;
   }
 
+  const questions = getExamQuestions(examId);
+  const insertSnapshot = db.prepare(
+    "INSERT INTO exam_question_snapshots (exam_id, position, question_id, snapshot_json) VALUES (?, ?, ?, ?)"
+  );
+  db.prepare("DELETE FROM exam_question_snapshots WHERE exam_id = ?").run(examId);
+  questions.forEach((question) => {
+    insertSnapshot.run(
+      examId,
+      question.position,
+      question.id,
+      JSON.stringify(question)
+    );
+  });
   db.prepare(
     "UPDATE exams SET is_draft = 0, locked_at = datetime('now'), mapping_json = ? WHERE id = ?"
   ).run(mappingJson, examId);
@@ -2363,6 +2646,11 @@ app.post("/api/exams/:id/unlock", requireRole("admin", "creator"), (req, res) =>
     res.status(404).json({ error: "Esame non trovato" });
     return;
   }
+  if (exam.is_draft) {
+    res.json({ ok: true });
+    return;
+  }
+  db.prepare("DELETE FROM exam_question_snapshots WHERE exam_id = ?").run(examId);
   db.prepare(
     "UPDATE exams SET is_draft = 1, locked_at = NULL WHERE id = ?"
   ).run(examId);
@@ -2418,6 +2706,192 @@ app.get("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"),
     )
     .all(examId);
   res.json({ sessions: rows });
+});
+
+app.get("/api/exams/:id/cheating", requireRole("admin", "creator", "evaluator"), (req, res) => {
+  const examId = Number(req.params.id);
+  const sessionId = Number(req.query.sessionId);
+  const permutations = Math.min(5000, Math.max(100, Number(req.query.permutations) || 5000));
+  const pairSample = Math.min(10000, Math.max(200, Number(req.query.pairSample) || 2000));
+  const alpha = Math.min(0.999, Math.max(0.9, Number(req.query.alpha) || 0.99));
+  if (!Number.isFinite(examId) || !Number.isFinite(sessionId)) {
+    res.status(400).json({ error: "Parametri mancanti" });
+    return;
+  }
+  const exam = db
+    .prepare("SELECT id, mapping_json, is_draft FROM exams WHERE id = ?")
+    .get(examId);
+  if (!exam) {
+    res.status(404).json({ error: "Esame non trovato" });
+    return;
+  }
+  if (exam.is_draft || !exam.mapping_json) {
+    res.status(400).json({ error: "Mapping non disponibile: traccia non chiusa" });
+    return;
+  }
+  const session = db
+    .prepare("SELECT id, exam_id FROM exam_sessions WHERE id = ?")
+    .get(sessionId);
+  if (!session || session.exam_id !== examId) {
+    res.status(400).json({ error: "Sessione non valida" });
+    return;
+  }
+  const mapping = JSON.parse(exam.mapping_json);
+  const questionCount = Math.min(
+    Number(mapping.Nquestions || 0) || mapping.correctiondictionary?.length || 0,
+    mapping.correctiondictionary?.length || 0
+  );
+  if (!questionCount) {
+    res.status(400).json({ error: "Mapping non valido" });
+    return;
+  }
+  const students = db
+    .prepare(
+      `SELECT matricola, nome, cognome, versione, answers_json
+         FROM exam_session_students
+        WHERE session_id = ?
+        ORDER BY created_at DESC`
+    )
+    .all(sessionId)
+    .map((row) => ({
+      matricola: row.matricola,
+      nome: row.nome || "",
+      cognome: row.cognome || "",
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+    }))
+    .filter((student) => Number.isFinite(Number(student.versione)));
+
+  if (students.length < 2) {
+    res.json({ threshold: null, pairs: [], totalPairs: 0 });
+    return;
+  }
+
+  const correctSets = mapping.correctiondictionary.map((row) =>
+    normalizeAnswerSet(
+      row
+        .map((val, idx) => (val > 0 ? idx + 1 : null))
+        .filter(Boolean)
+    )
+  );
+
+  const signaturesByQuestion = Array.from({ length: questionCount }, () =>
+    Array.from({ length: students.length }, () => null)
+  );
+  const correctCounts = Array.from({ length: questionCount }, () => 0);
+  const totalCounts = Array.from({ length: questionCount }, () => 0);
+
+  students.forEach((student, sIdx) => {
+    for (let q = 0; q < questionCount; q += 1) {
+      const selected = getSelectedOriginalAnswers(student, q, mapping);
+      const signature = normalizeAnswerSet(selected);
+      const isCorrect = signature && signature === correctSets[q];
+      totalCounts[q] += 1;
+      if (isCorrect) {
+        correctCounts[q] += 1;
+        signaturesByQuestion[q][sIdx] = null;
+      } else if (signature) {
+        signaturesByQuestion[q][sIdx] = signature;
+      } else {
+        signaturesByQuestion[q][sIdx] = null;
+      }
+    }
+  });
+
+  const pCorr = correctCounts.map((count, idx) =>
+    totalCounts[idx] ? count / totalCounts[idx] : 0.01
+  );
+  const weights = pCorr.map((p) => -Math.log(Math.max(p, 1e-6)));
+
+  const pairs = [];
+  for (let i = 0; i < students.length; i += 1) {
+    for (let j = i + 1; j < students.length; j += 1) {
+      let score = 0;
+      const matches = [];
+      for (let q = 0; q < questionCount; q += 1) {
+        const sigI = signaturesByQuestion[q][i];
+        if (!sigI) continue;
+        const sigJ = signaturesByQuestion[q][j];
+        if (sigI && sigI === sigJ) {
+          score += weights[q];
+          matches.push(q + 1);
+        }
+      }
+      if (matches.length) {
+        pairs.push({
+          studentA: students[i],
+          studentB: students[j],
+          score: Math.round(score * 1000) / 1000,
+          matchCount: matches.length,
+          matchQuestions: matches,
+        });
+      }
+    }
+  }
+
+  const totalPairs = (students.length * (students.length - 1)) / 2;
+  const samplePairs = [];
+  const maxSample = Math.min(pairSample, totalPairs);
+  if (maxSample === totalPairs) {
+    for (let i = 0; i < students.length; i += 1) {
+      for (let j = i + 1; j < students.length; j += 1) {
+        samplePairs.push([i, j]);
+      }
+    }
+  } else {
+    const seen = new Set();
+    while (samplePairs.length < maxSample) {
+      const i = Math.floor(Math.random() * students.length);
+      const j = Math.floor(Math.random() * students.length);
+      if (i === j) continue;
+      const a = Math.min(i, j);
+      const b = Math.max(i, j);
+      const key = `${a}-${b}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+      samplePairs.push([a, b]);
+    }
+  }
+
+  const nullScores = [];
+  for (let p = 0; p < permutations; p += 1) {
+    const permuted = signaturesByQuestion.map((col) => {
+      const copy = col.slice();
+      for (let i = copy.length - 1; i > 0; i -= 1) {
+        const j = Math.floor(Math.random() * (i + 1));
+        const temp = copy[i];
+        copy[i] = copy[j];
+        copy[j] = temp;
+      }
+      return copy;
+    });
+    for (let k = 0; k < samplePairs.length; k += 1) {
+      const [i, j] = samplePairs[k];
+      let score = 0;
+      for (let q = 0; q < questionCount; q += 1) {
+        const sigI = permuted[q][i];
+        if (!sigI) continue;
+        if (sigI === permuted[q][j]) score += weights[q];
+      }
+      nullScores.push(score);
+    }
+  }
+  nullScores.sort((a, b) => a - b);
+  const cutoffIndex = Math.floor(nullScores.length * alpha);
+  const threshold = nullScores[Math.min(cutoffIndex, nullScores.length - 1)] || null;
+
+  const suspicious = threshold
+    ? pairs.filter((pair) => pair.score >= threshold)
+    : [];
+  suspicious.sort((a, b) => b.score - a.score);
+
+  res.json({
+    threshold,
+    permutations,
+    pairSample: maxSample,
+    totalPairs,
+    pairs: suspicious,
+  });
 });
 
 app.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {

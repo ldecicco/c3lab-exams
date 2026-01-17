@@ -24,6 +24,16 @@
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
 
+    <div class="empty-state is-hidden" id="courseEmptyState">
+      <div class="empty-state-content">
+        <strong>Seleziona un corso per iniziare</strong>
+        <a class="btn btn-primary" href="/home">
+          <i class="fa-solid fa-graduation-cap"></i>
+          Vai ai corsi
+        </a>
+      </div>
+    </div>
+
     <!-- <header class="hero py-4">
       <div class="brand container">
         <div class="badge">FA</div>
@@ -35,7 +45,7 @@
 
     </header> -->
 
-    <main class="layout builder-layout container-fluid py-4">
+    <main class="layout builder-layout container-fluid py-4" id="mainLayout">
       <div class="builder-topbar">
         <div class="builder-topbar-left">
           <div class="builder-status">
@@ -105,10 +115,6 @@
         </div>
         <div class="grid is-hidden" id="historyFilters">
           <label class="field">
-            <span>Corso</span>
-            <select id="historyCourse" class="form-select"></select>
-          </label>
-          <label class="field">
             <span>Stato</span>
             <select id="historyStatus" class="form-select">
               <option value="all">Tutte</option>
@@ -129,32 +135,35 @@
         <div class="card-header">
           <div class="card-header-row">
             <div>
-              <h2 class="h5 mb-1">Banco domande</h2>
-              <p class="text-secondary mb-0">Importa una domanda esistente (copiandola).</p>
+              <!-- <h2 class="h5 mb-1">Banco domande</h2> -->
+              <!-- <p class="text-secondary mb-0">Importa una domanda esistente (copiandola).</p> -->
             </div>
-            <button class="btn btn-primary btn-lg" id="newBankQuestion" type="button">+ Nuova domanda</button>
+            <div class="header-actions"></div>
           </div>
         </div>
         <div class="bank-columns">
           <div class="bank-column">
-            <div class="grid">
-              <label class="field">
-                <span>Corso</span>
-                <select id="bankCourse" class="form-select"></select>
-              </label>
-              <label class="field">
-                <span>Argomento</span>
-                <select id="bankTopic" class="form-select"></select>
-              </label>
-              <label class="field">
-                <span>Ricerca</span>
-                <input id="bankSearch" class="form-control" type="text" placeholder="parola chiave" />
-              </label>
+            <div class="bank-column-header">
+              <button class="btn btn-outline-primary btn-icon" id="refreshBank" type="button" title="Aggiorna elenco" aria-label="Aggiorna elenco">
+                <i class="fa-solid fa-rotate"></i>
+              </button>
             </div>
-            <div class="actions">
-              <button class="btn btn-outline-primary" id="refreshBank">Aggiorna elenco</button>
-            </div>
-            <div class="chip-row" id="bankTopicChips"></div>
+            <details class="admin-accordion bank-filters" id="bankFilters">
+              <summary>
+                <span>Filtri</span>
+                <div class="bank-search-inline">
+                  <i class="fa-solid fa-magnifying-glass" aria-hidden="true"></i>
+                  <label class="field">
+                    <span class="visually-hidden">Ricerca</span>
+                    <input id="bankSearch" class="form-control" type="text" placeholder="parola chiave" />
+                  </label>
+                </div>
+                <i class="fa-solid fa-chevron-down"></i>
+              </summary>
+              <div class="admin-accordion-body">
+                <div class="chip-row" id="bankTopicChips"></div>
+              </div>
+            </details>
             <div id="bankList" class="list-panel"></div>
           </div>
           <div class="bank-column">
@@ -234,10 +243,6 @@
             <input id="metaExamName" class="form-control" type="text" placeholder="Esame 26/1/2025" />
           </label>
           <label class="field">
-            <span>Corso</span>
-            <select id="metaCourse" class="form-select"></select>
-          </label>
-          <label class="field">
             <span>Data esame</span>
             <input id="metaDate" class="form-control" type="date" />
           </label>
@@ -264,78 +269,6 @@
       </div>
     </div>
 
-    <div class="modal-backdrop is-hidden" id="bankQuestionBackdrop"></div>
-    <div class="modal-panel is-hidden" id="bankQuestionModal" role="dialog" aria-modal="true" aria-labelledby="bankQuestionTitle">
-      <div class="modal-header">
-        <h3 class="h5 mb-0" id="bankQuestionTitle">Nuova domanda</h3>
-        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="bankQuestionClose" aria-label="Chiudi">
-          <i class="fa-solid fa-xmark"></i>
-        </button>
-      </div>
-      <div class="modal-body">
-        <div class="grid">
-          <label class="field">
-            <span>Corso</span>
-            <select id="bankQuestionCourse" class="form-select"></select>
-          </label>
-          <label class="field">
-            <span>Tipo domanda</span>
-            <select id="bankQuestionType" class="form-select">
-              <option value="singola">Singola</option>
-              <option value="multipla">Multipla</option>
-            </select>
-          </label>
-          <label class="field">
-            <span>Argomenti</span>
-            <select id="bankQuestionTopics" class="form-select" multiple></select>
-          </label>
-          <label class="field">
-            <span>Immagine (path)</span>
-            <div class="inline-actions">
-              <input id="bankQuestionImage" class="form-control" type="text" placeholder="figure/esempio.png" />
-              <button class="btn btn-outline-secondary" id="bankQuestionPickImage" type="button">Seleziona</button>
-            </div>
-          </label>
-        </div>
-        <label class="field">
-          <span>Testo domanda</span>
-          <div class="preview-row">
-            <textarea id="bankQuestionText" class="form-control" rows="4"></textarea>
-            <div id="bankQuestionPreview" class="latex-preview-inline"></div>
-          </div>
-        </label>
-        <div class="toolbar">
-          <div class="form-check">
-            <input class="form-check-input" type="checkbox" id="bankQuestionImageLayout" />
-            <label class="form-check-label" for="bankQuestionImageLayout">Layout con immagine</label>
-          </div>
-        </div>
-        <div class="layout-fields is-hidden" id="bankQuestionLayoutFields">
-          <label class="field">
-            <span>Minipage sinistra</span>
-            <input id="bankQuestionImageLeft" class="form-control" type="text" value="0.5\\linewidth" />
-          </label>
-          <label class="field">
-            <span>Minipage destra</span>
-            <input id="bankQuestionImageRight" class="form-control" type="text" value="0.5\\linewidth" />
-          </label>
-          <label class="field">
-            <span>Width immagine</span>
-            <input id="bankQuestionImageScale" class="form-control" type="text" value="0.96\\linewidth" />
-          </label>
-        </div>
-        <div class="answers-builder">
-          <div class="answers-title">Risposte</div>
-          <div id="bankQuestionAnswers"></div>
-          <button class="btn btn-outline-primary btn-sm" id="bankQuestionAddAnswer" type="button">Aggiungi risposta</button>
-        </div>
-        <div class="actions">
-          <button class="btn btn-primary" id="bankQuestionSave" type="button">Salva nel banco</button>
-          <button class="btn btn-outline-secondary" id="bankQuestionReset" type="button">Reset</button>
-        </div>
-        <div class="text-secondary small mt-2" id="bankQuestionStatus"></div>
-      </div>
-    </div>
 
     <div class="modal-backdrop is-hidden" id="bankPreviewBackdrop"></div>
     <div class="modal-panel is-hidden" id="bankPreviewModal" role="dialog" aria-modal="true" aria-labelledby="bankPreviewTitle">
@@ -447,6 +380,7 @@
       src="https://cdn.jsdelivr.net/npm/latex.js/dist/latex.min.js"
     ></script>
     <script defer src="exam-cards.js"></script>
+    <script defer src="question-cards.js?v=1"></script>
     <script defer src="exam-builder.js?v=9"></script>
   </body>
 </html>

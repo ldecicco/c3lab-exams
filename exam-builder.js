@@ -31,10 +31,10 @@ let currentExamId = null;
 let currentExamLocked = false;
 let currentExamHasResults = false;
 let autosaveTimer = null;
-let coursesCache = [];
 let currentStep = 1;
 const totalSteps = 3;
 let courseTopics = [];
+let bankTopicFilter = null;
 let activeImageQuestionId = null;
 let lastPdfBlob = null;
 let lastPdfLatex = "";
@@ -43,7 +43,6 @@ let examStatsCache = {};
 
 const metaFields = {
   metaExamName: "examName",
-  metaCourse: "courseId",
   metaTitle: "title",
   metaDepartment: "department",
   metaUniversity: "university",
@@ -68,7 +67,6 @@ const pdfStatus = document.getElementById("pdfStatus");
 const latexLogWrap = document.getElementById("latexLogWrap");
 const latexLog = document.getElementById("latexLog");
 const metaExamNameInput = document.getElementById("metaExamName");
-const metaCourseSelect = document.getElementById("metaCourse");
 const saveExamBtn = document.getElementById("saveExam");
 const lockExamBtn = document.getElementById("lockExam");
 const unlockExamBtn = document.getElementById("unlockExam");
@@ -89,7 +87,6 @@ const openSettingsBtn = document.getElementById("openSettings");
 const closeSettingsBtn = document.getElementById("closeSettings");
 const settingsDrawer = document.getElementById("settingsDrawer");
 const settingsBackdrop = document.getElementById("settingsBackdrop");
-const historyCourseSelect = document.getElementById("historyCourse");
 const historyStatusSelect = document.getElementById("historyStatus");
 const historySearchInput = document.getElementById("historySearch");
 const historyDateInput = document.getElementById("historyDate");
@@ -99,27 +96,6 @@ const newExamBackdrop = document.getElementById("newExamBackdrop");
 const newExamModal = document.getElementById("newExamModal");
 const newExamCloseBtn = document.getElementById("newExamClose");
 const newExamCancelBtn = document.getElementById("newExamCancel");
-const newBankQuestionBtn = document.getElementById("newBankQuestion");
-const bankQuestionBackdrop = document.getElementById("bankQuestionBackdrop");
-const bankQuestionModal = document.getElementById("bankQuestionModal");
-const bankQuestionCloseBtn = document.getElementById("bankQuestionClose");
-const bankQuestionCourse = document.getElementById("bankQuestionCourse");
-const bankQuestionType = document.getElementById("bankQuestionType");
-const bankQuestionTopics = document.getElementById("bankQuestionTopics");
-const bankQuestionImage = document.getElementById("bankQuestionImage");
-const bankQuestionPickImage = document.getElementById("bankQuestionPickImage");
-const bankQuestionText = document.getElementById("bankQuestionText");
-const bankQuestionPreview = document.getElementById("bankQuestionPreview");
-const bankQuestionImageLayout = document.getElementById("bankQuestionImageLayout");
-const bankQuestionLayoutFields = document.getElementById("bankQuestionLayoutFields");
-const bankQuestionImageLeft = document.getElementById("bankQuestionImageLeft");
-const bankQuestionImageRight = document.getElementById("bankQuestionImageRight");
-const bankQuestionImageScale = document.getElementById("bankQuestionImageScale");
-const bankQuestionAnswers = document.getElementById("bankQuestionAnswers");
-const bankQuestionAddAnswer = document.getElementById("bankQuestionAddAnswer");
-const bankQuestionSave = document.getElementById("bankQuestionSave");
-const bankQuestionReset = document.getElementById("bankQuestionReset");
-const bankQuestionStatus = document.getElementById("bankQuestionStatus");
 const bankPreviewBackdrop = document.getElementById("bankPreviewBackdrop");
 const bankPreviewModal = document.getElementById("bankPreviewModal");
 const bankPreviewCloseBtn = document.getElementById("bankPreviewClose");
@@ -128,8 +104,6 @@ const pdfPreviewBackdrop = document.getElementById("pdfPreviewBackdrop");
 const pdfPreviewModal = document.getElementById("pdfPreviewModal");
 const pdfPreviewCloseBtn = document.getElementById("pdfPreviewClose");
 const pdfPreviewFrame = document.getElementById("pdfPreviewFrame");
-const bankCourseSelect = document.getElementById("bankCourse");
-const bankTopicSelect = document.getElementById("bankTopic");
 const bankSearchInput = document.getElementById("bankSearch");
 const refreshBankBtn = document.getElementById("refreshBank");
 const bankList = document.getElementById("bankList");
@@ -149,6 +123,8 @@ const builderImagePreviewModal = document.getElementById("builderImagePreviewMod
 const builderImagePreviewCloseBtn = document.getElementById("builderImagePreviewClose");
 const builderImagePreviewImg = document.getElementById("builderImagePreviewImg");
 const builderImagePreviewMeta = document.getElementById("builderImagePreviewMeta");
+const courseEmptyState = document.getElementById("courseEmptyState");
+const mainLayout = document.getElementById("mainLayout");
 
 const createQuestion = () => ({
   id: String(nextQuestionId++),
@@ -185,6 +161,41 @@ const apiFetch = async (url, options = {}) => {
     throw new Error(message);
   }
   return response.json();
+};
+
+const fetchActiveCourse = async () => {
+  try {
+    const res = await fetch("/api/session/course");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.course || null;
+  } catch {
+    return null;
+  }
+};
+
+const fetchActiveExam = async () => {
+  try {
+    const res = await fetch("/api/session/exam");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.exam || null;
+  } catch {
+    return null;
+  }
+};
+
+const setActiveExam = async (examId) => {
+  if (!Number.isFinite(Number(examId))) return;
+  try {
+    await apiFetch("/api/session/exam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ examId }),
+    });
+  } catch {
+    // ignore
+  }
 };
 
 const normalizeDateToInput = (value) => {
@@ -247,13 +258,11 @@ const setLockedState = (locked) => {
     const inHistory = el.closest("#historySection");
     const inNewExam = el.closest("#newExamModal");
     const inSettings = el.closest("#settingsDrawer");
-    const inBankQuestion = el.closest("#bankQuestionModal");
     const allow =
       isStepper ||
       inHistory ||
       inNewExam ||
       inSettings ||
-      inBankQuestion ||
       id === "stepPrev" ||
       id === "stepNext" ||
       id === "newExam" ||
@@ -303,7 +312,7 @@ const renderImagePickerList = (images) => {
   if (!builderImagePickerList) return;
   builderImagePickerList.innerHTML = "";
   if (!images.length) {
-    builderImagePickerList.textContent = "Nessuna immagine disponibile per il corso selezionato.";
+    builderImagePickerList.textContent = "Nessuna immagine disponibile.";
     return;
   }
   images.forEach((image) => {
@@ -330,11 +339,19 @@ const renderImagePickerList = (images) => {
     const selectBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa immagine");
     selectBtn.type = "button";
     selectBtn.addEventListener("click", () => {
-      if (imagePickerTarget?.type === "bankModal") {
-        if (bankQuestionImage) bankQuestionImage.value = filePath;
-        if (bankQuestionStatus) bankQuestionStatus.textContent = "Immagine selezionata.";
-        closeImagePicker();
+      if (imagePickerTarget?.type === "question") {
+        const targetQuestion = state.questions.find(
+          (question) => question.id === imagePickerTarget.questionId
+        );
+        if (targetQuestion) {
+          targetQuestion.image = filePath;
+          targetQuestion.imageLayoutEnabled = true;
+          renderSelectedQuestions();
+          renderLatex();
+          scheduleAutosave(true);
+        }
       }
+      closeImagePicker();
     });
     actions.appendChild(selectBtn);
     details.appendChild(title);
@@ -353,7 +370,7 @@ const openImagePicker = async (options = {}) => {
   const courseIdValue = Number(courseId ?? state.meta.courseId);
   if (!Number.isFinite(courseIdValue)) {
     if (builderImagePickerStatus) {
-      builderImagePickerStatus.textContent = "Seleziona prima un corso.";
+      builderImagePickerStatus.textContent = "Nessun corso attivo.";
     }
     if (builderImagePickerList) builderImagePickerList.innerHTML = "";
   } else {
@@ -388,180 +405,6 @@ const closeNewExamModal = () => {
   if (newExamModal) newExamModal.classList.add("is-hidden");
 };
 
-const bankQuestionState = {
-  type: "singola",
-  text: "",
-  topics: [],
-  image: "",
-  imageLayoutEnabled: false,
-  imageLeft: "0.5\\linewidth",
-  imageRight: "0.5\\linewidth",
-  imageScale: "0.96\\linewidth",
-  answers: [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-  ],
-};
-
-const renderBankQuestionAnswers = () => {
-  if (!bankQuestionAnswers) return;
-  bankQuestionAnswers.innerHTML = "";
-  bankQuestionState.answers.forEach((answer, idx) => {
-    const row = createEl("div", "answer-builder");
-    const check = createEl("input", "form-check-input");
-    check.type = "checkbox";
-    check.checked = Boolean(answer.correct);
-    const input = createEl("input", "form-control");
-    input.type = "text";
-    input.value = answer.text;
-    input.placeholder = "Testo risposta";
-    const preview = createEl("div", "latex-preview-inline");
-    renderMathPreview(input.value, preview, input);
-    const removeBtn = createEl("button", "btn btn-danger btn-sm btn-icon");
-    removeBtn.type = "button";
-    removeBtn.setAttribute("aria-label", "Rimuovi risposta");
-    removeBtn.innerHTML =
-      '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3h6l1 2h5v2H3V5h5l1-2zm1 6h2v9h-2V9zm4 0h2v9h-2V9zM6 9h2v9H6V9z"/></svg>';
-
-    check.addEventListener("change", () => {
-      if (bankQuestionState.type === "singola" && check.checked) {
-        bankQuestionState.answers.forEach((a, i) => {
-          a.correct = i === idx;
-        });
-        renderBankQuestionAnswers();
-        return;
-      }
-      bankQuestionState.answers[idx].correct = check.checked;
-    });
-    input.addEventListener("input", () => {
-      bankQuestionState.answers[idx].text = input.value;
-      renderMathPreview(input.value, preview, input);
-    });
-    removeBtn.addEventListener("click", () => {
-      bankQuestionState.answers.splice(idx, 1);
-      renderBankQuestionAnswers();
-    });
-
-    row.appendChild(check);
-    row.appendChild(input);
-    row.appendChild(preview);
-    row.appendChild(removeBtn);
-    bankQuestionAnswers.appendChild(row);
-  });
-};
-
-const resetBankQuestion = () => {
-  bankQuestionState.type = "singola";
-  bankQuestionState.text = "";
-  bankQuestionState.topics = [];
-  bankQuestionState.image = "";
-  bankQuestionState.imageLayoutEnabled = false;
-  bankQuestionState.imageLeft = "0.5\\linewidth";
-  bankQuestionState.imageRight = "0.5\\linewidth";
-  bankQuestionState.imageScale = "0.96\\linewidth";
-  bankQuestionState.answers = [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-  ];
-  if (bankQuestionType) bankQuestionType.value = "singola";
-  if (bankQuestionText) bankQuestionText.value = "";
-  if (bankQuestionImage) bankQuestionImage.value = "";
-  if (bankQuestionImageLayout) bankQuestionImageLayout.checked = false;
-  if (bankQuestionLayoutFields) bankQuestionLayoutFields.classList.add("is-hidden");
-  if (bankQuestionImageLeft) bankQuestionImageLeft.value = bankQuestionState.imageLeft;
-  if (bankQuestionImageRight) bankQuestionImageRight.value = bankQuestionState.imageRight;
-  if (bankQuestionImageScale) bankQuestionImageScale.value = bankQuestionState.imageScale;
-  if (bankQuestionTopics) {
-    Array.from(bankQuestionTopics.options).forEach((opt) => {
-      opt.selected = false;
-    });
-  }
-  if (bankQuestionStatus) bankQuestionStatus.textContent = "";
-  if (bankQuestionPreview) renderMathPreview("", bankQuestionPreview, bankQuestionText);
-  renderBankQuestionAnswers();
-};
-
-const openBankQuestionModal = () => {
-  resetBankQuestion();
-  if (bankQuestionCourse && state.meta.courseId) {
-    bankQuestionCourse.value = String(state.meta.courseId);
-  }
-  const courseId = Number(bankQuestionCourse?.value || "");
-  if (Number.isFinite(courseId)) {
-    loadTopics(courseId, bankQuestionTopics, "Seleziona argomenti");
-  }
-  if (bankQuestionBackdrop) bankQuestionBackdrop.classList.remove("is-hidden");
-  if (bankQuestionModal) bankQuestionModal.classList.remove("is-hidden");
-  renderBankQuestionAnswers();
-  if (bankQuestionPreview && bankQuestionText) {
-    renderMathPreview(bankQuestionText.value, bankQuestionPreview, bankQuestionText);
-  }
-};
-
-const closeBankQuestionModal = () => {
-  if (bankQuestionBackdrop) bankQuestionBackdrop.classList.add("is-hidden");
-  if (bankQuestionModal) bankQuestionModal.classList.add("is-hidden");
-};
-
-const saveBankQuestion = async () => {
-  const courseId = Number(bankQuestionCourse?.value || "");
-  if (!Number.isFinite(courseId)) {
-    if (bankQuestionStatus) bankQuestionStatus.textContent = "Seleziona un corso.";
-    return;
-  }
-  const text = String(bankQuestionText?.value || "").trim();
-  if (!text) {
-    if (bankQuestionStatus) bankQuestionStatus.textContent = "Inserisci il testo della domanda.";
-    return;
-  }
-  const topics = Array.from(bankQuestionTopics?.selectedOptions || []).map(
-    (opt) => opt.textContent
-  );
-  if (!topics.length) {
-    if (bankQuestionStatus) bankQuestionStatus.textContent = "Seleziona almeno un argomento.";
-    return;
-  }
-  const answers = bankQuestionState.answers.filter((answer) => answer.text.trim() !== "");
-  if (answers.length < 2) {
-    if (bankQuestionStatus) bankQuestionStatus.textContent = "Inserisci almeno due risposte.";
-    return;
-  }
-  const payload = {
-    courseId,
-    question: {
-      text,
-      type: bankQuestionState.type,
-      imagePath: String(bankQuestionImage?.value || "").trim(),
-      imageLayoutEnabled: Boolean(bankQuestionImageLayout?.checked),
-      imageLeftWidth: String(bankQuestionImageLeft?.value || "").trim(),
-      imageRightWidth: String(bankQuestionImageRight?.value || "").trim(),
-      imageScale: String(bankQuestionImageScale?.value || "").trim(),
-      topics,
-      answers: answers.map((answer) => ({
-        text: answer.text,
-        isCorrect: Boolean(answer.correct),
-      })),
-    },
-  };
-  try {
-    await apiFetch("/api/questions", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    if (bankQuestionStatus) bankQuestionStatus.textContent = "Domanda salvata nel banco.";
-    resetBankQuestion();
-    await refreshQuestionBank();
-    closeBankQuestionModal();
-  } catch (err) {
-    if (bankQuestionStatus) bankQuestionStatus.textContent = err.message;
-  }
-};
-
 const getStepCompletion = () => {
   const step1 = Boolean(state.meta.examName) && Number.isFinite(state.meta.courseId);
   const step2 = state.questions.length > 0;
@@ -575,7 +418,7 @@ const validateStepAdvance = (nextStep, options = {}) => {
   const hasMeta = Boolean(state.meta.examName) && Number.isFinite(state.meta.courseId);
   if (!hasMeta) {
     if (!silent && examStatus) {
-      examStatus.textContent = "Compila nome traccia e corso per proseguire.";
+      examStatus.textContent = "Compila nome traccia per proseguire.";
     }
     return false;
   }
@@ -627,6 +470,9 @@ const goToStep = (nextStep) => {
   }
   currentStep = step;
   updateStepUI();
+  if (currentStep === 2) {
+    refreshQuestionBank();
+  }
 };
 
 const scheduleAutosave = (immediate = false) => {
@@ -795,10 +641,6 @@ const applyMetaToInputs = () => {
   Object.entries(metaFields).forEach(([id, key]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (key === "courseId") {
-      el.value = state.meta.courseId ? String(state.meta.courseId) : "";
-      return;
-    }
     if (typeof state.meta[key] === "boolean") {
       el.checked = Boolean(state.meta[key]);
     } else {
@@ -807,27 +649,10 @@ const applyMetaToInputs = () => {
   });
 };
 
-const loadCourses = async () => {
-  try {
-    const payload = await apiFetch("/api/courses");
-    coursesCache = payload.courses || [];
-    renderSelectOptions(metaCourseSelect, coursesCache, "Seleziona corso");
-    renderSelectOptions(bankCourseSelect, coursesCache, "Tutti i corsi");
-    renderSelectOptions(historyCourseSelect, coursesCache, "Tutti i corsi");
-    renderSelectOptions(bankQuestionCourse, coursesCache, "Seleziona corso");
-    applyMetaToInputs();
-    if (Number.isFinite(state.meta.courseId)) {
-      loadCourseTopics(state.meta.courseId);
-    }
-    updateSaveAvailability();
-  } catch (err) {
-    if (examStatus) examStatus.textContent = err.message;
-  }
-};
-
 const loadCourseTopics = async (courseId) => {
   if (!Number.isFinite(courseId)) {
     courseTopics = [];
+    bankTopicFilter = null;
     renderSelectedQuestions();
     renderTopicChips();
     return;
@@ -835,10 +660,14 @@ const loadCourseTopics = async (courseId) => {
   try {
     const payload = await apiFetch(`/api/topics?courseId=${courseId}`);
     courseTopics = payload.topics || [];
+    if (!courseTopics.some((topic) => String(topic.id) === String(bankTopicFilter))) {
+      bankTopicFilter = null;
+    }
     renderSelectedQuestions();
     renderTopicChips();
   } catch (err) {
     courseTopics = [];
+    bankTopicFilter = null;
     if (examStatus) examStatus.textContent = err.message;
   }
 };
@@ -863,27 +692,30 @@ const renderTopicChips = () => {
   const allChip = createEl("button", "chip chip-action", "Tutti");
   allChip.type = "button";
   allChip.dataset.topicId = "";
+  if (!bankTopicFilter) allChip.classList.add("active");
   bankTopicChips.appendChild(allChip);
   courseTopics.forEach((topic) => {
     const chip = createEl("button", "chip chip-action", topic.name);
     chip.type = "button";
     chip.dataset.topicId = String(topic.id);
+    if (String(bankTopicFilter) === String(topic.id)) {
+      chip.classList.add("active");
+    }
     bankTopicChips.appendChild(chip);
   });
 };
 
 const refreshQuestionBank = async () => {
   if (!bankList) return;
-  const courseRaw = bankCourseSelect?.value || "";
-  const topicRaw = bankTopicSelect?.value || "";
-  const courseId = courseRaw === "" ? null : Number(courseRaw);
-  const topicId = topicRaw === "" ? null : Number(topicRaw);
+  const courseId = Number(state.meta.courseId);
+  const topicId = bankTopicFilter ? Number(bankTopicFilter) : null;
   const search = String(bankSearchInput?.value || "").trim();
   const params = new URLSearchParams();
   if (Number.isFinite(courseId)) params.set("courseId", String(courseId));
   if (Number.isFinite(topicId)) params.set("topicId", String(topicId));
   if (search) params.set("search", search);
   try {
+    params.set("includeAnswers", "1");
     const payload = await apiFetch(`/api/questions?${params.toString()}`);
     renderBankList(payload.questions || []);
   } catch (err) {
@@ -894,33 +726,76 @@ const refreshQuestionBank = async () => {
 const renderBankList = (questions) => {
   if (!bankList) return;
   bankList.innerHTML = "";
-  if (!questions.length) {
-    bankList.textContent = "Nessuna domanda trovata.";
+  const selectedIds = new Set(state.questions.map((q) => q.sourceId).filter(Boolean));
+  const available = questions.filter((question) => !selectedIds.has(question.id));
+  if (!available.length) {
+    const empty = createEl("div", "empty-state");
+    const content = createEl("div", "empty-state-content");
+    const title = createEl("strong", null, "Nessuna domanda trovata.");
+    const link = createEl("a", "btn btn-primary", "+ Aggiungi domanda");
+    link.href = "/questions";
+    content.appendChild(title);
+    content.appendChild(link);
+    empty.appendChild(content);
+    bankList.appendChild(empty);
     return;
   }
-  const selectedIds = new Set(state.questions.map((q) => q.sourceId).filter(Boolean));
   if (bankTopicChips) {
-    const active = bankTopicSelect?.value || "";
+    const active = bankTopicFilter || "";
     Array.from(bankTopicChips.querySelectorAll(".chip-action")).forEach((chip) => {
       chip.classList.toggle("active", chip.dataset.topicId === active);
     });
   }
-  questions.forEach((question) => {
+  available.forEach((question) => {
     const item = createEl("div", "list-item");
-    const title = createEl("div", "list-title");
-    renderMathDisplay(question.text.slice(0, 120), title);
-    const dateLabel = question.last_exam_date
-      ? ` • ${formatDateDisplay(question.last_exam_date)}`
-      : "";
-    const metaText = question.topics.length
-      ? `${question.topics.join(", ")}${dateLabel}`
-      : `Nessun argomento${dateLabel}`;
-    const meta = createEl("div", "list-meta", metaText);
+    const band = createEl("div", "question-card-band");
+    const badgeRow = createEl("div", "chip-row");
+    const typeChip = createEl(
+      "span",
+      "chip chip-action",
+      question.type === "multipla" ? "Multipla" : "Singola"
+    );
+    badgeRow.appendChild(typeChip);
+    if (question.last_exam_title || question.last_exam_date) {
+      const dateLabel = question.last_exam_date
+        ? formatDateDisplay(question.last_exam_date)
+        : "";
+      const titleLabel = question.last_exam_title || "Esame";
+      const label = dateLabel ? `${titleLabel} · ${dateLabel}` : titleLabel;
+      const examChip = createEl("span", "chip chip-action", `Usata: ${label}`);
+      badgeRow.appendChild(examChip);
+    }
+    band.appendChild(badgeRow);
+    const content = createEl("div", "question-card-content");
+    const preview = createEl("div", "bank-question-preview");
+    renderQuestionPreviewBody(
+      preview,
+      {
+        ...question,
+        imagePath: question.image_path || question.imagePath || "",
+        imageThumbnailPath: question.image_thumbnail_path || question.imageThumbnailPath || "",
+        imageLayoutEnabled: Boolean(question.image_layout_enabled ?? question.imageLayoutEnabled),
+        imageLeftWidth: question.image_left_width || question.imageLeftWidth || "",
+        imageRightWidth: question.image_right_width || question.imageRightWidth || "",
+        imageScale: question.image_scale || question.imageScale || "",
+        answers: (question.answers || []).map((ans) => ({
+          text: ans.text,
+          isCorrect: Boolean(ans.isCorrect || ans.is_correct),
+        })),
+      },
+      { answersMode: "accordion" }
+    );
+    const topicsRow = createEl("div", "chip-row");
+    if (question.topics && question.topics.length) {
+      question.topics.forEach((topic) => {
+        const chip = createEl("span", "chip chip-action", topic);
+        topicsRow.appendChild(chip);
+      });
+    } else {
+      const chip = createEl("span", "chip chip-action", "Nessun argomento");
+      topicsRow.appendChild(chip);
+    }
     const actions = createEl("div", "list-actions");
-    const previewBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Preview");
-    previewBtn.type = "button";
-    previewBtn.dataset.action = "preview-bank";
-    previewBtn.dataset.questionId = question.id;
     const alreadySelected = selectedIds.has(question.id);
     const btn = createEl("button", "btn btn-outline-primary btn-sm", "Importa");
     btn.type = "button";
@@ -930,11 +805,12 @@ const renderBankList = (questions) => {
       item.classList.add("is-selected");
     }
     btn.addEventListener("click", () => importQuestionFromBank(question.id));
-    actions.appendChild(previewBtn);
     actions.appendChild(btn);
-    item.appendChild(title);
-    item.appendChild(meta);
-    item.appendChild(actions);
+    content.appendChild(preview);
+    content.appendChild(topicsRow);
+    content.appendChild(actions);
+    item.appendChild(band);
+    item.appendChild(content);
     bankList.appendChild(item);
   });
   renderTopicChips();
@@ -1020,43 +896,13 @@ const renderSelectedTopicStats = () => {
   });
 };
 
-const renderQuestionPreviewBody = (container, question) => {
+const renderQuestionPreviewBody = (container, question, options = {}) => {
   if (!container || !question) return;
-  container.innerHTML = "";
-  const header = createEl("div", "selected-question-badge", "Domanda");
-  header.style.position = "static";
-  header.style.alignSelf = "flex-start";
-  const text = createEl("div", "selected-question-text");
-  renderMathDisplay(question.text || "", text);
-  container.appendChild(header);
-  container.appendChild(text);
-  if (question.image) {
-    const imgWrap = createEl("div", "selected-question-image");
-    const img = createEl("img", "selected-preview-thumb");
-    img.src = question.imageThumbnail || question.image;
-    img.alt = question.image;
-    imgWrap.appendChild(img);
-    container.appendChild(imgWrap);
-  }
-  const answers = (question.answers || []).filter((ans) => String(ans.text || "").trim() !== "");
-  if (answers.length) {
-    const list = createEl("div", "selected-question-answers");
-    answers.forEach((answer, idx) => {
-      const row = createEl("div", "selected-question-answer");
-      const label = createEl("span", "selected-preview-answer-label", `${idx + 1}.`);
-      const textEl = createEl("span", "selected-preview-answer-text");
-      renderMathDisplay(answer.text, textEl);
-      row.appendChild(label);
-      row.appendChild(textEl);
-      if (answer.isCorrect || answer.correct) {
-        const tick = createEl("span", "answer-tick");
-        tick.innerHTML =
-          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
-        row.appendChild(tick);
-      }
-      list.appendChild(row);
+  if (window.QuestionCards && typeof window.QuestionCards.renderPreview === "function") {
+    window.QuestionCards.renderPreview(container, question, {
+      renderMath: renderMathDisplay,
+      ...options,
     });
-    container.appendChild(list);
   }
 };
 
@@ -1109,12 +955,8 @@ const updateSaveAvailability = () => {
 
 const highlightMissingMeta = () => {
   const missingExamName = !state.meta.examName;
-  const missingCourse = !Number.isFinite(state.meta.courseId);
   if (metaExamNameInput) {
     metaExamNameInput.classList.toggle("input-error", missingExamName);
-  }
-  if (metaCourseSelect) {
-    metaCourseSelect.classList.toggle("input-error", missingCourse);
   }
 };
 
@@ -1135,20 +977,25 @@ const collectExamPayload = () => ({
     headerNote: state.meta.note,
     headerLogo: state.meta.logo,
   },
-  questions: state.questions.map((question) => ({
-    text: question.text,
-    type: question.type,
-    imagePath: question.image,
-    imageLayoutEnabled: question.imageLayoutEnabled,
-    imageLeftWidth: question.imageWidthLeft,
-    imageRightWidth: question.imageWidthRight,
-    imageScale: question.imageScale,
-    topics: question.topics || [],
-    answers: question.answers.map((answer) => ({
-      text: answer.text,
-      isCorrect: Boolean(answer.correct),
-    })),
-  })),
+  questions: state.questions.map((question) => {
+    if (question.sourceId) {
+      return { questionId: question.sourceId };
+    }
+    return {
+      text: question.text,
+      type: question.type,
+      imagePath: question.image,
+      imageLayoutEnabled: question.imageLayoutEnabled,
+      imageLeftWidth: question.imageWidthLeft,
+      imageRightWidth: question.imageWidthRight,
+      imageScale: question.imageScale,
+      topics: question.topics || [],
+      answers: question.answers.map((answer) => ({
+        text: answer.text,
+        isCorrect: Boolean(answer.correct),
+      })),
+    };
+  }),
 });
 
 const updateCurrentExam = async () => {
@@ -1172,11 +1019,10 @@ const updateCurrentExam = async () => {
 
 const filterExamHistory = (exams) => {
   if (!Array.isArray(exams)) return [];
-  const courseRaw = historyCourseSelect?.value || "";
   const statusRaw = historyStatusSelect?.value || "all";
   const searchRaw = String(historySearchInput?.value || "").trim().toLowerCase();
   const dateRaw = String(historyDateInput?.value || "").trim();
-  const courseId = courseRaw === "" ? null : Number(courseRaw);
+  const courseId = Number(state.meta.courseId);
   return exams.filter((exam) => {
     if (Number.isFinite(courseId) && exam.course_id !== courseId) {
       return false;
@@ -1263,7 +1109,7 @@ const saveExam = async () => {
   }
   if (!state.meta.examName || !Number.isFinite(state.meta.courseId)) {
     highlightMissingMeta();
-    if (examStatus) examStatus.textContent = "Compila nome traccia e corso.";
+    if (examStatus) examStatus.textContent = "Compila nome traccia.";
     return;
   }
   try {
@@ -1276,6 +1122,7 @@ const saveExam = async () => {
     });
     currentExamId = res.examId;
     state.meta.isDraft = true;
+    setActiveExam(currentExamId);
     if (examStatus) examStatus.textContent = "Bozza creata.";
     setLockedState(false);
     await loadExamHistory();
@@ -1349,6 +1196,7 @@ const loadExam = async (examId) => {
       const item = createQuestion();
       item.type = question.type || "singola";
       item.text = question.text || "";
+      item.sourceId = question.id || null;
       item.image = question.imagePath || "";
       item.imageThumbnail = question.imageThumbnailPath || "";
       item.imageLayoutEnabled = Boolean(question.imageLayoutEnabled);
@@ -1363,15 +1211,12 @@ const loadExam = async (examId) => {
       return item;
     });
     applyMetaToInputs();
-    if (bankCourseSelect && state.meta.courseId) {
-      bankCourseSelect.value = String(state.meta.courseId);
-    }
     await loadCourseTopics(state.meta.courseId);
     renderSelectedQuestions();
     renderLatex();
-    await loadTopics(state.meta.courseId, bankTopicSelect, "Tutti gli argomenti");
     if (examStatus) examStatus.textContent = "Traccia caricata.";
     setLockedState(!state.meta.isDraft);
+    setActiveExam(currentExamId);
   } catch (err) {
     if (examStatus) examStatus.textContent = err.message;
   }
@@ -1473,11 +1318,6 @@ const duplicateExam = async (examId) => {
 const updateMetaFromInput = (id, value) => {
   const key = metaFields[id];
   if (!key) return;
-  if (key === "courseId") {
-    const num = Number(value);
-    state.meta.courseId = Number.isFinite(num) ? num : null;
-    return;
-  }
   if (typeof state.meta[key] === "boolean") {
     state.meta[key] = Boolean(value);
     return;
@@ -1499,10 +1339,6 @@ const handleMetaInput = (event) => {
     updateMetaFromInput(target.id, target.value);
   }
   highlightMissingMeta();
-  if (target.id === "metaCourse") {
-    loadTopics(Number(target.value), bankTopicSelect, "Tutti gli argomenti");
-    loadCourseTopics(Number(target.value));
-  }
   updateSaveAvailability();
   renderLatex();
   scheduleAutosave();
@@ -1884,21 +1720,31 @@ const initMetaFields = () => {
   applyMetaToInputs();
 };
 
-const init = () => {
+const init = async () => {
+  const activeCourse = await fetchActiveCourse();
+  if (!activeCourse) {
+    if (courseEmptyState) courseEmptyState.classList.remove("is-hidden");
+    if (mainLayout) mainLayout.classList.add("is-hidden");
+    return;
+  }
+  if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
+  if (mainLayout) mainLayout.classList.remove("is-hidden");
+  if (!state.meta.courseId) {
+    state.meta.courseId = activeCourse.id;
+  }
   initMetaFields();
   renderSelectedQuestions();
   renderLatex();
   updateStepUI();
   highlightMissingMeta();
   setLockedState(false);
-  loadCourses().then(() => {
-    if (bankCourseSelect && bankCourseSelect.value) {
-      loadTopics(Number(bankCourseSelect.value), bankTopicSelect, "Tutti gli argomenti");
-    } else {
-      renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
+  const activeExam = await fetchActiveExam();
+  loadCourseTopics(state.meta.courseId);
+  loadExamHistory().then(async () => {
+    if (activeExam?.id) {
+      await loadExam(activeExam.id);
     }
   });
-  loadExamHistory();
 
   Object.keys(metaFields).forEach((id) => {
     const el = document.getElementById(id);
@@ -1924,16 +1770,12 @@ const init = () => {
     });
   }
   if (refreshBankBtn) refreshBankBtn.addEventListener("click", refreshQuestionBank);
-  if (bankCourseSelect) {
-    bankCourseSelect.addEventListener("change", () => {
-      loadTopics(Number(bankCourseSelect.value), bankTopicSelect, "Tutti gli argomenti");
-      refreshQuestionBank();
-    });
-  }
-  if (bankTopicSelect) {
-    bankTopicSelect.addEventListener("change", refreshQuestionBank);
-  }
   if (bankSearchInput) {
+    ["click", "mousedown", "keydown", "focus"].forEach((eventName) => {
+      bankSearchInput.addEventListener(eventName, (event) => {
+        event.stopPropagation();
+      });
+    });
     bankSearchInput.addEventListener("input", refreshQuestionBank);
   }
   if (bankTopicChips) {
@@ -1941,11 +1783,13 @@ const init = () => {
       const target = event.target;
       if (!target.classList.contains("chip-action")) return;
       const topicId = target.dataset.topicId || "";
-      if (bankTopicSelect) bankTopicSelect.value = topicId;
+      bankTopicFilter = topicId || null;
+      bankTopicChips.querySelectorAll(".chip-action").forEach((chip) => {
+        chip.classList.toggle("active", chip === target);
+      });
       refreshQuestionBank();
     });
   }
-  if (historyCourseSelect) historyCourseSelect.addEventListener("change", loadExamHistory);
   if (historyStatusSelect) historyStatusSelect.addEventListener("change", loadExamHistory);
   if (historySearchInput) historySearchInput.addEventListener("input", loadExamHistory);
   if (historyDateInput) historyDateInput.addEventListener("input", loadExamHistory);
@@ -1969,53 +1813,6 @@ const init = () => {
   if (newExamCloseBtn) newExamCloseBtn.addEventListener("click", closeNewExamModal);
   if (newExamCancelBtn) newExamCancelBtn.addEventListener("click", closeNewExamModal);
   if (newExamBackdrop) newExamBackdrop.addEventListener("click", closeNewExamModal);
-  if (newBankQuestionBtn) newBankQuestionBtn.addEventListener("click", openBankQuestionModal);
-  if (bankQuestionCloseBtn) bankQuestionCloseBtn.addEventListener("click", closeBankQuestionModal);
-  if (bankQuestionBackdrop) bankQuestionBackdrop.addEventListener("click", closeBankQuestionModal);
-  if (bankQuestionReset) bankQuestionReset.addEventListener("click", resetBankQuestion);
-  if (bankQuestionSave) bankQuestionSave.addEventListener("click", saveBankQuestion);
-  if (bankQuestionAddAnswer) {
-    bankQuestionAddAnswer.addEventListener("click", () => {
-      bankQuestionState.answers.push({ text: "", correct: false });
-      renderBankQuestionAnswers();
-    });
-  }
-  if (bankQuestionType) {
-    bankQuestionType.addEventListener("change", () => {
-      bankQuestionState.type = bankQuestionType.value;
-      if (bankQuestionState.type === "singola") {
-        const first = bankQuestionState.answers.findIndex((a) => a.correct);
-        bankQuestionState.answers.forEach((a, idx) => {
-          a.correct = idx === (first >= 0 ? first : 0);
-        });
-        renderBankQuestionAnswers();
-      }
-    });
-  }
-  if (bankQuestionText && bankQuestionPreview) {
-    bankQuestionText.addEventListener("input", () => {
-      bankQuestionState.text = bankQuestionText.value;
-      renderMathPreview(bankQuestionText.value, bankQuestionPreview, bankQuestionText);
-    });
-  }
-  if (bankQuestionImageLayout && bankQuestionLayoutFields) {
-    bankQuestionImageLayout.addEventListener("change", () => {
-      bankQuestionState.imageLayoutEnabled = bankQuestionImageLayout.checked;
-      bankQuestionLayoutFields.classList.toggle("is-hidden", !bankQuestionImageLayout.checked);
-    });
-  }
-  if (bankQuestionCourse) {
-    bankQuestionCourse.addEventListener("change", () => {
-      const courseId = Number(bankQuestionCourse.value || "");
-      loadTopics(courseId, bankQuestionTopics, "Seleziona argomenti");
-    });
-  }
-  if (bankQuestionPickImage) {
-    bankQuestionPickImage.addEventListener("click", () => {
-      const courseId = Number(bankQuestionCourse?.value || "");
-      openImagePicker({ courseId, target: { type: "bankModal" } });
-    });
-  }
   if (examStatus) {
     const observer = new MutationObserver(() => {
       const message = examStatus.textContent.trim();

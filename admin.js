@@ -14,17 +14,10 @@ const adminUpdateTopicBtn = document.getElementById("adminUpdateTopic");
 const adminCancelTopicBtn = document.getElementById("adminCancelTopic");
 const adminTopicStatus = document.getElementById("adminTopicStatus");
 const adminTopicList = document.getElementById("adminTopicList");
-const adminImageCourseSelect = document.getElementById("adminImageCourse");
-const adminImageNameInput = document.getElementById("adminImageName");
-const adminImageDescriptionInput = document.getElementById("adminImageDescription");
-const adminImageFileInput = document.getElementById("adminImageFile");
-const adminImageSourceFileInput = document.getElementById("adminImageSourceFile");
-const adminUploadImageBtn = document.getElementById("adminUploadImage");
-const adminImageStatus = document.getElementById("adminImageStatus");
-const adminImageList = document.getElementById("adminImageList");
 const bankCourseSelect = document.getElementById("bankCourse");
 const bankTopicSelect = document.getElementById("bankTopic");
 const bankSearchInput = document.getElementById("bankSearch");
+const bankUsageSelect = document.getElementById("bankUsage");
 const refreshBankBtn = document.getElementById("refreshBank");
 const bankList = document.getElementById("bankList");
 const adminQuestionType = document.getElementById("adminQuestionType");
@@ -56,19 +49,16 @@ const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
 const toggleShortcutsBtn = document.getElementById("toggleShortcuts");
-const toggleImagesBtn = document.getElementById("toggleImages");
 const toggleUsersBtn = document.getElementById("toggleUsers");
 const adminActionButtons = [
   toggleUsersBtn,
   toggleCoursesBtn,
   toggleTopicsBtn,
   toggleShortcutsBtn,
-  toggleImagesBtn,
 ].filter(Boolean);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
 const adminShortcutsSection = document.getElementById("adminShortcutsSection");
-const adminImagesSection = document.getElementById("adminImagesSection");
 const adminUsersSection = document.getElementById("adminUsersSection");
 const adminEmptyState = document.getElementById("adminEmptyState");
 const adminUserNameInput = document.getElementById("adminUserName");
@@ -78,6 +68,10 @@ const adminCreateUserBtn = document.getElementById("adminCreateUser");
 const adminUpdateUserBtn = document.getElementById("adminUpdateUser");
 const adminCancelUserBtn = document.getElementById("adminCancelUser");
 const adminUserStatus = document.getElementById("adminUserStatus");
+const courseEmptyState = document.getElementById("courseEmptyState");
+const mainLayout = document.getElementById("mainLayout");
+
+let activeCourseId = null;
 const adminUserList = document.getElementById("adminUserList");
 const adminToast = document.getElementById("adminToast");
 const adminShortcutAddBtn = document.getElementById("adminShortcutAdd");
@@ -101,8 +95,18 @@ const adminShortcutList = document.getElementById("adminShortcutList");
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
+const imagePickerNewBtn = document.getElementById("imagePickerNew");
 const imagePickerStatus = document.getElementById("imagePickerStatus");
 const imagePickerList = document.getElementById("imagePickerList");
+const imageUploadBackdrop = document.getElementById("imageUploadBackdrop");
+const imageUploadModal = document.getElementById("imageUploadModal");
+const imageUploadCloseBtn = document.getElementById("imageUploadClose");
+const imageUploadNameInput = document.getElementById("imageUploadName");
+const imageUploadDescriptionInput = document.getElementById("imageUploadDescription");
+const imageUploadFileInput = document.getElementById("imageUploadFile");
+const imageUploadSourceFileInput = document.getElementById("imageUploadSourceFile");
+const imageUploadSaveBtn = document.getElementById("imageUploadSave");
+const imageUploadStatus = document.getElementById("imageUploadStatus");
 const imagePreviewBackdrop = document.getElementById("imagePreviewBackdrop");
 const imagePreviewModal = document.getElementById("imagePreviewModal");
 const imagePreviewCloseBtn = document.getElementById("imagePreviewClose");
@@ -112,7 +116,6 @@ const adminToolbarNew = document.getElementById("adminToolbarNew");
 const adminToolbarDuplicate = document.getElementById("adminToolbarDuplicate");
 const adminToolbarSave = document.getElementById("adminToolbarSave");
 const adminToolbarReset = document.getElementById("adminToolbarReset");
-const adminTemplateAnswers = document.getElementById("adminTemplateAnswers");
 const adminPreviewRefresh = document.getElementById("adminPreviewRefresh");
 const adminToolbarBank = document.getElementById("adminToolbarBank");
 const adminSaveStateBadge = document.getElementById("adminSaveState");
@@ -211,6 +214,17 @@ const apiFetch = async (url, options = {}) => {
     throw new Error(message);
   }
   return response.json();
+};
+
+const fetchActiveCourse = async () => {
+  try {
+    const res = await fetch("/api/session/course");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.course || null;
+  } catch {
+    return null;
+  }
 };
 
 const createEl = (tag, className, text) => {
@@ -525,6 +539,32 @@ const closeQuestionPreviewModal = () => {
   if (questionPreviewBody) questionPreviewBody.innerHTML = "";
 };
 
+const setQuestionStatus = (message, tone = "info") => {
+  if (!adminQuestionStatus) return;
+  if (tone === "error") {
+    showAdminToast(message, "error");
+  }
+  adminQuestionStatus.textContent = message;
+  adminQuestionStatus.classList.remove(
+    "text-danger",
+    "text-success",
+    "text-secondary",
+    "is-error",
+    "is-success",
+    "is-info",
+    "is-visible"
+  );
+  if (tone === "error") {
+    adminQuestionStatus.textContent = "";
+    return;
+  } else if (tone === "success") {
+    adminQuestionStatus.classList.add("text-success", "is-success");
+  } else {
+    adminQuestionStatus.classList.add("text-secondary", "is-info");
+  }
+  if (message) adminQuestionStatus.classList.add("is-visible");
+};
+
 const setSaveState = (state) => {
   if (!adminSaveStateBadge) return;
   if (state === "saved") {
@@ -621,7 +661,6 @@ const showAdminSection = (section) => {
     adminCoursesSection,
     adminTopicsSection,
     adminShortcutsSection,
-    adminImagesSection,
   ];
   sections.forEach((item) => {
     if (!item) return;
@@ -636,7 +675,6 @@ const showAdminSection = (section) => {
   if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
   if (section === adminShortcutsSection && toggleShortcutsBtn)
     toggleShortcutsBtn.classList.add("is-active");
-  if (section === adminImagesSection && toggleImagesBtn) toggleImagesBtn.classList.add("is-active");
 };
 
 const renderImagePickerList = (images) => {
@@ -732,6 +770,63 @@ const openImagePicker = async () => {
 const closeImagePicker = () => {
   if (imagePickerBackdrop) imagePickerBackdrop.classList.add("is-hidden");
   if (imagePickerModal) imagePickerModal.classList.add("is-hidden");
+};
+
+const openImageUploadModal = () => {
+  if (imageUploadStatus) imageUploadStatus.textContent = "";
+  if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
+  if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+};
+
+const closeImageUploadModal = () => {
+  if (imageUploadBackdrop) imageUploadBackdrop.classList.add("is-hidden");
+  if (imageUploadModal) imageUploadModal.classList.add("is-hidden");
+};
+
+const uploadImageFromModal = async () => {
+  const courseId = Number(activeCourseId);
+  if (!Number.isFinite(courseId)) {
+    if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un corso.";
+    return;
+  }
+  const file = imageUploadFileInput?.files?.[0];
+  if (!file) {
+    if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un file.";
+    return;
+  }
+  const name = String(imageUploadNameInput?.value || "").trim();
+  const description = String(imageUploadDescriptionInput?.value || "").trim();
+  const sourceFile = imageUploadSourceFileInput?.files?.[0];
+  try {
+    const dataBase64 = await readFileAsDataUrl(file);
+    const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
+    await apiFetch("/api/images", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        courseId,
+        name: name || file.name,
+        description,
+        originalName: file.name,
+        dataBase64,
+        mimeType: file.type,
+        sourceOriginalName: sourceFile?.name || "",
+        sourceBase64,
+        sourceMimeType: sourceFile?.type || "",
+      }),
+    });
+    if (imageUploadNameInput) imageUploadNameInput.value = "";
+    if (imageUploadDescriptionInput) imageUploadDescriptionInput.value = "";
+    if (imageUploadFileInput) imageUploadFileInput.value = "";
+    if (imageUploadSourceFileInput) imageUploadSourceFileInput.value = "";
+    if (imageUploadStatus) imageUploadStatus.textContent = "Immagine caricata.";
+    await loadImages(courseId);
+    closeImageUploadModal();
+  } catch (err) {
+    if (imageUploadStatus) {
+      imageUploadStatus.textContent = err.message || "Errore upload immagine.";
+    }
+  }
 };
 
 const renderMathPreview = (source, target, input) => {
@@ -954,11 +1049,13 @@ const adminQuestionState = {
 const renderAdminAnswers = () => {
   if (!adminAnswers) return;
   adminAnswers.innerHTML = "";
+  const disabled = adminQuestionState.topicIds.length === 0;
   adminQuestionState.answers.forEach((answer, idx) => {
     const row = createEl("div", "answer-builder-admin");
     const check = createEl("input", "form-check-input");
     check.type = "checkbox";
     check.checked = Boolean(answer.correct);
+    check.disabled = disabled;
     check.addEventListener("change", () => {
       if (adminQuestionState.type === "singola" && check.checked) {
         adminQuestionState.answers.forEach((a, i) => {
@@ -974,6 +1071,7 @@ const renderAdminAnswers = () => {
     input.placeholder = "Testo risposta";
     input.value = answer.text;
     input.dataset.answerIndex = String(idx);
+    input.disabled = disabled;
     input.addEventListener("focus", () => setFocusedInput(input));
     input.addEventListener("input", () => {
       adminQuestionState.answers[idx].text = input.value;
@@ -981,6 +1079,7 @@ const renderAdminAnswers = () => {
     });
     const remove = createEl("button", "btn btn-outline-danger btn-sm", "Rimuovi");
     remove.type = "button";
+    remove.disabled = disabled;
     remove.addEventListener("click", () => {
       adminQuestionState.answers.splice(idx, 1);
       renderAdminAnswers();
@@ -1046,16 +1145,6 @@ const duplicateAdminQuestion = () => {
   setSaveState("dirty");
 };
 
-const applyAnswerTemplate = () => {
-  adminQuestionState.answers = [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-  ];
-  renderAdminAnswers();
-  if (adminQuestionStatus) adminQuestionStatus.textContent = "Template risposte applicato.";
-};
 
 const renderSelectOptions = (select, items, placeholder) => {
   if (!select) return;
@@ -1094,14 +1183,72 @@ const renderTopicOptions = (topics) => {
         adminQuestionState.topicIds.push(id);
         pill.classList.add("is-selected");
       }
+      updateTopicGate();
       updateAdminPreviews();
     });
     adminQuestionTopics.appendChild(pill);
   });
+  updateTopicGate();
+};
+
+const updateTopicGate = () => {
+  const enabled = adminQuestionState.topicIds.length > 0;
+  if (adminQuestionText) adminQuestionText.disabled = !enabled;
+  const textField = adminQuestionText?.closest(".field");
+  if (textField) textField.classList.toggle("editor-disabled", !enabled);
+  if (adminShortcutBar) adminShortcutBar.classList.toggle("editor-disabled", !enabled);
+  if (adminShortcutAddBtn) adminShortcutAddBtn.disabled = !enabled;
+  if (adminToolbarSave) adminToolbarSave.disabled = !enabled;
+  const answersBlock = adminAnswers?.closest(".answers-builder");
+  if (answersBlock) answersBlock.classList.toggle("editor-disabled", !enabled);
+  if (adminAddAnswerBtn) adminAddAnswerBtn.disabled = !enabled;
+  if (adminImageAccordion) {
+    adminImageAccordion.classList.toggle("is-disabled", !enabled);
+    if (!enabled) adminImageAccordion.open = false;
+  }
+  if (adminQuestionImageLayout) adminQuestionImageLayout.disabled = !enabled;
+  if (adminPickImageBtn) adminPickImageBtn.disabled = !enabled;
+  if (adminImageSplit) adminImageSplit.disabled = !enabled;
+  if (adminImageScaleRange) adminImageScaleRange.disabled = !enabled;
+  if (adminImageSplitPresets) {
+    adminImageSplitPresets.querySelectorAll("button").forEach((btn) => {
+      btn.disabled = !enabled;
+    });
+  }
+  if (adminImageScalePresets) {
+    adminImageScalePresets.querySelectorAll("button").forEach((btn) => {
+      btn.disabled = !enabled;
+    });
+  }
 };
 
 const renderCourseList = (courses) => {
   if (!adminCourseList) return;
+  if (window.CourseCards && typeof window.CourseCards.render === "function") {
+    CourseCards.render(adminCourseList, courses, {
+      emptyText: "Nessun corso presente.",
+      actions: (course) => {
+        const blocked = course.has_exams || course.has_topics || course.has_images;
+        return [
+          {
+            label: "Modifica",
+            className: "btn btn-outline-secondary btn-sm",
+            onClick: () => setCourseEditState(course),
+          },
+          {
+            label: "Elimina",
+            className: "btn btn-outline-danger btn-sm",
+            disabled: blocked,
+            title: blocked
+              ? "Non eliminabile: esistono tracce/argomenti/immagini associate"
+              : "",
+            onClick: () => deleteCourse(course.id),
+          },
+        ];
+      },
+    });
+    return;
+  }
   adminCourseList.innerHTML = "";
   if (!courses.length) {
     adminCourseList.textContent = "Nessun corso presente.";
@@ -1161,95 +1308,6 @@ const renderTopicList = (topics) => {
   });
 };
 
-const renderImageList = (images) => {
-  if (!adminImageList) return;
-  adminImageList.innerHTML = "";
-  if (!images.length) {
-    adminImageList.textContent = "Nessuna immagine presente.";
-    return;
-  }
-  images.forEach((image) => {
-    const item = createEl("div", "image-item");
-    const thumb = createEl("div", "image-thumb");
-    const previewPath = image.thumbnail_path || image.file_path || "";
-    const filePath = image.file_path || "";
-    if (isPreviewableImage(previewPath)) {
-      const img = document.createElement("img");
-      img.src = previewPath;
-      img.alt = image.name;
-      img.addEventListener("click", () =>
-        openImagePreview(previewPath, image.name, image.description)
-      );
-      thumb.appendChild(img);
-    } else {
-      const extLabel = filePath.split(".").pop().toUpperCase() || "FILE";
-      const fallback = createEl("div", "image-thumb-fallback", extLabel);
-      thumb.appendChild(fallback);
-    }
-    const details = createEl("div", "image-details");
-    const title = createEl("div", "list-title", image.name);
-    const desc = createEl(
-      "div",
-      "list-meta",
-      image.description || "Nessuna descrizione"
-    );
-    const meta = createEl("div", "image-meta", image.original_name || filePath);
-    const sourceMeta = createEl(
-      "div",
-      "list-meta",
-      image.source_name ? `Sorgente: ${image.source_name}` : "Sorgente non disponibile"
-    );
-    const actions = createEl("div", "list-actions");
-    const useBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa in domanda");
-    useBtn.type = "button";
-    useBtn.addEventListener("click", () => {
-      adminQuestionState.image = image.file_path || "";
-      updateImagePickButton();
-      updateAdminPreviews();
-      if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine impostata nella domanda.";
-    });
-    if (image.file_path) {
-      const ext = String(image.file_path).split(".").pop().toLowerCase();
-      if (["pdf", "ps", "eps"].includes(ext)) {
-        const regenBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Rigenera thumbnail");
-        regenBtn.type = "button";
-        regenBtn.addEventListener("click", async () => {
-          try {
-            await apiFetch(`/api/images/${image.id}/thumbnail`, { method: "POST" });
-            const courseId = Number(adminImageCourseSelect?.value || "");
-            await loadImages(courseId);
-            showAdminToast("Thumbnail rigenerata.", "success");
-          } catch (err) {
-            if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore thumbnail.";
-            showAdminToast("Errore nella rigenerazione.", "error");
-          }
-        });
-        actions.appendChild(regenBtn);
-      }
-    }
-    const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
-    delBtn.type = "button";
-    delBtn.addEventListener("click", () => deleteImage(image.id));
-    if (image.source_path) {
-      const sourceLink = document.createElement("a");
-      sourceLink.className = "btn btn-outline-secondary btn-sm";
-      sourceLink.href = image.source_path;
-      sourceLink.download = image.source_name || "sorgente";
-      sourceLink.textContent = "Sorgente";
-      actions.appendChild(sourceLink);
-    }
-    actions.appendChild(useBtn);
-    actions.appendChild(delBtn);
-    details.appendChild(title);
-    details.appendChild(desc);
-    details.appendChild(meta);
-    details.appendChild(sourceMeta);
-    details.appendChild(actions);
-    item.appendChild(thumb);
-    item.appendChild(details);
-    adminImageList.appendChild(item);
-  });
-};
 
 const renderBankList = (questions) => {
   if (!bankList) return;
@@ -1260,30 +1318,44 @@ const renderBankList = (questions) => {
   }
   questions.forEach((question) => {
     const item = createEl("div", "list-item question-bank-card");
-    const header = createEl("div", "list-row");
-    const title = createEl("div", "list-title");
-    renderMathDisplay(question.text.slice(0, 160), title);
+    const band = createEl("div", "question-card-band");
     const badgeRow = createEl("div", "chip-row");
+    const isLocked = Boolean(question.is_locked);
+    const isUsed = Boolean(question.is_used);
     const typeChip = createEl(
       "span",
       "chip chip-action",
       question.type === "multipla" ? "Multipla" : "Singola"
     );
     badgeRow.appendChild(typeChip);
+    if (isLocked) {
+      const lockedChip = createEl("span", "chip is-warning", "In uso (chiusa)");
+      badgeRow.appendChild(lockedChip);
+    }
     if (question.image_path) {
       const imageChip = createEl("span", "chip chip-action", "Immagine");
       badgeRow.appendChild(imageChip);
     }
-    if (question.last_exam_date) {
-      const dateChip = createEl(
-        "span",
-        "chip chip-action",
-        `Ultimo esame ${formatDateDisplay(question.last_exam_date)}`
-      );
+    if (question.last_exam_title || question.last_exam_date) {
+      const dateLabel = question.last_exam_date
+        ? formatDateDisplay(question.last_exam_date)
+        : "";
+      const titleLabel = question.last_exam_title || "Esame";
+      const label = dateLabel ? `${titleLabel} · ${dateLabel}` : titleLabel;
+      const dateChip = createEl("span", "chip chip-action", `Usata: ${label}`);
       badgeRow.appendChild(dateChip);
     }
-    header.appendChild(title);
-    header.appendChild(badgeRow);
+    band.appendChild(badgeRow);
+    const content = createEl("div", "question-card-content");
+    const preview = createEl("div", "bank-question-preview");
+    if (window.QuestionCards && typeof window.QuestionCards.renderPreview === "function") {
+      window.QuestionCards.renderPreview(preview, question, {
+        renderMath: renderMathDisplay,
+        answersMode: "accordion",
+      });
+    } else {
+      renderMathDisplay(question.text || "", preview);
+    }
     const meta = createEl("div", "list-meta");
     if (question.topics.length) {
       question.topics.forEach((topic) => {
@@ -1305,22 +1377,31 @@ const renderBankList = (questions) => {
         if (adminQuestionStatus) adminQuestionStatus.textContent = err.message || "Errore anteprima.";
       }
     });
-    const editBtn = createEl("button", "btn btn-outline-primary btn-sm", "Modifica");
-    editBtn.type = "button";
-    editBtn.addEventListener("click", () => loadQuestionForEdit(question.id));
     const dupBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Duplica");
     dupBtn.type = "button";
     dupBtn.addEventListener("click", () => duplicateQuestion(question.id));
-    const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
-    delBtn.type = "button";
-    delBtn.addEventListener("click", () => deleteQuestion(question.id));
     actions.appendChild(previewBtn);
-    actions.appendChild(editBtn);
     actions.appendChild(dupBtn);
-    actions.appendChild(delBtn);
-    item.appendChild(header);
-    item.appendChild(meta);
-    item.appendChild(actions);
+    if (!isLocked) {
+      const editBtn = createEl("button", "btn btn-outline-primary btn-sm", "Modifica");
+      editBtn.type = "button";
+      editBtn.addEventListener("click", () => loadQuestionForEdit(question.id));
+      const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
+      delBtn.type = "button";
+      if (isUsed) {
+        delBtn.disabled = true;
+        delBtn.title = "Domanda usata in una traccia";
+      } else {
+        delBtn.addEventListener("click", () => deleteQuestion(question.id));
+      }
+      actions.appendChild(editBtn);
+      actions.appendChild(delBtn);
+    }
+    content.appendChild(preview);
+    content.appendChild(meta);
+    content.appendChild(actions);
+    item.appendChild(band);
+    item.appendChild(content);
     bankList.appendChild(item);
   });
 };
@@ -1348,11 +1429,9 @@ const setActiveCourse = async (
   if (!Number.isFinite(courseId)) {
     if (adminCoursePicker) adminCoursePicker.value = "";
     if (adminTopicCourseSelect) adminTopicCourseSelect.value = "";
-    if (adminImageCourseSelect) adminImageCourseSelect.value = "";
     if (bankCourseSelect) bankCourseSelect.value = "";
     renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
     renderTopicOptions([]);
-    renderImageList([]);
     renderShortcutBar([]);
     if (adminCourseEmpty) adminCourseEmpty.classList.remove("is-hidden");
     if (adminEditorWrap) adminEditorWrap.classList.add("is-hidden");
@@ -1366,9 +1445,6 @@ const setActiveCourse = async (
   if (adminTopicCourseSelect && adminTopicCourseSelect.value !== String(courseId)) {
     adminTopicCourseSelect.value = String(courseId);
   }
-  if (adminImageCourseSelect && adminImageCourseSelect.value !== String(courseId)) {
-    adminImageCourseSelect.value = String(courseId);
-  }
   if (syncBank && bankCourseSelect && bankCourseSelect.value !== String(courseId)) {
     bankCourseSelect.value = String(courseId);
   }
@@ -1377,7 +1453,6 @@ const setActiveCourse = async (
   }
   await loadQuestionTopics(courseId);
   await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
-  await loadImages(courseId);
   await loadShortcutsForEditor(courseId);
   if (syncBank) {
     await refreshQuestionBank();
@@ -1391,7 +1466,6 @@ const loadCourses = async () => {
   const courses = payload.courses || [];
   renderSelectOptions(adminTopicCourseSelect, courses, "Seleziona corso");
   renderSelectOptions(adminCoursePicker, courses, "Seleziona corso");
-  renderSelectOptions(adminImageCourseSelect, courses, "Seleziona corso");
   renderSelectOptions(adminShortcutCourse, courses, "Seleziona corso");
   renderSelectOptions(bankCourseSelect, courses, "Tutti i corsi");
   renderCourseList(courses);
@@ -1399,8 +1473,11 @@ const loadCourses = async () => {
   const storedExists = Number.isFinite(storedCourseId)
     ? courses.some((course) => course.id === storedCourseId)
     : false;
+  const activeExists = Number.isFinite(activeCourseId)
+    ? courses.some((course) => course.id === activeCourseId)
+    : false;
   const fallbackId = courses[0]?.id;
-  const preferredId = storedExists ? storedCourseId : fallbackId;
+  const preferredId = activeExists ? activeCourseId : storedExists ? storedCourseId : fallbackId;
   if (Number.isFinite(preferredId)) {
     await setActiveCourse(preferredId, { persist: true });
     if (adminShortcutCourse) adminShortcutCourse.value = String(preferredId);
@@ -1424,62 +1501,10 @@ const loadTopics = async (courseId, select, placeholder) => {
 const loadImages = async (courseId) => {
   if (!Number.isFinite(courseId)) {
     imageCache = [];
-    renderImageList([]);
     return;
   }
   const payload = await apiFetch(`/api/images?courseId=${courseId}`);
   imageCache = payload.images || [];
-  renderImageList(imageCache);
-};
-
-const uploadImage = async () => {
-  const courseId = Number(adminImageCourseSelect?.value || "");
-  if (!Number.isFinite(courseId)) {
-    if (adminImageStatus) adminImageStatus.textContent = "Seleziona un corso.";
-    return;
-  }
-  const file = adminImageFileInput?.files?.[0];
-  if (!file) {
-    if (adminImageStatus) adminImageStatus.textContent = "Seleziona un file.";
-    return;
-  }
-  const name = String(adminImageNameInput?.value || "").trim();
-  const description = String(adminImageDescriptionInput?.value || "").trim();
-  const sourceFile = adminImageSourceFileInput?.files?.[0];
-  try {
-    const dataBase64 = await readFileAsDataUrl(file);
-    const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
-    await apiFetch("/api/images", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        courseId,
-        name: name || file.name,
-        description,
-        originalName: file.name,
-        dataBase64,
-        mimeType: file.type,
-        sourceOriginalName: sourceFile?.name || "",
-        sourceBase64,
-        sourceMimeType: sourceFile?.type || "",
-      }),
-    });
-    if (adminImageNameInput) adminImageNameInput.value = "";
-    if (adminImageDescriptionInput) adminImageDescriptionInput.value = "";
-    if (adminImageFileInput) adminImageFileInput.value = "";
-    if (adminImageSourceFileInput) adminImageSourceFileInput.value = "";
-    if (adminImageStatus) adminImageStatus.textContent = "Immagine caricata.";
-    await loadImages(courseId);
-  } catch (err) {
-    if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore upload immagine.";
-  }
-};
-
-const deleteImage = async (imageId) => {
-  if (!confirm("Vuoi eliminare l'immagine dal banco?")) return;
-  await apiFetch(`/api/images/${imageId}`, { method: "DELETE" });
-  const courseId = Number(adminImageCourseSelect?.value || "");
-  await loadImages(courseId);
 };
 
 const formatUserDate = (isoString) => {
@@ -1706,8 +1731,16 @@ const refreshQuestionBank = async () => {
   if (Number.isFinite(courseId)) params.set("courseId", String(courseId));
   if (Number.isFinite(topicId)) params.set("topicId", String(topicId));
   if (search) params.set("search", search);
+  params.set("includeAnswers", "1");
   const payload = await apiFetch(`/api/questions?${params.toString()}`);
-  renderBankList(payload.questions || []);
+  let questions = payload.questions || [];
+  const usage = String(bankUsageSelect?.value || "all");
+  if (usage === "used") {
+    questions = questions.filter((question) => Boolean(question.is_used));
+  } else if (usage === "unused") {
+    questions = questions.filter((question) => !question.is_used);
+  }
+  renderBankList(questions);
 };
 
 const duplicateQuestion = async (questionId) => {
@@ -1781,24 +1814,24 @@ const loadQuestionForEdit = async (questionId) => {
 const saveAdminQuestion = async () => {
   const courseId = readSelectNumber(adminCoursePicker);
   if (!Number.isFinite(courseId)) {
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Seleziona un corso.";
+    setQuestionStatus("Seleziona un corso.", "error");
     return;
   }
   const text = String(adminQuestionText?.value || "").trim();
   if (!text) {
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Inserisci il testo della domanda.";
+    setQuestionStatus("Inserisci il testo della domanda.", "error");
     return;
   }
   const topics = topicOptions
     .filter((topic) => adminQuestionState.topicIds.includes(topic.id))
     .map((topic) => topic.name);
   if (!topics.length) {
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Seleziona almeno un argomento.";
+    setQuestionStatus("Seleziona almeno un argomento.", "error");
     return;
   }
   const answers = adminQuestionState.answers.filter((answer) => answer.text.trim() !== "");
   if (answers.length < 2) {
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Inserisci almeno due risposte.";
+    setQuestionStatus("Inserisci almeno due risposte.", "error");
     return;
   }
   const payload = {
@@ -1824,14 +1857,14 @@ const saveAdminQuestion = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Domanda aggiornata.";
+    setQuestionStatus("Domanda aggiornata.", "success");
   } else {
     await apiFetch("/api/questions", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    if (adminQuestionStatus) adminQuestionStatus.textContent = "Domanda salvata nel banco.";
+    setQuestionStatus("Domanda salvata nel banco.", "success");
   }
   lastSavedSnapshot = getQuestionSnapshot();
   setSaveState("saved");
@@ -1849,6 +1882,15 @@ const loadQuestionTopics = async (courseId) => {
 };
 
 const init = async () => {
+  const activeCourse = await fetchActiveCourse();
+  if (!activeCourse) {
+    if (courseEmptyState) courseEmptyState.classList.remove("is-hidden");
+    if (mainLayout) mainLayout.classList.add("is-hidden");
+    return;
+  }
+  activeCourseId = activeCourse.id;
+  if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
+  if (mainLayout) mainLayout.classList.remove("is-hidden");
   await loadCourses();
   renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
   resetAdminQuestion();
@@ -1856,7 +1898,6 @@ const init = async () => {
 
   if (adminAddCourseBtn) adminAddCourseBtn.addEventListener("click", createCourse);
   if (adminAddTopicBtn) adminAddTopicBtn.addEventListener("click", createTopic);
-  if (adminUploadImageBtn) adminUploadImageBtn.addEventListener("click", uploadImage);
   if (adminAddAnswerBtn) {
     adminAddAnswerBtn.addEventListener("click", () => {
       adminQuestionState.answers.push({ text: "", correct: false });
@@ -1878,7 +1919,6 @@ if (adminToolbarSave) {
     saveAdminQuestion();
   });
 }
-if (adminTemplateAnswers) adminTemplateAnswers.addEventListener("click", applyAnswerTemplate);
   if (adminPreviewRefresh) adminPreviewRefresh.addEventListener("click", updateAdminPreviews);
   if (adminToolbarBank) adminToolbarBank.addEventListener("click", openBankModal);
   if (bankModalClose) bankModalClose.addEventListener("click", closeBankModal);
@@ -1961,8 +2001,17 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   updateImageFieldState();
   updateImagePickButton();
   if (adminPickImageBtn) adminPickImageBtn.addEventListener("click", openImagePicker);
+  if (imagePickerNewBtn) {
+    imagePickerNewBtn.addEventListener("click", () => {
+      closeImagePicker();
+      openImageUploadModal();
+    });
+  }
   if (imagePickerCloseBtn) imagePickerCloseBtn.addEventListener("click", closeImagePicker);
   if (imagePickerBackdrop) imagePickerBackdrop.addEventListener("click", closeImagePicker);
+  if (imageUploadCloseBtn) imageUploadCloseBtn.addEventListener("click", closeImageUploadModal);
+  if (imageUploadBackdrop) imageUploadBackdrop.addEventListener("click", closeImageUploadModal);
+  if (imageUploadSaveBtn) imageUploadSaveBtn.addEventListener("click", uploadImageFromModal);
   if (imagePreviewCloseBtn) imagePreviewCloseBtn.addEventListener("click", closeImagePreview);
   if (imagePreviewBackdrop) imagePreviewBackdrop.addEventListener("click", closeImagePreview);
   if (adminCoursePicker) {
@@ -1981,11 +2030,6 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       loadShortcutsForAdmin(readSelectNumber(adminShortcutCourse));
     });
   }
-  if (adminImageCourseSelect) {
-    adminImageCourseSelect.addEventListener("change", () => {
-      setActiveCourse(readSelectNumber(adminImageCourseSelect));
-    });
-  }
   if (bankCourseSelect) {
     bankCourseSelect.addEventListener("change", () => {
       setActiveCourse(readSelectNumber(bankCourseSelect));
@@ -1993,6 +2037,7 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   }
   if (bankTopicSelect) bankTopicSelect.addEventListener("change", refreshQuestionBank);
   if (bankSearchInput) bankSearchInput.addEventListener("input", refreshQuestionBank);
+  if (bankUsageSelect) bankUsageSelect.addEventListener("change", refreshQuestionBank);
   if (refreshBankBtn) refreshBankBtn.addEventListener("click", refreshQuestionBank);
   if (toggleCoursesBtn && adminCoursesSection) {
     toggleCoursesBtn.addEventListener("click", () => {
@@ -2016,12 +2061,6 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
         }
         loadShortcutsForAdmin(readSelectNumber(adminShortcutCourse));
       }
-    });
-  }
-  if (toggleImagesBtn && adminImagesSection) {
-    toggleImagesBtn.addEventListener("click", () => {
-      const willOpen = adminImagesSection.classList.contains("is-hidden");
-      showAdminSection(willOpen ? adminImagesSection : null);
     });
   }
   if (toggleUsersBtn && adminUsersSection) {

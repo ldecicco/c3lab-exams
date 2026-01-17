@@ -8,6 +8,11 @@ const analysisQuestionsSection = document.getElementById("analysisQuestionsSecti
 const analysisQuestions = document.getElementById("analysisQuestions");
 const analysisTopicsSection = document.getElementById("analysisTopicsSection");
 const analysisTopics = document.getElementById("analysisTopics");
+const analysisSessionEmpty = document.getElementById("analysisSessionEmpty");
+const analysisCheatingSection = document.getElementById("analysisCheatingSection");
+const analysisCheating = document.getElementById("analysisCheating");
+const analysisCheatingStatus = document.getElementById("analysisCheatingStatus");
+const analysisCheatingRun = document.getElementById("analysisCheatingRun");
 const analysisToast = document.getElementById("analysisToast");
 const analysisEmptyState = document.getElementById("analysisEmptyState");
 const analysisExamSection = document.getElementById("analysisExamSection");
@@ -17,6 +22,8 @@ const analysisExamModal = document.getElementById("analysisExamModal");
 const analysisExamClose = document.getElementById("analysisExamClose");
 const analysisTopbarSelectExam = document.getElementById("analysisTopbarSelectExam");
 const analysisTopbarStatus = document.getElementById("analysisTopbarStatus");
+const courseEmptyState = document.getElementById("courseEmptyState");
+const mainLayout = document.getElementById("mainLayout");
 
 let examsCache = [];
 let examStatsCache = {};
@@ -26,6 +33,7 @@ let mapping = null;
 let examQuestions = [];
 let students = [];
 let toastTimer = null;
+let activeCourseId = null;
 
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
 
@@ -38,6 +46,41 @@ const showToast = (message, tone = "info") => {
   analysisToast.classList.add("show");
   if (toastTimer) clearTimeout(toastTimer);
   toastTimer = setTimeout(() => analysisToast.classList.remove("show"), 2400);
+};
+
+const fetchActiveCourse = async () => {
+  try {
+    const res = await fetch("/api/session/course");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.course || null;
+  } catch {
+    return null;
+  }
+};
+
+const fetchActiveExam = async () => {
+  try {
+    const res = await fetch("/api/session/exam");
+    if (!res.ok) return null;
+    const payload = await res.json();
+    return payload.exam || null;
+  } catch {
+    return null;
+  }
+};
+
+const setActiveExam = async (examId) => {
+  if (!Number.isFinite(Number(examId))) return;
+  try {
+    await fetch("/api/session/exam", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ examId }),
+    });
+  } catch {
+    // ignore
+  }
 };
 
 const renderLatexHtml = (source, target) => {
@@ -154,6 +197,7 @@ const updateDashboardVisibility = (hasExam) => {
     setSectionVisible(analysisSummary, false);
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
+    setSectionVisible(analysisCheatingSection, false);
   }
 };
 
@@ -172,6 +216,12 @@ const closeExamModal = () => {
   if (analysisExamBackdrop) analysisExamBackdrop.classList.add("is-hidden");
   if (analysisExamModal) analysisExamModal.classList.add("is-hidden");
 };
+
+if (analysisCheatingRun) {
+  analysisCheatingRun.addEventListener("click", () => {
+    loadCheating();
+  });
+}
 
 const renderExamList = (exams) => {
   if (!analysisExamList || !window.ExamCards) return;
@@ -326,8 +376,61 @@ const renderTopicsTable = (topicStats) => {
   });
 };
 
+const renderCheatingTable = (payload) => {
+  if (!analysisCheating) return;
+  analysisCheating.innerHTML = "";
+  const pairs = payload?.pairs || [];
+  if (!pairs.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "Nessuna coppia sospetta.";
+    row.appendChild(cell);
+    analysisCheating.appendChild(row);
+  } else {
+    pairs.forEach((pair) => {
+      const row = document.createElement("tr");
+      const a = pair.studentA;
+      const b = pair.studentB;
+      const studentA = `${a.cognome} ${a.nome} (${a.matricola})`.trim();
+      const studentB = `${b.cognome} ${b.nome} (${b.matricola})`.trim();
+      row.innerHTML = `
+        <td>${studentA}</td>
+        <td>${studentB}</td>
+        <td>${pair.score}</td>
+        <td>${pair.matchCount}</td>
+        <td>${pair.matchQuestions.join(", ")}</td>
+      `;
+      analysisCheating.appendChild(row);
+    });
+  }
+  if (analysisCheatingStatus) {
+    const threshold = payload?.threshold;
+    const perms = payload?.permutations || 0;
+    const sample = payload?.pairSample || 0;
+    const totalPairs = payload?.totalPairs || 0;
+    if (threshold === null || threshold === undefined) {
+      analysisCheatingStatus.textContent = "Nessuna soglia disponibile.";
+    } else {
+      analysisCheatingStatus.textContent =
+        `Soglia S2 (99%): ${threshold.toFixed(3)} · ` +
+        `${perms} permutazioni · ${sample}/${totalPairs} coppie`;
+    }
+  }
+  setSectionVisible(analysisCheatingSection, true);
+};
+
 const computeAnalytics = () => {
   if (!mapping || !examQuestions.length) return;
+  if (!students.length) {
+    setSectionVisible(analysisSummary, false);
+    setSectionVisible(analysisQuestionsSection, false);
+    setSectionVisible(analysisTopicsSection, false);
+    setSectionVisible(analysisCheatingSection, false);
+    setSectionVisible(analysisSessionEmpty, true);
+    return;
+  }
+  setSectionVisible(analysisSessionEmpty, false);
   const questionCount =
     Math.min(mapping.Nquestions || examQuestions.length, examQuestions.length) ||
     mapping.Nquestions ||
@@ -420,6 +523,27 @@ const computeAnalytics = () => {
   setSectionVisible(analysisTopicsSection, true);
 };
 
+const loadCheating = async () => {
+  if (!currentExamId || !currentSessionId) return;
+  if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Calcolo in corso...";
+  try {
+    const params = new URLSearchParams({
+      sessionId: String(currentSessionId),
+    });
+    const response = await fetch(`/api/exams/${currentExamId}/cheating?${params.toString()}`);
+    if (!response.ok) {
+      renderCheatingTable({ pairs: [] });
+      if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Nessun dato.";
+      return;
+    }
+    const payload = await response.json();
+    renderCheatingTable(payload);
+  } catch {
+    renderCheatingTable({ pairs: [] });
+    if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Errore nel calcolo.";
+  }
+};
+
 const loadSession = async (sessionId) => {
   if (!sessionId) return;
   try {
@@ -432,6 +556,16 @@ const loadSession = async (sessionId) => {
     currentSessionId = payload.session.id;
     students = payload.students || [];
     computeAnalytics();
+    if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Pronto al calcolo.";
+    renderCheatingTable({ pairs: [] });
+    if (!students.length) {
+      if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Nessuno studente valutato.";
+      setSectionVisible(analysisSummary, false);
+      setSectionVisible(analysisQuestionsSection, false);
+      setSectionVisible(analysisTopicsSection, false);
+      setSectionVisible(analysisCheatingSection, false);
+      setSectionVisible(analysisSessionEmpty, true);
+    }
   } catch {
     showToast("Errore nel caricamento sessione.", "error");
   }
@@ -484,6 +618,7 @@ const loadExam = async (examId) => {
     updateTopbarStatus(`${courseText}${titleText}${dateText}`, true);
     updateDashboardVisibility(true);
     await loadSessions(examId);
+    setActiveExam(examId);
   } catch {
     analysisStatus.textContent = "Errore nel caricamento traccia.";
     updateTopbarStatus("Nessuna traccia", false);
@@ -500,6 +635,9 @@ const loadExams = async () => {
     }
     const payload = await response.json();
     examsCache = payload.exams || [];
+    if (Number.isFinite(activeCourseId)) {
+      examsCache = examsCache.filter((exam) => exam.course_id === activeCourseId);
+    }
     examStatsCache = await loadExamStats();
     renderExamList(examsCache);
     updateDashboardVisibility(false);
@@ -508,6 +646,23 @@ const loadExams = async () => {
     analysisExamList.textContent = "Errore nel caricamento tracce.";
     updateTopbarStatus("Nessuna traccia", false);
     updateDashboardVisibility(false);
+  }
+};
+
+const initDashboard = async () => {
+  const activeCourse = await fetchActiveCourse();
+  if (!activeCourse) {
+    if (courseEmptyState) courseEmptyState.classList.remove("is-hidden");
+    if (mainLayout) mainLayout.classList.add("is-hidden");
+    return;
+  }
+  activeCourseId = activeCourse.id;
+  if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
+  if (mainLayout) mainLayout.classList.remove("is-hidden");
+  const activeExam = await fetchActiveExam();
+  await loadExams();
+  if (activeExam?.id) {
+    loadExam(activeExam.id);
   }
 };
 
@@ -530,9 +685,7 @@ if (analysisSessionSelect) {
   });
 }
 
-loadExams();
-updateDashboardVisibility(false);
-updateTopbarStatus("Nessuna traccia", false);
+initDashboard();
 
 if (analysisSelectExam) {
   analysisSelectExam.addEventListener("click", () => {

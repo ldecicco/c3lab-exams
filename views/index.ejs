@@ -23,11 +23,21 @@
     <script>
       window.APP_USER = <%- JSON.stringify(user || null) %>;
     </script>
-    <%- include('partials/nav', { active: 'index' }) %>
+    <%- include('partials/nav', { active: 'valutazione' }) %>
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
 
-    <main class="layout container-fluid admin-layout py-4">
+    <div class="empty-state is-hidden" id="courseEmptyState">
+      <div class="empty-state-content">
+        <strong>Seleziona un corso per iniziare</strong>
+        <a class="btn btn-primary" href="/home">
+          <i class="fa-solid fa-graduation-cap"></i>
+          Vai ai corsi
+        </a>
+      </div>
+    </div>
+
+    <main class="layout container-fluid admin-layout py-4" id="mainLayout">
       <% if (user) { %>
       <div class="builder-topbar grading-topbar">
         <div class="builder-topbar-left">
@@ -345,9 +355,9 @@
       </div>
     </div>
 
-    <footer class="footer">
+    <!-- <footer class="footer">
       <p>Salvataggio locale nel browser. Nessun dato lascia il computer.</p>
-    </footer>
+    </footer> -->
 
     <div class="toast-notify" id="gradingToast" role="status" aria-live="polite"></div>
     <% } %>
