@@ -32,7 +32,16 @@ const exportGradedBtn = document.getElementById("exportGradedCsv");
 const gradingTable = document.getElementById("gradingTable");
 const gradeHistogram = document.getElementById("gradeHistogram");
 const publicAccessForm = document.getElementById("publicAccessForm");
-const publicExamSelect = document.getElementById("publicExamSelect");
+const publicCourseGrid = document.getElementById("publicCourseGrid");
+const publicExamGrid = document.getElementById("publicExamGrid");
+const publicExamSection = document.getElementById("publicExamSection");
+const backToCoursesBtn = document.getElementById("backToCourses");
+const publicAccessHeader = document.getElementById("publicAccessHeader");
+const publicAccessHeaderTitle = document.getElementById("publicAccessHeaderTitle");
+const publicAccessHeaderSubtitle = document.getElementById("publicAccessHeaderSubtitle");
+const publicAccessBackdrop = document.getElementById("publicAccessBackdrop");
+const publicAccessModal = document.getElementById("publicAccessModal");
+const publicAccessClose = document.getElementById("publicAccessClose");
 const publicMatricola = document.getElementById("publicMatricola");
 const publicPassword = document.getElementById("publicPassword");
 const publicAccessError = document.getElementById("publicAccessError");
@@ -45,6 +54,14 @@ let activeCourseId = null;
 const publicResultGrade = document.getElementById("publicResultGrade");
 const publicResultMeta = document.getElementById("publicResultMeta");
 const publicResultQuestions = document.getElementById("publicResultQuestions");
+const publicPrintResult = document.getElementById("publicPrintResult");
+const publicDownloadPdf = document.getElementById("publicDownloadPdf");
+const showPromptBtn = document.getElementById("showPromptBtn");
+const promptTestBackdrop = document.getElementById("promptTestBackdrop");
+const promptTestModal = document.getElementById("promptTestModal");
+const promptTestClose = document.getElementById("promptTestClose");
+const promptTestContent = document.getElementById("promptTestContent");
+const copyPromptBtn = document.getElementById("copyPromptBtn");
 const publicAccessControls = document.getElementById("publicAccessControls");
 const publicAccessEnabledToggle = document.getElementById("publicAccessEnabled");
 const publicAccessFields = document.getElementById("publicAccessFields");
@@ -92,10 +109,13 @@ let examQuestions = [];
 let toastTimer = null;
 let currentExamId = null;
 let currentExam = null;
+let publicExamsCache = [];
+let publicSelectedExam = null;
 let currentSessionId = null;
 let sessionSaveTimer = null;
 let activeQuestionIndex = 1;
 let activeAnswerIndex = 0;
+let currentStudentCredentials = null;
 
 const showToast = (message, tone = "info") => {
   if (!gradingToast) return;
@@ -290,27 +310,169 @@ const savePublicAccess = async () => {
   }
 };
 
+const parseExamDate = (value) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  if (/^\d{4}-\d{2}-\d{2}/.test(raw)) {
+    const d = new Date(raw);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const parts = raw.split("-");
+  if (parts.length === 3) {
+    const [dd, mm, yyyy] = parts;
+    const d = new Date(`${yyyy}-${mm}-${dd}`);
+    return Number.isNaN(d.getTime()) ? null : d;
+  }
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const updatePublicAccessHeader = (step) => {
+  if (!publicAccessHeaderTitle || !publicAccessHeaderSubtitle) return;
+
+  if (step === "courses") {
+    publicAccessHeaderTitle.textContent = "Seleziona il corso";
+    publicAccessHeaderSubtitle.textContent = "Scegli il corso per visualizzare le tracce disponibili.";
+  } else if (step === "exams") {
+    publicAccessHeaderTitle.textContent = "Seleziona l'esame";
+    publicAccessHeaderSubtitle.textContent = "Scegli la traccia per accedere alla valutazione.";
+  }
+};
+
+const renderPublicCourses = () => {
+  if (!publicCourseGrid) return;
+  publicCourseGrid.innerHTML = "";
+  const courses = Array.from(
+    publicExamsCache.reduce((acc, exam) => {
+      if (!acc.has(exam.course_id)) acc.set(exam.course_id, exam.course_name);
+      return acc;
+    }, new Map())
+  ).map(([id, name]) => ({ id, name }));
+
+  if (!courses.length) {
+    publicCourseGrid.textContent = "Nessun corso disponibile.";
+    return;
+  }
+
+  courses.forEach((course) => {
+    const card = document.createElement("div");
+    card.className = "exam-card";
+    const band = document.createElement("div");
+    band.className = "exam-card-band";
+    const badges = document.createElement("div");
+    badges.className = "exam-card-badges";
+    const count = publicExamsCache.filter((exam) => exam.course_id === course.id).length;
+    if (count) {
+      const badge = document.createElement("span");
+      badge.className = "exam-card-badge";
+      badge.textContent = `Tracce: ${count}`;
+      badges.appendChild(badge);
+    }
+    if (badges.childNodes.length) band.appendChild(badges);
+    const body = document.createElement("div");
+    body.className = "exam-card-body";
+    const title = document.createElement("div");
+    title.className = "exam-card-title";
+    title.textContent = course.name || "Corso";
+    const meta = document.createElement("div");
+    meta.className = "exam-card-meta";
+    meta.textContent = "Seleziona per vedere le tracce disponibili";
+    body.appendChild(title);
+    body.appendChild(meta);
+    card.appendChild(band);
+    card.appendChild(body);
+    card.addEventListener("click", () => {
+      renderPublicExams(course.id);
+      publicCourseGrid.classList.add("is-hidden");
+      if (publicExamSection) publicExamSection.classList.remove("is-hidden");
+      updatePublicAccessHeader("exams");
+    });
+    publicCourseGrid.appendChild(card);
+  });
+};
+
+const renderPublicExams = (courseId) => {
+  if (!publicExamGrid) return;
+  publicExamGrid.innerHTML = "";
+  const exams = publicExamsCache
+    .filter((exam) => Number(exam.course_id) === Number(courseId))
+    .sort((a, b) => {
+      const da = parseExamDate(a.date);
+      const db = parseExamDate(b.date);
+      if (!da && !db) return 0;
+      if (!da) return 1;
+      if (!db) return -1;
+      return db - da;
+    });
+
+  if (!exams.length) {
+    publicExamGrid.textContent = "Nessuna traccia disponibile.";
+    return;
+  }
+
+  exams.forEach((exam) => {
+    const card = document.createElement("div");
+    card.className = "exam-card";
+    const band = document.createElement("div");
+    band.className = "exam-card-band";
+    const badges = document.createElement("div");
+    badges.className = "exam-card-badges";
+    if (exam.date) {
+      const badge = document.createElement("span");
+      badge.className = "exam-card-badge";
+      badge.textContent = exam.date;
+      badges.appendChild(badge);
+    }
+    if (badges.childNodes.length) band.appendChild(badges);
+    const body = document.createElement("div");
+    body.className = "exam-card-body";
+    const title = document.createElement("div");
+    title.className = "exam-card-title";
+    title.textContent = exam.title || "Traccia";
+    const meta = document.createElement("div");
+    meta.className = "exam-card-meta";
+    meta.textContent = "Apri accesso valutazione";
+    body.appendChild(title);
+    body.appendChild(meta);
+    card.appendChild(band);
+    card.appendChild(body);
+    card.addEventListener("click", () => {
+      publicSelectedExam = exam;
+      openPublicAccessModal(exam);
+    });
+    publicExamGrid.appendChild(card);
+  });
+};
+
+const openPublicAccessModal = (exam) => {
+  if (!publicAccessModal || !publicAccessBackdrop) return;
+  const title = document.getElementById("publicAccessTitle");
+  if (title) {
+    title.textContent = exam?.title ? `Accesso traccia: ${exam.title}` : "Accesso traccia";
+  }
+  if (publicAccessError) publicAccessError.textContent = "";
+  if (publicAccessForm) publicAccessForm.reset();
+  publicAccessModal.classList.remove("is-hidden");
+  publicAccessBackdrop.classList.remove("is-hidden");
+};
+
+const closePublicAccessModal = () => {
+  if (!publicAccessModal || !publicAccessBackdrop) return;
+  publicAccessModal.classList.add("is-hidden");
+  publicAccessBackdrop.classList.add("is-hidden");
+};
+
 const loadPublicExams = async () => {
-  if (!publicExamSelect) return;
+  if (!publicCourseGrid || !publicExamGrid) return;
   try {
     const response = await fetch("/api/public-exams");
     if (!response.ok) throw new Error();
     const payload = await response.json();
-    const exams = payload.exams || [];
-    publicExamSelect.innerHTML = "";
-    exams.forEach((exam) => {
-      const opt = document.createElement("option");
-      const dateLabel = exam.date ? ` • ${exam.date}` : "";
-      opt.value = String(exam.id);
-      opt.textContent = `${exam.course_name} — ${exam.title}${dateLabel}`;
-      publicExamSelect.appendChild(opt);
-    });
-    if (!exams.length) {
-      const opt = document.createElement("option");
-      opt.value = "";
-      opt.textContent = "Nessuna traccia disponibile";
-      publicExamSelect.appendChild(opt);
-    }
+    publicExamsCache = payload.exams || [];
+    renderPublicCourses();
+    if (publicExamSection) publicExamSection.classList.add("is-hidden");
+    publicCourseGrid.classList.remove("is-hidden");
+    updatePublicAccessHeader("courses");
   } catch {
     if (publicAccessError) {
       publicAccessError.textContent = "Errore nel caricamento tracce.";
@@ -320,7 +482,16 @@ const loadPublicExams = async () => {
 
 const renderPublicResults = (payload) => {
   if (!publicResultWrap) return;
+
+  // Hide all course/exam selection UI, show only results
+  if (publicCourseGrid) publicCourseGrid.classList.add("is-hidden");
+  if (publicExamSection) publicExamSection.classList.add("is-hidden");
+  if (publicAccessForm) publicAccessForm.classList.add("is-hidden");
+  if (publicAccessHeader) publicAccessHeader.classList.add("is-hidden");
+
+  // Show results
   publicResultWrap.classList.remove("is-hidden");
+  if (publicPrintResult) publicPrintResult.classList.remove("is-hidden");
   if (publicResultTitle) {
     const dateText = payload.exam.date ? ` • ${payload.exam.date}` : "";
     publicResultTitle.textContent = `${payload.exam.courseName} — ${payload.exam.title}${dateText}`;
@@ -337,14 +508,29 @@ const renderPublicResults = (payload) => {
   }
   if (publicResultQuestions) {
     publicResultQuestions.innerHTML = "";
-    payload.questions.forEach((question) => {
+    payload.questions.forEach((question, qIndex) => {
       const card = document.createElement("div");
-      card.className = "card shadow-sm";
+      const correctClass = question.isCorrect ? "question-correct" : "question-wrong";
+      card.className = `card shadow-sm public-question-card ${correctClass}`;
+      card.dataset.questionIndex = qIndex;
       const body = document.createElement("div");
       body.className = "card-body";
       const title = document.createElement("div");
-      title.className = "question-preview-title";
-      title.textContent = `Es. ${question.index}`;
+      title.className = "public-question-header";
+      const badge = document.createElement("span");
+      badge.className = "selected-question-badge";
+      badge.textContent = `Es. ${question.index}`;
+      const score = document.createElement("span");
+      const pointsEarned = Number.isFinite(Number(question.pointsEarned))
+        ? Number(question.pointsEarned)
+        : 0;
+      const pointsTotal = Number.isFinite(Number(question.pointsTotal))
+        ? Number(question.pointsTotal)
+        : 0;
+      score.className = `question-score-badge${question.isCorrect ? " is-correct" : ""}${question.isOverride ? " is-override" : ""}`;
+      score.textContent = `${pointsEarned}/${pointsTotal}`;
+      title.appendChild(badge);
+      title.appendChild(score);
       const text = document.createElement("div");
       text.className = "question-preview";
       renderLatexHtml(question.text, text);
@@ -361,6 +547,9 @@ const renderPublicResults = (payload) => {
         renderLatexHtml(ans.text, answerText);
         row.appendChild(label);
         row.appendChild(answerText);
+        if (ans.isCorrect) {
+          row.classList.add("is-correct");
+        }
         if (ans.selected) {
           row.classList.add("is-selected");
         }
@@ -375,7 +564,37 @@ const renderPublicResults = (payload) => {
       });
       body.appendChild(title);
       body.appendChild(text);
+      const selectionMeta = document.createElement("div");
+      selectionMeta.className = "public-question-meta";
+      const selectedLabel = question.selectedLetters?.length
+        ? question.selectedLetters.join(", ")
+        : "Nessuna";
+      const correctLabel = question.correctLetters?.length
+        ? question.correctLetters.join(", ")
+        : "-";
+      selectionMeta.innerHTML = `<span><strong>Selezionate:</strong> ${selectedLabel}</span><span><strong>Corrette:</strong> ${correctLabel}</span>`;
+      body.appendChild(selectionMeta);
       body.appendChild(answers);
+
+      // Add "Next Question" icon button for all except the last question
+      if (qIndex < payload.questions.length - 1) {
+        const nextBtn = document.createElement("button");
+        nextBtn.className = "btn btn-link text-secondary next-question-btn";
+        nextBtn.type = "button";
+        nextBtn.innerHTML = '<i class="fa-solid fa-circle-chevron-down fa-2x"></i>';
+        nextBtn.title = "Prossima domanda";
+        nextBtn.setAttribute("aria-label", "Prossima domanda");
+        nextBtn.addEventListener("click", () => {
+          const nextCard = publicResultQuestions.querySelector(
+            `.public-question-card[data-question-index="${qIndex + 1}"]`
+          );
+          if (nextCard) {
+            nextCard.scrollIntoView({ behavior: "smooth", block: "start" });
+          }
+        });
+        body.appendChild(nextBtn);
+      }
+
       card.appendChild(body);
       publicResultQuestions.appendChild(card);
     });
@@ -385,36 +604,94 @@ const renderPublicResults = (payload) => {
 const initPublicAccess = () => {
   if (!publicAccessForm) return;
   loadPublicExams();
+
+  if (publicAccessClose) {
+    publicAccessClose.addEventListener("click", closePublicAccessModal);
+  }
+  if (publicAccessBackdrop) {
+    publicAccessBackdrop.addEventListener("click", (event) => {
+      if (event.target === publicAccessBackdrop) {
+        closePublicAccessModal();
+      }
+    });
+  }
+  if (publicAccessModal) {
+    publicAccessModal.addEventListener("click", (event) => {
+      event.stopPropagation();
+    });
+  }
+  if (backToCoursesBtn) {
+    backToCoursesBtn.addEventListener("click", () => {
+      if (publicExamSection) publicExamSection.classList.add("is-hidden");
+      if (publicCourseGrid) publicCourseGrid.classList.remove("is-hidden");
+      updatePublicAccessHeader("courses");
+    });
+  }
+
   publicAccessForm.addEventListener("submit", async (event) => {
     event.preventDefault();
+    event.stopPropagation();
+
+    // Clear previous errors and results
     if (publicAccessError) publicAccessError.textContent = "";
     if (publicResultWrap) publicResultWrap.classList.add("is-hidden");
-    const examId = Number(publicExamSelect?.value || "");
+    if (publicPrintResult) publicPrintResult.classList.add("is-hidden");
+    if (publicAccessForm) publicAccessForm.classList.remove("is-hidden");
+
+    // Get form values
+    const examId = publicSelectedExam ? Number(publicSelectedExam.id) : null;
     const matricola = String(publicMatricola?.value || "").trim();
     const password = String(publicPassword?.value || "");
-    if (!Number.isFinite(examId) || !matricola || !password) {
-      if (publicAccessError) publicAccessError.textContent = "Compila tutti i campi.";
+
+    // Validate inputs
+    if (!Number.isFinite(examId)) {
+      if (publicAccessError) publicAccessError.textContent = "Errore: traccia non selezionata.";
+      console.error("Exam ID not valid:", publicSelectedExam);
       return;
     }
+    if (!matricola || !password) {
+      if (publicAccessError) publicAccessError.textContent = "Inserisci matricola e password.";
+      return;
+    }
+
+    // Make API request
     try {
       const response = await fetch("/api/public-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ examId, matricola, password }),
       });
+
       if (!response.ok) {
         const info = await response.json().catch(() => ({}));
         if (publicAccessError) {
-          publicAccessError.textContent = info.error || "Accesso non valido.";
+          publicAccessError.textContent = info.error || "Matricola o password errati.";
         }
+        console.error("API error:", info);
         return;
       }
+
       const payload = await response.json();
+
+      // Store credentials for prompt testing
+      currentStudentCredentials = {
+        examId: examId,
+        matricola: matricola,
+        password: password
+      };
+
       renderPublicResults(payload);
-    } catch {
+      closePublicAccessModal();
+    } catch (error) {
       if (publicAccessError) publicAccessError.textContent = "Errore di rete.";
+      console.error("Network error:", error);
     }
   });
+  if (publicPrintResult) {
+    publicPrintResult.addEventListener("click", () => {
+      window.print();
+    });
+  }
 };
 
 const setMappingBadge = (text, isActive = false) => {
@@ -1060,6 +1337,9 @@ const renderTable = () => {
         <button class="btn btn-sm btn-outline-danger mini remove" data-index="${index}" title="Elimina studente" aria-label="Elimina studente">
           <i class="fa-solid fa-user-xmark"></i>
         </button>
+        <button class="btn btn-sm btn-outline-primary mini show-prompt" data-index="${index}" title="Mostra prompt LLM" aria-label="Mostra prompt LLM">
+          <i class="fa-solid fa-robot"></i>
+        </button>
       </td>
     `;
     studentsTable.appendChild(row);
@@ -1082,6 +1362,51 @@ const renderTable = () => {
       loadStudentForEdit(idx);
     });
   });
+
+  studentsTable.querySelectorAll(".mini.show-prompt").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      const idx = Number(btn.dataset.index);
+      const student = students[idx];
+      if (!student || !currentExamId) {
+        alert("Errore: dati studente non disponibili");
+        return;
+      }
+
+      // Open modal
+      if (promptTestBackdrop) promptTestBackdrop.classList.remove("is-hidden");
+      if (promptTestModal) promptTestModal.classList.remove("is-hidden");
+      if (promptTestContent) promptTestContent.textContent = "Caricamento prompt...";
+
+      try {
+        const response = await fetch("/api/study-advice-prompt-admin", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            examId: currentExamId,
+            matricola: student.matricola
+          })
+        });
+
+        console.log("Response status:", response.status);
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+          console.error("API error:", errorData);
+          throw new Error(errorData.error || `HTTP ${response.status}`);
+        }
+
+        const data = await response.json();
+        console.log("Prompt received, length:", data.prompt?.length);
+        if (promptTestContent) promptTestContent.textContent = data.prompt;
+      } catch (error) {
+        console.error("Error fetching prompt:", error);
+        if (promptTestContent) {
+          promptTestContent.textContent = "Errore: " + error.message;
+        }
+      }
+    });
+  });
+
   updateStudentProgress();
   if (currentTopGradeBadge) {
     const bestGrade = getCurrentTopGrade();
@@ -1688,6 +2013,40 @@ if (!appUser) {
     });
   }
   if (publicAccessSaveBtn) publicAccessSaveBtn.addEventListener("click", savePublicAccess);
+
+  // Prompt test modal event listeners
+  if (promptTestClose) {
+    promptTestClose.addEventListener("click", () => {
+      if (promptTestBackdrop) promptTestBackdrop.classList.add("is-hidden");
+      if (promptTestModal) promptTestModal.classList.add("is-hidden");
+    });
+  }
+
+  if (promptTestBackdrop) {
+    promptTestBackdrop.addEventListener("click", (event) => {
+      if (event.target === promptTestBackdrop) {
+        promptTestBackdrop.classList.add("is-hidden");
+        if (promptTestModal) promptTestModal.classList.add("is-hidden");
+      }
+    });
+  }
+
+  if (copyPromptBtn) {
+    copyPromptBtn.addEventListener("click", () => {
+      if (!promptTestContent) return;
+      const text = promptTestContent.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyPromptBtn.innerHTML;
+        copyPromptBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copiato!';
+        setTimeout(() => {
+          copyPromptBtn.innerHTML = originalText;
+        }, 2000);
+      }).catch(err => {
+        console.error("Failed to copy:", err);
+        alert("Errore nella copia del testo");
+      });
+    });
+  }
   if (exportGradedBtn) {
     exportGradedBtn.addEventListener("click", () => {
       if (!mapping || students.length === 0) return;

@@ -80,8 +80,6 @@ const confirmConfirm = document.getElementById("confirmConfirm");
 const confirmMessage = document.getElementById("confirmMessage");
 let confirmCallback = null;
 const examStatus = document.getElementById("examStatus");
-const examStateBadge = document.getElementById("examStateBadge");
-const currentExamTitle = document.getElementById("currentExamTitle");
 const toastNotify = document.getElementById("toastNotify");
 const openSettingsBtn = document.getElementById("openSettings");
 const closeSettingsBtn = document.getElementById("closeSettings");
@@ -236,19 +234,6 @@ const setLockedState = (locked) => {
       ? "Traccia chiusa."
       : "Bozza attiva."
     : "Nessuna traccia.";
-  if (examStateBadge) {
-    examStateBadge.textContent = currentExamId
-      ? locked
-        ? "Stato: Chiusa"
-        : "Stato: Bozza"
-      : "Nessuna traccia";
-    examStateBadge.classList.toggle("is-draft", Boolean(currentExamId) && !locked);
-    examStateBadge.classList.toggle("is-locked", Boolean(currentExamId) && locked);
-  }
-  if (currentExamTitle) {
-    currentExamTitle.textContent = currentExamId ? state.meta.examName || "" : "";
-  }
-
   const main = document.querySelector("main");
   if (!main) return;
   const controls = main.querySelectorAll("input, select, textarea, button");
@@ -716,6 +701,7 @@ const refreshQuestionBank = async () => {
   if (search) params.set("search", search);
   try {
     params.set("includeAnswers", "1");
+    params.set("unusedOnly", "1");
     const payload = await apiFetch(`/api/questions?${params.toString()}`);
     renderBankList(payload.questions || []);
   } catch (err) {
@@ -726,9 +712,7 @@ const refreshQuestionBank = async () => {
 const renderBankList = (questions) => {
   if (!bankList) return;
   bankList.innerHTML = "";
-  const selectedIds = new Set(state.questions.map((q) => q.sourceId).filter(Boolean));
-  const available = questions.filter((question) => !selectedIds.has(question.id));
-  if (!available.length) {
+  if (!questions.length) {
     const empty = createEl("div", "empty-state");
     const content = createEl("div", "empty-state-content");
     const title = createEl("strong", null, "Nessuna domanda trovata.");
@@ -746,7 +730,7 @@ const renderBankList = (questions) => {
       chip.classList.toggle("active", chip.dataset.topicId === active);
     });
   }
-  available.forEach((question) => {
+  questions.forEach((question) => {
     const item = createEl("div", "list-item");
     const band = createEl("div", "question-card-band");
     const badgeRow = createEl("div", "chip-row");
@@ -796,14 +780,8 @@ const renderBankList = (questions) => {
       topicsRow.appendChild(chip);
     }
     const actions = createEl("div", "list-actions");
-    const alreadySelected = selectedIds.has(question.id);
     const btn = createEl("button", "btn btn-outline-primary btn-sm", "Importa");
     btn.type = "button";
-    if (alreadySelected) {
-      btn.disabled = true;
-      btn.textContent = "Selezionata";
-      item.classList.add("is-selected");
-    }
     btn.addEventListener("click", () => importQuestionFromBank(question.id));
     actions.appendChild(btn);
     content.appendChild(preview);
@@ -1735,6 +1713,11 @@ const init = async () => {
   initMetaFields();
   renderSelectedQuestions();
   renderLatex();
+  const params = new URLSearchParams(window.location.search);
+  const stepParam = Number(params.get("step"));
+  if (Number.isFinite(stepParam)) {
+    currentStep = Math.max(1, Math.min(totalSteps, stepParam));
+  }
   updateStepUI();
   highlightMissingMeta();
   setLockedState(false);

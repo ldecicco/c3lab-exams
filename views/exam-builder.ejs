@@ -48,9 +48,19 @@
     <main class="layout builder-layout container-fluid py-4" id="mainLayout">
       <div class="builder-topbar">
         <div class="builder-topbar-left">
-          <div class="builder-status">
-            <div class="wizard-status" id="examStateBadge">Nessuna traccia</div>
-            <div class="builder-current-title" id="currentExamTitle"></div>
+          <div class="stepper">
+            <button class="stepper-btn active" type="button" data-step-target="1">
+              <i class="fa-regular fa-folder-open"></i>
+              Tracce
+            </button>
+            <button class="stepper-btn" type="button" data-step-target="2">
+              <i class="fa-regular fa-circle-question"></i>
+              Domande
+            </button>
+            <button class="stepper-btn" type="button" data-step-target="3">
+              <i class="fa-solid fa-bug"></i>
+              Debug
+            </button>
           </div>
         </div>
         <div class="builder-topbar-right">
@@ -80,26 +90,12 @@
           </button>
         </div>
       </div>
-      <div class="stepper">
-        <button class="stepper-btn active" type="button" data-step-target="1">
-          <i class="fa-regular fa-folder-open"></i>
-          Tracce
-        </button>
-        <button class="stepper-btn" type="button" data-step-target="2">
-          <i class="fa-regular fa-circle-question"></i>
-          Domande
-        </button>
-        <button class="stepper-btn" type="button" data-step-target="3">
-          <i class="fa-solid fa-bug"></i>
-          Debug
-        </button>
-      </div>
 
       <section class="card shadow-sm wizard-step" data-step="1" id="historySection">
         <div class="card-header">
           <div class="card-header-row">
             <div class="header-actions">
-              <button class="btn btn-primary btn-lg" id="newExam" type="button">+ Nuova traccia</button>
+              <button class="btn btn-outline-primary btn-lg" id="newExam" type="button">+ Nuova traccia</button>
             </div>
             <div class="exam-search">
               <label class="field">

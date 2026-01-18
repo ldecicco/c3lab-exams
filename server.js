@@ -23,6 +23,8 @@ const DATA_DIR = path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
 const IMAGE_DIR = path.join(DATA_DIR, "images");
 fs.mkdirSync(IMAGE_DIR, { recursive: true });
+const AVATAR_DIR = path.join(DATA_DIR, "avatars");
+fs.mkdirSync(AVATAR_DIR, { recursive: true });
 const db = new Database(path.join(DATA_DIR, "exam-builder.db"));
 db.pragma("journal_mode = WAL");
 
@@ -203,6 +205,8 @@ ensureColumn("images", "source_name", "TEXT");
 ensureColumn("images", "source_path", "TEXT");
 ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");
+ensureColumn("users", "avatar_path", "TEXT");
+ensureColumn("users", "avatar_thumb_path", "TEXT");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 const isQuestionLocked = (questionId) =>
@@ -333,7 +337,8 @@ const getUserFromToken = (token) => {
   if (!token) return null;
   const row = db
     .prepare(
-      `SELECT u.id, u.username, u.role, s.expires_at, s.active_course_id, s.active_exam_id
+      `SELECT u.id, u.username, u.role, u.avatar_path, u.avatar_thumb_path,
+              s.expires_at, s.active_course_id, s.active_exam_id
          FROM auth_sessions s
          JOIN users u ON u.id = s.user_id
         WHERE s.token = ?`
@@ -348,6 +353,8 @@ const getUserFromToken = (token) => {
     id: row.id,
     username: row.username,
     role: row.role,
+    avatarPath: row.avatar_path || "",
+    avatarThumbPath: row.avatar_thumb_path || "",
     activeCourseId: row.active_course_id || null,
     activeExamId: row.active_exam_id || null,
   };
@@ -676,10 +683,69 @@ app.delete("/api/users/:id", requireRole("admin"), (req, res) => {
   res.json({ ok: true });
 });
 
+app.post("/api/users/me/avatar", requireAuth, (req, res) => {
+  const payload = req.body || {};
+  const originalBase64 = String(payload.originalBase64 || "");
+  const croppedBase64 = String(payload.croppedBase64 || "");
+  const originalName = String(payload.originalName || "");
+  if (!originalBase64 || !croppedBase64) {
+    res.status(400).json({ error: "Immagine mancante" });
+    return;
+  }
+
+  const ext = detectExtension(originalName, originalBase64) || ".png";
+  const baseName = `avatar-${req.user.id}-${Date.now()}`;
+  const originalFile = `${baseName}${ext}`;
+  const thumbFile = `${baseName}-thumb.png`;
+  const originalAbs = path.join(AVATAR_DIR, originalFile);
+  const thumbAbs = path.join(AVATAR_DIR, thumbFile);
+
+  try {
+    fs.writeFileSync(
+      originalAbs,
+      Buffer.from(stripDataUrl(originalBase64), "base64")
+    );
+    fs.writeFileSync(
+      thumbAbs,
+      Buffer.from(stripDataUrl(croppedBase64), "base64")
+    );
+  } catch (err) {
+    res.status(500).json({ error: "Salvataggio immagine fallito" });
+    return;
+  }
+
+  const originalRel = path
+    .relative(__dirname, originalAbs)
+    .replace(/\\/g, "/");
+  const thumbRel = path.relative(__dirname, thumbAbs).replace(/\\/g, "/");
+  const current = db
+    .prepare("SELECT avatar_path, avatar_thumb_path FROM users WHERE id = ?")
+    .get(req.user.id);
+
+  db.prepare(
+    `UPDATE users
+        SET avatar_path = ?, avatar_thumb_path = ?, updated_at = datetime('now')
+      WHERE id = ?`
+  ).run(originalRel, thumbRel, req.user.id);
+
+  const removeIfExists = (relPath) => {
+    if (!relPath) return;
+    if (relPath === originalRel || relPath === thumbRel) return;
+    const absPath = path.join(__dirname, relPath);
+    if (fs.existsSync(absPath)) {
+      fs.unlinkSync(absPath);
+    }
+  };
+  removeIfExists(current?.avatar_path);
+  removeIfExists(current?.avatar_thumb_path);
+
+  res.json({ avatar_path: originalRel, avatar_thumb_path: thumbRel });
+});
+
 app.get("/api/public-exams", (req, res) => {
   const rows = db
     .prepare(
-      `SELECT e.id, e.title, e.date, c.name AS course_name
+      `SELECT e.id, e.title, e.date, c.id AS course_id, c.name AS course_name
          FROM exams e
          JOIN courses c ON c.id = e.course_id
         WHERE e.public_access_enabled = 1
@@ -690,13 +756,11 @@ app.get("/api/public-exams", (req, res) => {
   res.json({ exams: rows });
 });
 
-app.post("/api/public-results", (req, res) => {
-  const examId = Number(req.body.examId);
-  const matricola = String(req.body.matricola || "").trim();
-  const password = String(req.body.password || "");
+const getPublicResultsPayload = ({ examId, matricola, password }) => {
   if (!Number.isFinite(examId) || !matricola || !password) {
-    res.status(400).json({ error: "Dati mancanti" });
-    return;
+    const err = new Error("Dati mancanti");
+    err.status = 400;
+    throw err;
   }
   const exam = db
     .prepare(
@@ -709,31 +773,37 @@ app.post("/api/public-results", (req, res) => {
     )
     .get(examId);
   if (!exam) {
-    res.status(404).json({ error: "Traccia non trovata" });
-    return;
+    const err = new Error("Traccia non trovata");
+    err.status = 404;
+    throw err;
   }
   if (!exam.public_access_enabled) {
-    res.status(403).json({ error: "Accesso non abilitato per questa traccia." });
-    return;
+    const err = new Error("Accesso non abilitato per questa traccia.");
+    err.status = 403;
+    throw err;
   }
   if (exam.public_access_expires_at && new Date(exam.public_access_expires_at) <= new Date()) {
-    res.status(403).json({ error: "Accesso scaduto." });
-    return;
+    const err = new Error("Accesso scaduto.");
+    err.status = 403;
+    throw err;
   }
   if (!bcrypt.compareSync(password, exam.public_access_password_hash || "")) {
-    res.status(401).json({ error: "Password non valida." });
-    return;
+    const err = new Error("Password non valida.");
+    err.status = 401;
+    throw err;
   }
   if (!exam.mapping_json) {
-    res.status(400).json({ error: "Mapping non disponibile." });
-    return;
+    const err = new Error("Mapping non disponibile.");
+    err.status = 400;
+    throw err;
   }
   let mapping;
   try {
     mapping = JSON.parse(exam.mapping_json);
   } catch {
-    res.status(400).json({ error: "Mapping non valido." });
-    return;
+    const err = new Error("Mapping non valido.");
+    err.status = 400;
+    throw err;
   }
   const studentRow = db
     .prepare(
@@ -746,8 +816,9 @@ app.post("/api/public-results", (req, res) => {
     )
     .get(examId, matricola);
   if (!studentRow) {
-    res.status(404).json({ error: "Matricola non trovata." });
-    return;
+    const err = new Error("Matricola non trovata.");
+    err.status = 404;
+    throw err;
   }
   const student = {
     matricola: studentRow.matricola,
@@ -804,12 +875,23 @@ app.post("/api/public-results", (req, res) => {
         text: ans.text,
         isCorrect: Boolean(ans.is_correct),
       }));
+    const topics = db
+      .prepare(
+        `SELECT t.name
+           FROM question_topics qt
+           JOIN topics t ON t.id = qt.topic_id
+          WHERE qt.question_id = ?
+          ORDER BY t.name`
+      )
+      .all(row.id)
+      .map((t) => t.name);
     return {
       id: row.id,
       position: row.position,
       text: row.text,
       type: row.type,
       answers,
+      topics,
     };
   });
 
@@ -824,7 +906,14 @@ app.post("/api/public-results", (req, res) => {
     const q = questions[originalIndex];
     const order = adict[originalIndex];
     const selectedLetters = String(student.answers[displayedIndex] || "").split("");
-    const displayedAnswers = order.map((originalAnswerIndex, idx) => {
+    const orderSafe = Array.isArray(order) ? order : [];
+    const correctLetters = orderSafe
+      .map((originalAnswerIndex, idx) => {
+        const answer = q.answers[originalAnswerIndex - 1];
+        return answer?.isCorrect ? ANSWER_OPTIONS[idx] || String(idx + 1) : null;
+      })
+      .filter(Boolean);
+    const displayedAnswers = orderSafe.map((originalAnswerIndex, idx) => {
       const answer = q.answers[originalAnswerIndex - 1];
       const letter = ANSWER_OPTIONS[idx] || String(idx + 1);
       return {
@@ -834,16 +923,39 @@ app.post("/api/public-results", (req, res) => {
         selected: selectedLetters.includes(letter),
       };
     });
+    const pointsTotal = getQuestionPoints(mapping.correctiondictionary?.[originalIndex] || []) || 0;
+    const override = student.overrides?.[originalIndex];
+    let pointsEarned = 0;
+    let isCorrect = false;
+    let isOverride = false;
+    if (typeof override === "number" && Number.isFinite(override)) {
+      pointsEarned = override;
+      isOverride = true;
+      isCorrect = false;
+    } else {
+      const selectedSet = selectedLetters.slice().sort().join(",");
+      const correctSet = correctLetters.slice().sort().join(",");
+      if (selectedSet && selectedSet === correctSet) {
+        pointsEarned = pointsTotal;
+        isCorrect = true;
+      }
+    }
     return {
       index: displayedIndex + 1,
       text: q.text,
       type: q.type,
+      topics: q.topics || [],
       answers: displayedAnswers,
       selectedLetters,
+      correctLetters,
+      pointsTotal,
+      pointsEarned,
+      isCorrect,
+      isOverride,
     };
   });
 
-  res.json({
+  return {
     exam: {
       id: exam.id,
       title: exam.title,
@@ -862,8 +974,346 @@ app.post("/api/public-results", (req, res) => {
       maxPoints,
     },
     questions: displayedQuestions,
-  });
+  };
+};
+
+app.post("/api/public-results", (req, res) => {
+  const examId = Number(req.body.examId);
+  const matricola = String(req.body.matricola || "").trim();
+  const password = String(req.body.password || "");
+  try {
+    const payload = getPublicResultsPayload({ examId, matricola, password });
+    res.json(payload);
+  } catch (err) {
+    res.status(err.status || 500).json({ error: err.message || "Errore accesso" });
+  }
 });
+
+app.post("/api/study-advice-prompt", (req, res) => {
+  const examId = Number(req.body.examId);
+  const matricola = String(req.body.matricola || "").trim();
+  const password = String(req.body.password || "");
+  console.log(`[study-advice-prompt] Request: examId=${examId}, matricola=${matricola}`);
+  try {
+    const payload = getPublicResultsPayload({ examId, matricola, password });
+    console.log(`[study-advice-prompt] Payload retrieved successfully`);
+    const prompt = generateStudyAdvicePrompt(payload);
+    console.log(`[study-advice-prompt] Prompt generated, length: ${prompt.length}`);
+    res.json({ prompt });
+  } catch (err) {
+    console.error(`[study-advice-prompt] Error:`, err);
+    res.status(err.status || 500).json({ error: err.message || "Errore accesso" });
+  }
+});
+
+app.post("/api/study-advice-prompt-admin", requireAuth, (req, res) => {
+  const examId = Number(req.body.examId);
+  const matricola = String(req.body.matricola || "").trim();
+
+  console.log(`[study-advice-prompt-admin] Request: examId=${examId}, matricola=${matricola}`);
+  console.log(`[study-advice-prompt-admin] Session:`, req.session);
+
+  try {
+    // Admin version - bypass password check, use session data
+    // Just use the public payload function with a dummy password since admin has access
+    const studentRow = db
+      .prepare(
+        `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione, ess.answers_json, ess.overrides_json
+           FROM exam_sessions es
+           JOIN exam_session_students ess ON ess.session_id = es.id
+          WHERE es.exam_id = ? AND ess.matricola = ?
+          ORDER BY ess.updated_at DESC
+          LIMIT 1`
+      )
+      .get(examId, matricola);
+
+    if (!studentRow) {
+      return res.status(404).json({ error: "Studente non trovato" });
+    }
+
+    // Get exam with mapping
+    const exam = db
+      .prepare(
+        `SELECT e.id, e.title, e.date, e.mapping_json,
+                c.name AS course_name
+           FROM exams e
+           JOIN courses c ON c.id = e.course_id
+          WHERE e.id = ?`
+      )
+      .get(examId);
+
+    if (!exam || !exam.mapping_json) {
+      return res.status(404).json({ error: "Traccia non trovata o mapping non disponibile" });
+    }
+
+    // Reuse the logic from getPublicResultsPayload by calling it directly
+    // Build a minimal payload to generate the prompt
+    const payload = buildStudentPayloadForPrompt(examId, matricola, exam, studentRow);
+    const prompt = generateStudyAdvicePrompt(payload);
+    console.log(`[study-advice-prompt-admin] Prompt generated, length: ${prompt.length}`);
+    res.json({ prompt });
+  } catch (err) {
+    console.error(`[study-advice-prompt-admin] Error:`, err);
+    res.status(500).json({ error: err.message || "Errore generazione prompt" });
+  }
+});
+
+const buildStudentPayloadForPrompt = (examId, matricola, exam, studentRow) => {
+  const mapping = JSON.parse(exam.mapping_json);
+  const student = {
+    matricola: studentRow.matricola,
+    nome: studentRow.nome || "",
+    cognome: studentRow.cognome || "",
+    versione: studentRow.versione,
+    answers: JSON.parse(studentRow.answers_json || "[]"),
+    overrides: JSON.parse(studentRow.overrides_json || "[]"),
+  };
+
+  const allStudents = db
+    .prepare(
+      `SELECT ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id
+        WHERE es.exam_id = ?`
+    )
+    .all(examId)
+    .map((row) => ({
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    }));
+
+  const scores = allStudents
+    .map((s) => gradeStudent(s, mapping))
+    .filter((val) => val !== null);
+  const maxPoints = getMaxPoints(mapping);
+  const rawGrade = Math.round(((gradeStudent(student, mapping) || 0) / maxPoints) * 300) / 10;
+  const grades = scores.map((points) => (maxPoints ? (points / maxPoints) * 30 : 0));
+  const top = grades.length ? Math.max(...grades) : null;
+  const factor = top && top > 0 ? 30 / top : null;
+  const normalizedGrade = factor
+    ? Math.round(rawGrade * factor)
+    : Math.round(rawGrade);
+
+  const questionRows = db
+    .prepare(
+      `SELECT eq.position, q.id, q.text, q.type
+         FROM exam_questions eq
+         JOIN questions q ON q.id = eq.question_id
+        WHERE eq.exam_id = ?
+        ORDER BY eq.position`
+    )
+    .all(examId);
+  const questions = questionRows.map((row) => {
+    const answers = db
+      .prepare(
+        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      )
+      .all(row.id)
+      .map((ans) => ({
+        position: ans.position,
+        text: ans.text,
+        isCorrect: Boolean(ans.is_correct),
+      }));
+    const topics = db
+      .prepare(
+        `SELECT t.name
+           FROM question_topics qt
+           JOIN topics t ON t.id = qt.topic_id
+          WHERE qt.question_id = ?
+          ORDER BY t.name`
+      )
+      .all(row.id)
+      .map((t) => t.name);
+    return {
+      id: row.id,
+      position: row.position,
+      text: row.text,
+      type: row.type,
+      answers,
+      topics,
+    };
+  });
+
+  const qdict = mapping.questiondictionary[student.versione - 1];
+  const adict = mapping.randomizedanswersdictionary[student.versione - 1];
+  const displayedToOriginal = [];
+  qdict.forEach((displayed, original) => {
+    displayedToOriginal[displayed - 1] = original;
+  });
+
+  const displayedQuestions = displayedToOriginal.map((originalIndex, displayedIndex) => {
+    const q = questions[originalIndex];
+    const order = adict[originalIndex];
+    const selectedLetters = String(student.answers[displayedIndex] || "").split("");
+    const orderSafe = Array.isArray(order) ? order : [];
+    const correctLetters = orderSafe
+      .map((originalAnswerIndex, idx) => {
+        const answer = q.answers[originalAnswerIndex - 1];
+        return answer?.isCorrect ? ANSWER_OPTIONS[idx] || String(idx + 1) : null;
+      })
+      .filter(Boolean);
+    const displayedAnswers = orderSafe.map((originalAnswerIndex, idx) => {
+      const answer = q.answers[originalAnswerIndex - 1];
+      const letter = ANSWER_OPTIONS[idx] || String(idx + 1);
+      return {
+        letter,
+        text: answer.text,
+        isCorrect: Boolean(answer.isCorrect),
+        selected: selectedLetters.includes(letter),
+      };
+    });
+    const pointsTotal = getQuestionPoints(mapping.correctiondictionary?.[originalIndex] || []) || 0;
+    const override = student.overrides?.[originalIndex];
+    let pointsEarned = 0;
+    let isCorrect = false;
+    let isOverride = false;
+    if (typeof override === "number" && Number.isFinite(override)) {
+      pointsEarned = override;
+      isOverride = true;
+      isCorrect = false;
+    } else {
+      const selectedSet = selectedLetters.slice().sort().join(",");
+      const correctSet = correctLetters.slice().sort().join(",");
+      if (selectedSet && selectedSet === correctSet) {
+        pointsEarned = pointsTotal;
+        isCorrect = true;
+      }
+    }
+    return {
+      index: displayedIndex + 1,
+      text: q.text,
+      type: q.type,
+      topics: q.topics || [],
+      answers: displayedAnswers,
+      selectedLetters,
+      correctLetters,
+      pointsTotal,
+      pointsEarned,
+      isCorrect,
+      isOverride,
+    };
+  });
+
+  return {
+    exam: {
+      id: exam.id,
+      title: exam.title,
+      date: exam.date || "",
+      courseName: exam.course_name,
+    },
+    student: {
+      matricola: student.matricola,
+      nome: student.nome,
+      cognome: student.cognome,
+      versione: student.versione,
+    },
+    grade: {
+      raw: rawGrade,
+      normalized: normalizedGrade,
+      maxPoints,
+    },
+    questions: displayedQuestions,
+  };
+};
+
+const generateStudyAdvicePrompt = (payload) => {
+  const { student, exam, grade, questions } = payload;
+
+  // Calculate statistics
+  const totalQuestions = questions.length;
+  const correctAnswers = questions.filter(q => q.isCorrect).length;
+  const wrongAnswers = totalQuestions - correctAnswers;
+
+  // Group questions by topic for summary
+  const topicPerformance = {};
+  questions.forEach(q => {
+    const topics = (q.topics && q.topics.length > 0) ? q.topics : ["Generale"];
+    topics.forEach(topic => {
+      if (!topicPerformance[topic]) {
+        topicPerformance[topic] = { correct: 0, wrong: 0 };
+      }
+      if (q.isCorrect) {
+        topicPerformance[topic].correct++;
+      } else {
+        topicPerformance[topic].wrong++;
+      }
+    });
+  });
+
+  const topicSummary = Object.entries(topicPerformance).map(([topic, perf]) => {
+    const total = perf.correct + perf.wrong;
+    const successRate = total > 0 ? Math.round((perf.correct / total) * 100) : 0;
+    return `- ${topic}: ${perf.correct}/${total} corrette (${successRate}%)`;
+  }).join('\n');
+
+  // Detailed question breakdown
+  const questionDetails = questions.map((q, idx) => {
+    const topicsList = (q.topics && q.topics.length > 0) ? q.topics.join(', ') : 'Generale';
+    const status = q.isCorrect ? '✓ CORRETTA' : '✗ ERRATA';
+    const statusNote = q.isOverride ? ' (punteggio manuale)' : '';
+
+    let detail = `\n### Domanda ${idx + 1} [${status}${statusNote}]\n`;
+    detail += `**Argomento**: ${topicsList}\n`;
+    detail += `**Punti**: ${q.pointsEarned}/${q.pointsTotal}\n\n`;
+    detail += `**Testo domanda**:\n${q.text}\n\n`;
+    detail += `**Opzioni di risposta**:\n`;
+
+    q.answers.forEach(ans => {
+      const marker = ans.isCorrect ? '[CORRETTA]' : '';
+      const selected = ans.selected ? '← SELEZIONATA' : '';
+      detail += `${ans.letter}. ${ans.text} ${marker} ${selected}\n`;
+    });
+
+    detail += `\n**Risposta dello studente**: ${q.selectedLetters.length > 0 ? q.selectedLetters.join(', ') : 'Nessuna risposta'}\n`;
+    detail += `**Risposta corretta**: ${q.correctLetters.join(', ')}\n`;
+
+    return detail;
+  }).join('\n---\n');
+
+  const successPercentage = totalQuestions > 0 ? Math.round((correctAnswers / totalQuestions) * 100) : 0;
+
+  const prompt = `Sei un assistente educativo del Politecnico di Bari. Il tuo compito è fornire consigli di studio personalizzati a uno studente basandoti sui risultati del suo esame.
+
+## CONTESTO ESAME
+- Corso: ${exam.courseName}
+- Esame: ${exam.title}
+- Data: ${exam.date || 'N/A'}
+- Studente: ${student.nome} ${student.cognome}
+
+## PERFORMANCE GENERALE
+- Voto: ${grade.normalized}/30
+- Risposte corrette: ${correctAnswers}/${totalQuestions} (${successPercentage}%)
+- Risposte errate: ${wrongAnswers}/${totalQuestions}
+
+## PERFORMANCE PER ARGOMENTO (Sommario)
+${topicSummary}
+
+## DETTAGLIO DOMANDE ED RISPOSTE
+${questionDetails}
+
+## RICHIESTA
+Analizza attentamente tutte le domande sopra riportate (sia corrette che errate) e fornisci consigli di studio personalizzati seguendo queste linee guida:
+
+1. **Analisi delle lacune**: Basandoti sulle domande sbagliate, identifica i 2-3 concetti/argomenti dove lo studente ha più difficoltà
+2. **Priorità di studio**: Ordina gli argomenti per importanza/urgenza di ripasso
+3. **Consigli specifici**: Per ogni argomento critico:
+   - Cosa rivedere (concetti specifici, formule, teoremi menzionati nelle domande)
+   - Come studiare (esercizi simili, ripasso teoria, esempi pratici)
+   - Risorse consigliate (capitoli del libro, video, esercizi mirati)
+4. **Punti di forza**: Menziona brevemente cosa lo studente ha fatto bene guardando le domande corrette
+5. **Piano d'azione**: Suggerisci un ordine di studio pratico e concreto
+
+Sii:
+- Costruttivo ed incoraggiante
+- Specifico e concreto facendo riferimento alle domande vere dell'esame
+- Onesto sulle aree da migliorare
+- Completo ma conciso (max 500 parole)
+
+Rispondi in italiano in tono professionale ma amichevole.`;
+
+  return prompt;
+};
 
 const extractListBlock = (text, key) => {
   const marker = `${key}=list(`;
@@ -1076,7 +1526,7 @@ app.post("/api/mapping", (req, res) => {
   }
 });
 
-app.get("/api/courses", requireRole("admin", "creator"), (req, res) => {
+app.get("/api/courses", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const rows = db
     .prepare(
       `SELECT c.id, c.name, c.code,
@@ -1662,6 +2112,7 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   const topicId = Number(req.query.topicId);
   const search = String(req.query.search || "").trim();
+  const unusedOnly = String(req.query.unusedOnly || "") === "1";
   const limit = Math.min(100, Math.max(10, Number(req.query.limit) || 50));
   const params = [];
   const where = [];
@@ -1678,6 +2129,7 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
     params.push(`%${search}%`);
   }
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
+  const havingSql = unusedOnly ? "HAVING is_used = 0" : "";
   const stmt = db.prepare(`
     SELECT q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
            q.image_left_width, q.image_right_width, q.image_scale,
@@ -1703,6 +2155,7 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
       LEFT JOIN exams e ON e.id = eq.exam_id
       ${whereSql}
      GROUP BY q.id
+     ${havingSql}
      ORDER BY q.updated_at DESC
      LIMIT ${limit}
   `);

@@ -1516,44 +1516,39 @@ const formatUserDate = (isoString) => {
 
 const renderUserList = () => {
   if (!adminUserList) return;
-  adminUserList.innerHTML = "";
-  if (!userCache.length) {
-    adminUserList.textContent = "Nessun utente disponibile.";
+  if (!window.UserCards) {
+    adminUserList.textContent = "Caricamento utenti...";
     return;
   }
-  userCache.forEach((user) => {
-    const item = createEl("div", "list-item");
-    const header = createEl("div", "list-item-title", user.username);
-    const metaParts = [user.role, formatUserDate(user.created_at)].filter(Boolean);
-    const meta = createEl("div", "list-item-meta", metaParts.join(" • "));
-    const actions = createEl("div", "table-actions");
-    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
-    editBtn.type = "button";
-    editBtn.addEventListener("click", () => {
-      setUserEditState(user);
-    });
-    const removeBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
-    removeBtn.type = "button";
-    if (user.role === "admin") {
-      removeBtn.disabled = true;
-      removeBtn.title = "Non puoi eliminare un amministratore.";
-    } else {
-      removeBtn.addEventListener("click", async () => {
-        if (!confirm("Vuoi eliminare questo utente?")) return;
-        try {
-          await apiFetch(`/api/users/${user.id}`, { method: "DELETE" });
-          await loadUsers();
-        } catch (err) {
-          if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore eliminazione.";
-        }
-      });
-    }
-    actions.appendChild(editBtn);
-    actions.appendChild(removeBtn);
-    item.appendChild(header);
-    item.appendChild(meta);
-    item.appendChild(actions);
-    adminUserList.appendChild(item);
+  const users = userCache.map((user) => ({
+    ...user,
+    created_at: formatUserDate(user.created_at),
+  }));
+  window.UserCards.render(adminUserList, users, {
+    emptyText: "Nessun utente disponibile.",
+    actions: (user) => [
+      {
+        label: "Modifica",
+        className: "btn btn-outline-secondary btn-sm",
+        onClick: () => setUserEditState(user),
+      },
+      {
+        label: "Elimina",
+        className: "btn btn-outline-danger btn-sm",
+        disabled: user.role === "admin",
+        title: user.role === "admin" ? "Non puoi eliminare un amministratore." : "",
+        onClick: async () => {
+          if (user.role === "admin") return;
+          if (!confirm("Vuoi eliminare questo utente?")) return;
+          try {
+            await apiFetch(`/api/users/${user.id}`, { method: "DELETE" });
+            await loadUsers();
+          } catch (err) {
+            if (adminUserStatus) adminUserStatus.textContent = err.message || "Errore eliminazione.";
+          }
+        },
+      },
+    ],
   });
 };
 

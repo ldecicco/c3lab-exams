@@ -1,5 +1,18 @@
 <% if (user) { %>
+<% const initials = String(user?.username || "")
+  .trim()
+  .split(/\s+/)
+  .filter(Boolean)
+  .slice(0, 2)
+  .map((part) => part[0].toUpperCase())
+  .join("") || "U"; %>
+<% const avatarThumbPath = user?.avatarThumbPath
+  ? `/${String(user.avatarThumbPath).replace(/^\/+/, "")}`
+  : ""; %>
 <nav class="top-nav">
+  <a href="/home" class="nav-logo" aria-label="Home">
+    <img src="/assets/logo.png" alt="Logo" />
+  </a>
   <% const role = user?.role || ""; %>
   <% const isAdmin = role === "admin"; %>
   <% const isCreator = role === "creator"; %>
@@ -7,21 +20,55 @@
   <% const canBuild = isAdmin || isCreator; %>
   <% const canGrade = isAdmin || isCreator || isEvaluator; %>
   <% const canAnalyze = isAdmin || isCreator; %>
-  <a href="/home" class="nav-link <%= active === 'home' ? 'active' : '' %>">Corsi</a>
+  <a href="/home" class="nav-link <%= active === 'home' ? 'active' : '' %>">
+    <i class="fa-solid fa-graduation-cap"></i>
+    Corsi
+  </a>
   <% if (canBuild) { %>
-    <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">Domande</a>
-    <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">Tracce</a>
+    <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">
+      <i class="fa-solid fa-circle-question"></i>
+      Domande
+    </a>
+    <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">
+      <i class="fa-solid fa-layer-group"></i>
+      Tracce
+    </a>
   <% } %>
-  <a href="/valutazione" class="nav-link <%= active === 'valutazione' ? 'active' : '' %>">Valutazione</a>
+  <a href="/valutazione" class="nav-link <%= active === 'valutazione' ? 'active' : '' %>">
+    <i class="fa-solid fa-clipboard-check"></i>
+    Valutazione
+  </a>
   <% if (canAnalyze) { %>
-    <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">Analisi</a>
+    <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">
+      <i class="fa-solid fa-chart-line"></i>
+      Analisi
+    </a>
   <% } %>
-  <% if (activeExamTitle) { %>
-    <span class="nav-chip">Traccia: <%= activeExamTitle %></span>
+  <div class="nav-spacer"></div>
+  <% if (activeExamTitle || activeCourseName) { %>
+    <div class="nav-chip-group">
+      <% if (activeExamTitle) { %>
+        <a class="nav-chip nav-chip-link" href="/exam-builder?step=2" title="Apri Domande">
+          Traccia: <%= activeExamTitle %>
+        </a>
+      <% } %>
+      <% if (activeCourseName) { %>
+        <div class="nav-chip-menu" data-active-course-id="<%= activeCourseId %>">
+          <button class="nav-chip nav-chip-button" type="button" id="navCourseToggle" aria-haspopup="true" aria-expanded="false">
+            Corso: <%= activeCourseName %>
+            <i class="fa-solid fa-chevron-down" aria-hidden="true"></i>
+          </button>
+          <div class="nav-chip-dropdown is-hidden" id="navCourseDropdown" role="menu">
+            <div class="nav-chip-loading">Caricamento...</div>
+          </div>
+        </div>
+      <% } %>
+    </div>
   <% } %>
-  <% if (activeCourseName) { %>
-    <span class="nav-chip">Corso: <%= activeCourseName %></span>
-  <% } %>
+  <button class="nav-avatar" type="button" id="navAvatarButton" aria-haspopup="dialog" aria-label="Foto profilo">
+    <img class="nav-avatar-image <%= avatarThumbPath ? '' : 'is-hidden' %>" src="<%= avatarThumbPath %>" alt="" />
+    <span class="nav-avatar-initials <%= avatarThumbPath ? 'is-hidden' : '' %>"><%= initials %></span>
+  </button>
   <% if (isAdmin) { %>
     <a href="/admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">
       <i class="fa-solid fa-user-gear"></i>
@@ -31,4 +78,281 @@
     <i class="fa-solid fa-right-from-bracket"></i>
   </a>
 </nav>
+<div class="modal-backdrop is-hidden" id="avatarBackdrop"></div>
+<div class="modal-panel is-hidden avatar-modal" id="avatarModal" role="dialog" aria-modal="true" aria-labelledby="avatarModalTitle">
+  <div class="modal-header">
+    <div>
+      <h3 class="h5 mb-1" id="avatarModalTitle">Foto profilo</h3>
+      <p class="text-secondary mb-0">Carica un'immagine e ritagliala in formato quadrato.</p>
+    </div>
+    <button class="icon-button" type="button" id="avatarClose" aria-label="Chiudi">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <div class="modal-body avatar-modal-body">
+    <div class="avatar-upload">
+      <div class="avatar-upload-panel">
+        <label class="form-label" for="avatarFileInput">Immagine</label>
+        <input class="form-control" type="file" id="avatarFileInput" accept="image/*" />
+        <div class="avatar-crop-container is-hidden" id="avatarCropContainer">
+          <img id="avatarCropImage" alt="Anteprima avatar" />
+        </div>
+      </div>
+      <div class="avatar-upload-panel">
+        <div class="avatar-preview-title">Anteprima</div>
+        <div class="avatar-preview" id="avatarPreview">
+          <span><%= initials %></span>
+        </div>
+        <p class="text-secondary small">La preview mostra la versione ridotta usata nella navbar.</p>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline-secondary" type="button" id="avatarCancel">Annulla</button>
+      <button class="btn btn-primary" type="button" id="avatarSave" disabled>Salva</button>
+    </div>
+  </div>
+</div>
+<% if (activeCourseName) { %>
+  <script>
+    (() => {
+      const toggle = document.getElementById("navCourseToggle");
+      const dropdown = document.getElementById("navCourseDropdown");
+      const menu = document.querySelector(".nav-chip-menu");
+      if (!toggle || !dropdown || !menu) return;
+      let loaded = false;
+      const activeId = Number(menu.dataset.activeCourseId || "");
+
+      const close = () => {
+        dropdown.classList.add("is-hidden");
+        toggle.setAttribute("aria-expanded", "false");
+      };
+
+      const render = (courses) => {
+        dropdown.innerHTML = "";
+        if (!courses.length) {
+          const empty = document.createElement("div");
+          empty.className = "nav-chip-empty";
+          empty.textContent = "Nessun corso disponibile.";
+          dropdown.appendChild(empty);
+          return;
+        }
+        courses.forEach((course) => {
+          const item = document.createElement("button");
+          item.type = "button";
+          item.className = "nav-chip-item";
+          item.textContent = course.name || "Corso";
+          if (Number(course.id) === activeId) {
+            item.classList.add("is-active");
+          }
+          item.addEventListener("click", async () => {
+            try {
+              await fetch("/api/session/course", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ courseId: course.id }),
+              });
+              window.location.reload();
+            } catch {
+              close();
+            }
+          });
+          dropdown.appendChild(item);
+        });
+      };
+
+      const open = async () => {
+        dropdown.classList.remove("is-hidden");
+        toggle.setAttribute("aria-expanded", "true");
+        if (loaded) return;
+        try {
+          const res = await fetch("/api/courses");
+          const payload = await res.json();
+          render(payload.courses || []);
+        } catch {
+          render([]);
+        }
+        loaded = true;
+      };
+
+      toggle.addEventListener("click", (event) => {
+        event.stopPropagation();
+        if (dropdown.classList.contains("is-hidden")) {
+          open();
+        } else {
+          close();
+        }
+      });
+
+      document.addEventListener("click", (event) => {
+        if (!menu.contains(event.target)) close();
+      });
+    })();
+  </script>
+<% } %>
+<script>
+  (() => {
+    const openButton = document.getElementById("navAvatarButton");
+    const modal = document.getElementById("avatarModal");
+    const backdrop = document.getElementById("avatarBackdrop");
+    const closeButton = document.getElementById("avatarClose");
+    const cancelButton = document.getElementById("avatarCancel");
+    const fileInput = document.getElementById("avatarFileInput");
+    const cropContainer = document.getElementById("avatarCropContainer");
+    const cropImage = document.getElementById("avatarCropImage");
+    const saveButton = document.getElementById("avatarSave");
+    const preview = document.getElementById("avatarPreview");
+    if (!openButton || !modal || !backdrop || !fileInput || !cropImage || !saveButton || !preview) return;
+
+    let cropper = null;
+    let originalBase64 = "";
+    let originalName = "";
+
+    const showToast = (message, tone) => {
+      if (typeof window.showToast === "function") {
+        window.showToast(message, tone);
+        return;
+      }
+      let toast = document.querySelector(".toast-notify");
+      if (!toast) {
+        toast = document.createElement("div");
+        toast.className = "toast-notify";
+        document.body.appendChild(toast);
+      }
+      toast.textContent = message;
+      toast.classList.remove("is-error", "is-success");
+      if (tone === "error") toast.classList.add("is-error");
+      if (tone === "success") toast.classList.add("is-success");
+      toast.classList.add("show");
+      setTimeout(() => toast.classList.remove("show"), 2400);
+    };
+
+    const loadCropper = (() => {
+      let promise = null;
+      return () => {
+        if (window.Cropper) return Promise.resolve();
+        if (promise) return promise;
+        promise = new Promise((resolve, reject) => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = "https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.css";
+          document.head.appendChild(link);
+          const script = document.createElement("script");
+          script.src = "https://cdn.jsdelivr.net/npm/cropperjs@1.6.2/dist/cropper.min.js";
+          script.onload = () => resolve();
+          script.onerror = () => reject(new Error("Cropper load failed"));
+          document.body.appendChild(script);
+        });
+        return promise;
+      };
+    })();
+
+    const openModal = () => {
+      modal.classList.remove("is-hidden");
+      backdrop.classList.remove("is-hidden");
+    };
+
+    const closeModal = () => {
+      modal.classList.add("is-hidden");
+      backdrop.classList.add("is-hidden");
+    };
+
+    const resetCropper = () => {
+      if (cropper) {
+        cropper.destroy();
+        cropper = null;
+      }
+      cropContainer.classList.add("is-hidden");
+      cropImage.src = "";
+      fileInput.value = "";
+      originalBase64 = "";
+      originalName = "";
+      saveButton.disabled = true;
+    };
+
+    const updatePreview = (dataUrl) => {
+      preview.innerHTML = "";
+      const img = document.createElement("img");
+      img.src = dataUrl;
+      img.alt = "";
+      preview.appendChild(img);
+    };
+
+    openButton.addEventListener("click", () => {
+      openModal();
+    });
+
+    [backdrop, closeButton, cancelButton].forEach((el) => {
+      if (!el) return;
+      el.addEventListener("click", () => {
+        closeModal();
+        resetCropper();
+      });
+    });
+
+    fileInput.addEventListener("change", async (event) => {
+      const file = event.target.files?.[0];
+      if (!file) return;
+      originalName = file.name;
+      const reader = new FileReader();
+      reader.onload = async () => {
+        originalBase64 = String(reader.result || "");
+        cropImage.src = originalBase64;
+        cropContainer.classList.remove("is-hidden");
+        saveButton.disabled = false;
+        try {
+          await loadCropper();
+        } catch (err) {
+          showToast("Impossibile caricare il cropper.", "error");
+          return;
+        }
+        if (cropper) cropper.destroy();
+        cropper = new window.Cropper(cropImage, {
+          aspectRatio: 1,
+          viewMode: 1,
+          autoCropArea: 1,
+          background: false,
+          responsive: true,
+          crop: () => {
+            if (!cropper) return;
+            const canvas = cropper.getCroppedCanvas({ width: 256, height: 256 });
+            updatePreview(canvas.toDataURL("image/png"));
+          },
+        });
+      };
+      reader.readAsDataURL(file);
+    });
+
+    saveButton.addEventListener("click", async () => {
+      if (!cropper || !originalBase64) return;
+      try {
+        const croppedBase64 = cropper
+          .getCroppedCanvas({ width: 256, height: 256 })
+          .toDataURL("image/png");
+        const res = await fetch("/api/users/me/avatar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ originalBase64, croppedBase64, originalName }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || "Errore upload avatar");
+        }
+        const avatarImg = document.querySelector(".nav-avatar-image");
+        const avatarInitials = document.querySelector(".nav-avatar-initials");
+        if (avatarImg && data.avatar_thumb_path) {
+          avatarImg.src = `/${String(data.avatar_thumb_path).replace(/^\/+/, "")}`;
+          avatarImg.classList.remove("is-hidden");
+        }
+        if (avatarInitials) {
+          avatarInitials.classList.add("is-hidden");
+        }
+        showToast("Foto profilo aggiornata.", "success");
+        closeModal();
+        resetCropper();
+      } catch (err) {
+        showToast(err.message || "Errore upload avatar.", "error");
+      }
+    });
+  })();
+</script>
 <% } %>
