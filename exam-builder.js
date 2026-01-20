@@ -577,7 +577,7 @@ let toastTimer = null;
 const showToast = (message, tone = "info") => {
   if (!toastNotify) return;
   toastNotify.textContent = message;
-  toastNotify.classList.remove("is-error", "is-success");
+  toastNotify.classList.remove("is-error", "is-success", "is-loading");
   if (tone === "error") toastNotify.classList.add("is-error");
   if (tone === "success") toastNotify.classList.add("is-success");
   toastNotify.classList.add("show");
@@ -585,6 +585,19 @@ const showToast = (message, tone = "info") => {
   toastTimer = setTimeout(() => {
     toastNotify.classList.remove("show");
   }, 2600);
+};
+
+const showLoadingToast = (message) => {
+  if (!toastNotify) return;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastNotify.innerHTML = `<i class="fa-solid fa-spinner fa-spin"></i> ${message}`;
+  toastNotify.classList.remove("is-error", "is-success");
+  toastNotify.classList.add("is-loading", "show");
+};
+
+const hideLoadingToast = () => {
+  if (!toastNotify) return;
+  toastNotify.classList.remove("show", "is-loading");
 };
 
 const openConfirmModal = (message, onConfirm) => {
@@ -1645,6 +1658,7 @@ const generateTraces = async () => {
     return;
   }
   generateTracesBtn.disabled = true;
+  showLoadingToast("Generazione tracce in corso...");
   if (pdfStatus) pdfStatus.textContent = "Generazione tracce in corso...";
   if (latexLogWrap) latexLogWrap.open = false;
   if (latexLogWrap) latexLogWrap.classList.add("is-hidden");
@@ -1660,6 +1674,8 @@ const generateTraces = async () => {
     });
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
+      hideLoadingToast();
+      showToast(info.error || "Errore generazione tracce", "error");
       if (pdfStatus) {
         pdfStatus.textContent = info.error || "Errore generazione tracce";
       }
@@ -1686,8 +1702,12 @@ const generateTraces = async () => {
     };
     download(combinedBlob, payload.combinedName || "tracce.pdf");
     download(answersBlob, payload.answersName || "tracce-answers.pdf");
+    hideLoadingToast();
+    showToast("Tracce generate con successo", "success");
     if (pdfStatus) pdfStatus.textContent = "Tracce generate.";
   } catch {
+    hideLoadingToast();
+    showToast("Errore generazione tracce", "error");
     if (pdfStatus) pdfStatus.textContent = "Errore generazione tracce";
   } finally {
     generateTracesBtn.disabled = false;

@@ -26,7 +26,7 @@
   </a>
   <% if (canBuild) { %>
     <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">
-      <i class="fa-solid fa-circle-question"></i>
+      <i class="fa-solid fa-clipboard-question"></i>
       Domande
     </a>
     <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">
@@ -69,6 +69,9 @@
     <img class="nav-avatar-image <%= avatarThumbPath ? '' : 'is-hidden' %>" src="<%= avatarThumbPath %>" alt="" />
     <span class="nav-avatar-initials <%= avatarThumbPath ? 'is-hidden' : '' %>"><%= initials %></span>
   </button>
+  <a href="/guida" class="nav-link nav-icon <%= active === 'guida' ? 'active' : '' %>" title="Guida" aria-label="Guida">
+    <i class="fa-solid fa-circle-question"></i>
+  </a>
   <% if (isAdmin) { %>
     <a href="/admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">
       <i class="fa-solid fa-user-gear"></i>

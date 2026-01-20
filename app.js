@@ -62,6 +62,12 @@ const promptTestModal = document.getElementById("promptTestModal");
 const promptTestClose = document.getElementById("promptTestClose");
 const promptTestContent = document.getElementById("promptTestContent");
 const copyPromptBtn = document.getElementById("copyPromptBtn");
+const topbarTeachingPrompt = document.getElementById("topbarTeachingPrompt");
+const teachingPromptBackdrop = document.getElementById("teachingPromptBackdrop");
+const teachingPromptModal = document.getElementById("teachingPromptModal");
+const teachingPromptClose = document.getElementById("teachingPromptClose");
+const teachingPromptContent = document.getElementById("teachingPromptContent");
+const copyTeachingPromptBtn = document.getElementById("copyTeachingPromptBtn");
 const publicAccessControls = document.getElementById("publicAccessControls");
 const publicAccessEnabledToggle = document.getElementById("publicAccessEnabled");
 const publicAccessFields = document.getElementById("publicAccessFields");
@@ -2047,6 +2053,78 @@ if (!appUser) {
       });
     });
   }
+
+  // Teaching improvement prompt button
+  if (topbarTeachingPrompt) {
+    topbarTeachingPrompt.addEventListener("click", async () => {
+      if (!currentExamId) {
+        alert("Seleziona prima una traccia");
+        return;
+      }
+
+      // Open modal
+      if (teachingPromptBackdrop) teachingPromptBackdrop.classList.remove("is-hidden");
+      if (teachingPromptModal) teachingPromptModal.classList.remove("is-hidden");
+      if (teachingPromptContent) teachingPromptContent.textContent = "Caricamento prompt...";
+
+      try {
+        const response = await fetch("/api/teaching-improvement-prompt", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ examId: currentExamId })
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          throw new Error(errorData.error || "Errore nella generazione del prompt");
+        }
+
+        const data = await response.json();
+        if (teachingPromptContent) teachingPromptContent.textContent = data.prompt;
+      } catch (err) {
+        console.error("Error fetching teaching prompt:", err);
+        if (teachingPromptContent) {
+          teachingPromptContent.textContent = "Errore: " + err.message;
+        }
+        alert("Errore nella generazione del prompt: " + err.message);
+      }
+    });
+  }
+
+  // Teaching prompt modal event listeners
+  if (teachingPromptClose) {
+    teachingPromptClose.addEventListener("click", () => {
+      if (teachingPromptBackdrop) teachingPromptBackdrop.classList.add("is-hidden");
+      if (teachingPromptModal) teachingPromptModal.classList.add("is-hidden");
+    });
+  }
+
+  if (teachingPromptBackdrop) {
+    teachingPromptBackdrop.addEventListener("click", (event) => {
+      if (event.target === teachingPromptBackdrop) {
+        teachingPromptBackdrop.classList.add("is-hidden");
+        if (teachingPromptModal) teachingPromptModal.classList.add("is-hidden");
+      }
+    });
+  }
+
+  if (copyTeachingPromptBtn) {
+    copyTeachingPromptBtn.addEventListener("click", () => {
+      if (!teachingPromptContent) return;
+      const text = teachingPromptContent.textContent;
+      navigator.clipboard.writeText(text).then(() => {
+        const originalText = copyTeachingPromptBtn.innerHTML;
+        copyTeachingPromptBtn.innerHTML = '<i class="fa-solid fa-check"></i> Copiato!';
+        setTimeout(() => {
+          copyTeachingPromptBtn.innerHTML = originalText;
+        }, 2000);
+      }).catch(err => {
+        console.error("Failed to copy:", err);
+        alert("Errore nella copia del testo");
+      });
+    });
+  }
+
   if (exportGradedBtn) {
     exportGradedBtn.addEventListener("click", () => {
       if (!mapping || students.length === 0) return;

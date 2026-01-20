@@ -74,6 +74,8 @@ const mainLayout = document.getElementById("mainLayout");
 let activeCourseId = null;
 const adminUserList = document.getElementById("adminUserList");
 const adminToast = document.getElementById("adminToast");
+const keyboardShortcutsHint = document.getElementById("keyboardShortcutsHint");
+const keyboardShortcutsList = document.getElementById("keyboardShortcutsList");
 const adminShortcutAddBtn = document.getElementById("adminShortcutAdd");
 const shortcutModalBackdrop = document.getElementById("shortcutModalBackdrop");
 const shortcutModal = document.getElementById("shortcutModal");
@@ -312,19 +314,55 @@ const insertShortcutText = (snippet) => {
   target.focus();
 };
 
+const insertMathDelimiters = () => {
+  const target = lastFocusedInput || adminQuestionText;
+  if (!target) return;
+  const value = target.value || "";
+  const start = Number.isFinite(target.selectionStart) ? target.selectionStart : value.length;
+  const end = Number.isFinite(target.selectionEnd) ? target.selectionEnd : value.length;
+  const nextValue = `${value.slice(0, start)}$$${value.slice(end)}`;
+  target.value = nextValue;
+  const cursor = start + 1;
+  if (typeof target.setSelectionRange === "function") {
+    target.setSelectionRange(cursor, cursor);
+  }
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  target.focus();
+};
+
 const handleShortcutHotkeys = (event) => {
-  if (!event.ctrlKey) return;
-  if (!shortcutCache.length) return;
-  const key = event.key;
-  if (!/^[1-9]$/.test(key)) return;
   const target = event.target;
-  if (!target || !(target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement)) {
+  const isTextInput = target && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement);
+
+  if (event.ctrlKey && !ctrlKeyDown) {
+    ctrlKeyDown = true;
+    if (isTextInput) {
+      showKeyboardShortcutsHint();
+    }
+  }
+
+  if (!event.ctrlKey) return;
+  if (!isTextInput) return;
+
+  const key = event.key;
+  if (key === 'm' || key === 'M') {
+    event.preventDefault();
+    insertMathDelimiters();
     return;
   }
+  if (!shortcutCache.length) return;
+  if (!/^[1-9]$/.test(key)) return;
   event.preventDefault();
   const index = Number(key) - 1;
   const shortcut = shortcutCache[index];
   if (shortcut) insertShortcutText(shortcut.snippet);
+};
+
+const handleKeyUp = (event) => {
+  if (!event.ctrlKey && ctrlKeyDown) {
+    ctrlKeyDown = false;
+    hideKeyboardShortcutsHint();
+  }
 };
 
 const openShortcutModal = () => {
@@ -340,6 +378,43 @@ const openShortcutModal = () => {
 const closeShortcutModal = () => {
   if (shortcutModal) shortcutModal.classList.add("is-hidden");
   if (shortcutModalBackdrop) shortcutModalBackdrop.classList.add("is-hidden");
+};
+
+const updateKeyboardShortcutsHint = () => {
+  if (!keyboardShortcutsList) return;
+  keyboardShortcutsList.innerHTML = "";
+
+  const mathShortcut = document.createElement("div");
+  mathShortcut.className = "keyboard-shortcut-item";
+  mathShortcut.innerHTML = `
+    <span class="keyboard-shortcut-key">CTRL + M</span>
+    <span class="keyboard-shortcut-label">Inserisci $$</span>
+  `;
+  keyboardShortcutsList.appendChild(mathShortcut);
+
+  shortcutCache.forEach((shortcut, index) => {
+    if (index >= 9) return;
+    const item = document.createElement("div");
+    item.className = "keyboard-shortcut-item";
+    item.innerHTML = `
+      <span class="keyboard-shortcut-key">CTRL + ${index + 1}</span>
+      <span class="keyboard-shortcut-label">${shortcut.label}</span>
+    `;
+    keyboardShortcutsList.appendChild(item);
+  });
+};
+
+let ctrlKeyDown = false;
+
+const showKeyboardShortcutsHint = () => {
+  if (!keyboardShortcutsHint) return;
+  updateKeyboardShortcutsHint();
+  keyboardShortcutsHint.classList.remove("is-hidden");
+};
+
+const hideKeyboardShortcutsHint = () => {
+  if (!keyboardShortcutsHint) return;
+  keyboardShortcutsHint.classList.add("is-hidden");
 };
 
 const createShortcutFromModal = async () => {
@@ -416,11 +491,13 @@ const loadShortcutsForEditor = async (courseId) => {
   if (!Number.isFinite(courseId)) {
     shortcutCache = [];
     renderShortcutBar([]);
+    updateKeyboardShortcutsHint();
     return;
   }
   const payload = await apiFetch(`/api/shortcuts?courseId=${courseId}`);
   shortcutCache = payload.shortcuts || [];
   renderShortcutBar(shortcutCache);
+  updateKeyboardShortcutsHint();
 };
 
 const loadShortcutsForAdmin = async (courseId) => {
@@ -1220,6 +1297,7 @@ const updateTopicGate = () => {
       btn.disabled = !enabled;
     });
   }
+  renderAdminAnswers();
 };
 
 const renderCourseList = (courses) => {
@@ -1859,7 +1937,11 @@ const saveAdminQuestion = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    setQuestionStatus("Domanda salvata nel banco.", "success");
+    if (typeof showToast === "function") {
+      showToast("Domanda salvata nel banco.", "success");
+    } else {
+      setQuestionStatus("Domanda salvata nel banco.", "success");
+    }
   }
   lastSavedSnapshot = getQuestionSnapshot();
   setSaveState("saved");
@@ -1925,6 +2007,7 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   if (shortcutModalBackdrop) shortcutModalBackdrop.addEventListener("click", closeShortcutModal);
   if (shortcutModalSave) shortcutModalSave.addEventListener("click", createShortcutFromModal);
   document.addEventListener("keydown", handleShortcutHotkeys);
+  document.addEventListener("keyup", handleKeyUp);
   if (adminQuestionType) {
     adminQuestionType.addEventListener("change", (event) => {
       const target = event.target;

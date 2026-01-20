@@ -1,0 +1,695 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="/" />
+    <title>Guida - C3LAB Esami</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+    <script>
+      window.APP_USER = <%- JSON.stringify(user || null) %>;
+    </script>
+    <style>
+      .guide-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 40px 24px;
+      }
+      .guide-header {
+        text-align: center;
+        margin-bottom: 48px;
+      }
+      .guide-header h1 {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #0d4a7c;
+        margin-bottom: 12px;
+      }
+      .guide-header p {
+        font-size: 1.1rem;
+        color: #6c757d;
+      }
+      .guide-section {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 32px;
+        margin-bottom: 32px;
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
+      .guide-section h2 {
+        font-size: 1.75rem;
+        font-weight: 700;
+        color: #0d4a7c;
+        margin-bottom: 8px;
+        display: flex;
+        align-items: center;
+        gap: 12px;
+      }
+      .guide-section h2 i {
+        font-size: 1.5rem;
+      }
+      .guide-section h3 {
+        font-size: 1.3rem;
+        font-weight: 600;
+        color: #2c5282;
+        margin-top: 32px;
+        margin-bottom: 16px;
+        padding-bottom: 8px;
+        border-bottom: 2px solid #e2e8f0;
+      }
+      .guide-section h4 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #4a5568;
+        margin-top: 24px;
+        margin-bottom: 12px;
+      }
+      .guide-section p {
+        line-height: 1.7;
+        color: #4a5568;
+        margin-bottom: 16px;
+      }
+      .guide-section ul, .guide-section ol {
+        line-height: 1.8;
+        color: #4a5568;
+        margin-bottom: 16px;
+        padding-left: 24px;
+      }
+      .guide-section li {
+        margin-bottom: 8px;
+      }
+      .guide-badge {
+        display: inline-block;
+        padding: 4px 12px;
+        background: #e6f2ff;
+        color: #0d4a7c;
+        border-radius: 12px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-left: 8px;
+      }
+      .screenshot-placeholder {
+        background: #f7fafc;
+        border: 2px dashed #cbd5e0;
+        border-radius: 8px;
+        padding: 48px 24px;
+        text-align: center;
+        color: #a0aec0;
+        font-style: italic;
+        margin: 24px 0;
+      }
+      .tip-box {
+        background: #f0f9ff;
+        border-left: 4px solid #0ea5e9;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 24px 0;
+      }
+      .tip-box strong {
+        color: #0369a1;
+        display: block;
+        margin-bottom: 8px;
+      }
+      .warning-box {
+        background: #fff7ed;
+        border-left: 4px solid #f97316;
+        padding: 16px 20px;
+        border-radius: 8px;
+        margin: 24px 0;
+      }
+      .warning-box strong {
+        color: #c2410c;
+        display: block;
+        margin-bottom: 8px;
+      }
+      .shortcut-key {
+        display: inline-block;
+        background: #2d3748;
+        color: #fff;
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-family: monospace;
+        font-size: 0.9rem;
+        font-weight: 600;
+      }
+      .toc {
+        background: #f8fafc;
+        border-radius: 12px;
+        padding: 24px;
+        margin-bottom: 32px;
+      }
+      .toc h3 {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #0d4a7c;
+        margin-bottom: 16px;
+      }
+      .toc ul {
+        list-style: none;
+        padding-left: 0;
+      }
+      .toc ul li {
+        margin-bottom: 8px;
+      }
+      .toc a {
+        color: #4a5568;
+        text-decoration: none;
+        transition: color 0.2s;
+      }
+      .toc a:hover {
+        color: #0d4a7c;
+      }
+    </style>
+  </head>
+  <body>
+    <%- include('partials/nav', { active: 'guida' }) %>
+    <div class="bg-orbit"></div>
+    <div class="bg-grid"></div>
+
+    <div class="guide-container">
+      <div class="guide-header">
+        <h1><i class="fa-solid fa-book"></i> Guida C3LAB Esami</h1>
+        <p>Istruzioni complete per l'utilizzo della piattaforma di gestione esami</p>
+      </div>
+
+      <div class="toc">
+        <h3>Indice</h3>
+        <ul>
+          <li><a href="#creatori">👨‍🏫 Guida per Creatori</a></li>
+          <li><a href="#valutatori">✅ Guida per Valutatori</a></li>
+        </ul>
+      </div>
+
+      <!-- GUIDA PER CREATORI -->
+      <div class="guide-section" id="creatori">
+        <h2><i class="fa-solid fa-user-pen"></i> Guida per Creatori<span class="guide-badge">CREATORI</span></h2>
+
+        <p>Come creatore, hai accesso completo alla gestione di domande e tracce d'esame. Questa guida ti accompagnerà attraverso tutte le funzionalità disponibili.</p>
+
+        <h3>1. Gestione Corsi e Argomenti</h3>
+
+        <h4>1.1 Accesso alla sezione Corsi</h4>
+        <ol>
+          <li>Dalla homepage, clicca su <strong>"Corsi"</strong> nella barra di navigazione</li>
+          <li>Visualizzerai tutti i corsi disponibili organizzati in card</li>
+          <li>Clicca su un corso per selezionarlo come corso attivo</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Vista della homepage con i corsi disponibili
+        </div>
+
+        <h4>1.2 Gestione Argomenti</h4>
+        <p>Gli argomenti (topics) organizzano le domande per tematica. Per gestire gli argomenti:</p>
+        <ol>
+          <li>Seleziona un corso dalla homepage</li>
+          <li>Gli argomenti del corso appariranno come chip/etichette</li>
+          <li>Se sei amministratore, puoi creare nuovi argomenti tramite la pagina Admin</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>💡 Suggerimento</strong>
+          Organizza bene gli argomenti prima di iniziare a creare domande. Una buona organizzazione faciliterà la ricerca e la costruzione delle tracce d'esame.
+        </div>
+
+        <h3>2. Creazione e Modifica Domande</h3>
+
+        <h4>2.1 Accesso all'Editor Domande</h4>
+        <ol>
+          <li>Clicca su <strong>"Domande"</strong> nella barra di navigazione</li>
+          <li>Seleziona il corso di riferimento dal menu a tendina in alto</li>
+          <li>Clicca su <strong>"Nuova domanda"</strong> per iniziare</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Interfaccia dell'editor domande
+        </div>
+
+        <h4>2.2 Selezione Argomenti</h4>
+        <p><strong>IMPORTANTE:</strong> Prima di poter modificare il testo della domanda e le risposte, devi selezionare almeno un argomento.</p>
+        <ol>
+          <li>Nella sezione <strong>"Argomenti"</strong>, clicca sugli argomenti pertinenti</li>
+          <li>Gli argomenti selezionati si evidenzieranno</li>
+          <li>Solo dopo questa selezione, l'editor si attiverà</li>
+        </ol>
+
+        <div class="warning-box">
+          <strong>⚠️ Attenzione</strong>
+          Senza argomenti selezionati, il campo di testo della domanda e i campi delle risposte rimarranno disabilitati.
+        </div>
+
+        <h4>2.3 Scelta del Tipo di Domanda</h4>
+        <p>Puoi scegliere tra due tipi di domanda:</p>
+        <ul>
+          <li><strong>Singola</strong>: Una sola risposta corretta (scelta multipla classica)</li>
+          <li><strong>Multipla</strong>: Più risposte corrette possibili</li>
+        </ul>
+
+        <h4>2.4 Inserimento del Testo della Domanda</h4>
+        <p>Scrivi il testo della domanda nell'area di testo dedicata. Puoi utilizzare:</p>
+        <ul>
+          <li><strong>Testo semplice</strong></li>
+          <li><strong>Formule matematiche LaTeX</strong> racchiuse tra <code>$$</code></li>
+        </ul>
+
+        <div class="tip-box">
+          <strong>⌨️ Scorciatoia da tastiera</strong>
+          Premi <span class="shortcut-key">CTRL + M</span> per inserire automaticamente <code>$$</code> e posizionare il cursore al centro per scrivere la formula LaTeX.
+        </div>
+
+        <p><strong>Esempio di formula LaTeX:</strong></p>
+        <pre style="background: #f7fafc; padding: 16px; border-radius: 8px; overflow-x: auto;">La funzione di trasferimento è $G(s) = \frac{K}{s(s+1)}$</pre>
+
+        <h4>2.5 Scorciatoie Personalizzate</h4>
+        <p>Ogni corso può avere scorciatoie personalizzate per inserire rapidamente snippet di testo ricorrenti (es. formule frequenti).</p>
+        <ul>
+          <li>Le scorciatoie disponibili appaiono sotto al campo della domanda</li>
+          <li>Clicca su una scorciatoia per inserirla nel punto del cursore</li>
+          <li>Puoi utilizzare anche <span class="shortcut-key">CTRL + 1</span>, <span class="shortcut-key">CTRL + 2</span>, ecc.</li>
+          <li>Tieni premuto <span class="shortcut-key">CTRL</span> per vedere tutte le scorciatoie disponibili in un tooltip</li>
+        </ul>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Barra delle scorciatoie e tooltip CTRL
+        </div>
+
+        <h4>2.6 Aggiunta Risposte</h4>
+        <ol>
+          <li>Nella sezione <strong>"Risposte"</strong>, clicca su <strong>"Aggiungi risposta"</strong></li>
+          <li>Inserisci il testo della risposta (supporta anche LaTeX con <code>$$</code>)</li>
+          <li>Spunta la checkbox per marcare la risposta come corretta</li>
+          <li>Per domande di tipo "Singola", solo una risposta può essere corretta</li>
+          <li>Per domande di tipo "Multipla", puoi selezionare più risposte corrette</li>
+          <li>Clicca <strong>"Rimuovi"</strong> per eliminare una risposta</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>💡 Best Practice</strong>
+          Includi sempre almeno 4 risposte per ogni domanda a scelta multipla per garantire una buona varietà.
+        </div>
+
+        <h4>2.7 Aggiunta Immagini</h4>
+        <p>Puoi associare un'immagine alla domanda con layout personalizzato:</p>
+        <ol>
+          <li>Nella sezione <strong>"Immagine"</strong>, attiva il toggle per abilitare il layout con immagine</li>
+          <li>Clicca su <strong>"Seleziona"</strong> per scegliere un'immagine dalla libreria</li>
+          <li>Se non trovi l'immagine desiderata, clicca <strong>"Nuova immagine"</strong> per caricarla</li>
+          <li>Configura il layout delle colonne (es. 50% immagine - 50% risposte)</li>
+          <li>Regola la dimensione dell'immagine nella sua colonna (es. 96%)</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Configurazione layout immagine
+        </div>
+
+        <h4>2.8 Anteprima e Salvataggio</h4>
+        <ul>
+          <li>L'<strong>anteprima</strong> sulla destra si aggiorna automaticamente mentre scrivi</li>
+          <li>Clicca <strong>"Aggiorna"</strong> nella sezione anteprima per un refresh manuale</li>
+          <li>Clicca <strong>"Salva domanda"</strong> quando hai finito</li>
+          <li>Lo stato di salvataggio è mostrato in alto a destra ("Salvato" / "Non salvato")</li>
+        </ul>
+
+        <h3>3. Gestione Banco Domande</h3>
+
+        <h4>3.1 Visualizzazione Domande Esistenti</h4>
+        <ol>
+          <li>Dalla pagina "Domande", clicca su <strong>"Lista domande"</strong></li>
+          <li>Apparirà un modale con tutte le domande del corso selezionato</li>
+          <li>Puoi filtrare per:
+            <ul>
+              <li><strong>Argomento</strong></li>
+              <li><strong>Utilizzo</strong> (Tutte / Usate in esami / Non usate)</li>
+              <li><strong>Ricerca testuale</strong></li>
+            </ul>
+          </li>
+          <li>Clicca su una domanda per caricarla nell'editor e modificarla</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Modale banco domande con filtri
+        </div>
+
+        <h4>3.2 Duplicazione Domande</h4>
+        <p>Per creare varianti di una domanda esistente:</p>
+        <ol>
+          <li>Carica la domanda da modificare</li>
+          <li>Clicca su <strong>"Duplica"</strong> in alto a destra</li>
+          <li>Modifica il testo e le risposte come necessario</li>
+          <li>Salva la nuova domanda</li>
+        </ol>
+
+        <h4>3.3 Eliminazione Domande</h4>
+        <div class="warning-box">
+          <strong>⚠️ Limitazioni</strong>
+          Non puoi eliminare domande che sono già state utilizzate in tracce d'esame bloccate (non in bozza). Questo preserva l'integrità storica degli esami.
+        </div>
+
+        <h3>4. Costruzione Tracce d'Esame</h3>
+
+        <h4>4.1 Accesso all'Exam Builder</h4>
+        <ol>
+          <li>Clicca su <strong>"Tracce"</strong> nella barra di navigazione</li>
+          <li>Seleziona un corso se richiesto</li>
+          <li>Clicca <strong>"Nuova traccia"</strong> per iniziare</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Interfaccia Exam Builder
+        </div>
+
+        <h4>4.2 Configurazione Traccia</h4>
+        <p>Nel primo step, configura i metadati della traccia:</p>
+        <ul>
+          <li><strong>Titolo</strong>: Nome identificativo dell'esame (es. "Esame Gennaio 2024")</li>
+          <li><strong>Data</strong>: Data di svolgimento prevista</li>
+          <li><strong>Opzioni di randomizzazione</strong>: Configura se randomizzare domande e risposte</li>
+          <li><strong>Numero di versioni</strong>: Quante varianti dell'esame generare</li>
+        </ul>
+
+        Nota bene lo <strong>stato</strong> di un esame può essere:
+            <ul>
+              <li><em>Bozza</em>: Modificabile, non visibile agli studenti</li>
+              <li><em>Bloccata</em>: Finalizzata, non più modificabile</li>
+            </ul>
+          </li>
+        <h4>4.3 Selezione Domande</h4>
+        <p>Nel secondo step, costruisci la traccia selezionando le domande:</p>
+
+        <p><strong>Pannello sinistro - Banco Domande:</strong></p>
+        <ul>
+          <li>Mostra solo le domande <strong>mai utilizzate</strong> in nessuna traccia</li>
+          <li>Filtra per argomento o ricerca testuale</li>
+          <li>Clicca <strong>"Importa"</strong> per aggiungere una domanda alla traccia</li>
+        </ul>
+
+        <p><strong>Pannello destro - Domande nella Traccia:</strong></p>
+        <ul>
+          <li>Visualizza tutte le domande selezionate per questa traccia</li>
+          <li>Ogni domanda mostra un'anteprima del testo e delle risposte</li>
+          <li>Clicca <strong>"Rimuovi"</strong> per eliminare una domanda dalla traccia</li>
+        </ul>
+
+        <div class="tip-box">
+          <strong>💡 Suggerimento</strong>
+          Bilancia la difficoltà e gli argomenti nella selezione delle domande per creare un esame equo e completo.
+        </div>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Pannello selezione domande con banco a sinistra e traccia a destra
+        </div>
+
+        <h4>4.4 Generazione File d'Esame</h4>
+        <p>Una volta completata la selezione:</p>
+        <ol>
+          <li>Clicca su <strong>"Salva traccia"</strong></li>
+          <li>La traccia verrà salvata e potrai generare i file necessari</li>
+          <li>Il tasto Preview mostra una anteprima del file d'esame generato</li>
+          <li>Il tasto Scarica PDF permette di scaricare la versione n.1 della traccia in formato PDF</li>
+          <li>Il tasto Genera Tracce permette di generare tutte le versioni dell'esame</li>
+        </ol>
+
+        <h3>5. Funzioni Avanzate</h3>
+
+        <h4>5.1 Gestione Immagini</h4>
+        <ul>
+          <li>Carica immagini in formato PNG, JPG, PDF o EPS</li>
+          <li>Il sistema genera automaticamente thumbnail per un caricamento rapido</li>
+          <li>Puoi caricare anche il file sorgente (es. file .tex per diagrammi LaTeX)</li>
+          <li>Distingui tra pagine pari e dispari per la stampa fronte-retro</li>
+        </ul>
+
+        <h4>5.2 Scorciatoie Personalizzate (Solo Admin)</h4>
+        <p>Se sei amministratore, puoi creare scorciatoie per il corso:</p>
+        <ol>
+          <li>Nella pagina Domande, clicca sul <strong>+</strong> accanto alle scorciatoie</li>
+          <li>Inserisci un'etichetta descrittiva (es. "Funzione trasferimento")</li>
+          <li>Inserisci il testo da inserire (es. <code>$$G(s) = \frac{}{}$$</code>)</li>
+          <li>Salva la scorciatoia</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Creazione scorciatoia personalizzata
+        </div>
+      </div>
+
+      <!-- GUIDA PER VALUTATORI -->
+      <div class="guide-section" id="valutatori">
+        <h2><i class="fa-solid fa-clipboard-check"></i> Guida per Valutatori<span class="guide-badge">VALUTATORI</span></h2>
+
+        <p>Come valutatore, il tuo ruolo principale è correggere gli esami e gestire i risultati degli studenti. Questa guida ti mostrerà come utilizzare efficacemente la piattaforma.</p>
+
+        <h3>1. Accesso alla Sezione Valutazione</h3>
+
+        <ol>
+          <li>Clicca su <strong>"Valutazione"</strong> nella barra di navigazione</li>
+          <li>Se non hai un corso selezionato, sceglilo dalla lista</li>
+          <li>Visualizzerai tutti gli esami disponibili per il corso</li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Vista principale della sezione Valutazione
+        </div>
+
+        <h3>2. Selezione dell'Esame da Correggere</h3>
+
+        <h4>2.1 Vista Esami</h4>
+        <p>Gli esami sono organizzati in card che mostrano:</p>
+        <ul>
+          <li><strong>Titolo</strong> dell'esame</li>
+          <li><strong>Data</strong> di svolgimento</li>
+          <li><strong>Numero di domande</strong></li>
+          <li><strong>Stato</strong> (Bozza / Bloccato)</li>
+          <li><strong>Numero di valutazioni</strong> già inserite</li>
+        </ul>
+
+        <h4>2.2 Aprire un Esame</h4>
+        <ol>
+          <li>Clicca sulla card dell'esame che vuoi correggere</li>
+          <li>Si aprirà l'interfaccia di correzione con due pannelli:
+            <ul>
+              <li>A sinistra: Lista studenti</li>
+              <li>A destra: Correzione dell'esame</li>
+            </ul>
+          </li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Interfaccia di correzione con pannelli studenti e domande
+        </div>
+
+        <h3>3. Gestione Studenti</h3>
+
+        <h4>3.1 Importazione Studenti da ESSE3</h4>
+        <p>Per importare l'elenco degli studenti iscritti all'appello:</p>
+        <ol>
+          <li>Clicca su <strong>"Importa da ESSE3"</strong></li>
+          <li>Incolla i dati copiati dal sistema ESSE3</li>
+          <li>Il sistema riconoscerà automaticamente matricola, nome e cognome</li>
+          <li>Clicca <strong>"Importa"</strong> per confermare</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>💡 Formato ESSE3</strong>
+          Il sistema è configurato per riconoscere automaticamente il formato di export ESSE3 del Politecnico di Bari. Assicurati di copiare correttamente i dati dalla piattaforma.
+        </div>
+
+        <h4>3.2 Aggiunta Manuale Studenti</h4>
+        <p>Puoi anche aggiungere studenti manualmente:</p>
+        <ol>
+          <li>Clicca su <strong>"Aggiungi studente"</strong></li>
+          <li>Inserisci matricola, nome e cognome</li>
+          <li>Salva</li>
+        </ol>
+
+        <h4>3.3 Gestione Lista Studenti</h4>
+        <ul>
+          <li>Gli studenti appaiono nella lista a sinistra</li>
+          <li>Ogni studente mostra:
+            <ul>
+              <li>Nome e cognome</li>
+              <li>Matricola</li>
+              <li>Stato della correzione (icone colorate)</li>
+              <li>Voto (se già inserito)</li>
+            </ul>
+          </li>
+          <li>Clicca su uno studente per correggere il suo esame</li>
+        </ul>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Lista studenti con stati diversi (da correggere, in corso, completato)
+        </div>
+
+        <h3>4. Correzione Esami</h3>
+
+        <h4>4.1 Interfaccia di Correzione</h4>
+        <p>Quando selezioni uno studente, vedrai:</p>
+        <ul>
+          <li><strong>Informazioni studente</strong> in alto (nome, matricola)</li>
+          <li><strong>Lista domande</strong> dell'esame</li>
+          <li>Per ogni domanda:
+            <ul>
+              <li>Testo della domanda</li>
+              <li>Tutte le risposte possibili</li>
+              <li>Checkbox per marcare le risposte date dallo studente</li>
+            </ul>
+          </li>
+        </ul>
+
+        <h4>4.2 Inserimento Risposte</h4>
+        <ol>
+          <li>Leggi le risposte fornite dallo studente sul compito cartaceo</li>
+          <li>Per ogni domanda, spunta le checkbox corrispondenti alle risposte date</li>
+          <li>Il sistema calcola automaticamente se la risposta è corretta o errata</li>
+          <li>Il conteggio dei punti si aggiorna in tempo reale</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>💡 Calcolo Automatico</strong>
+          Il sistema confronta automaticamente le risposte date con quelle corrette e calcola il punteggio secondo le regole impostate (es. 1 punto per risposta corretta, 0 per errori).
+        </div>
+
+        <h4>4.3 Salvataggio Correzione</h4>
+        <ul>
+          <li>Il salvataggio avviene <strong>automaticamente</strong> mentre inserisci le risposte</li>
+          <li>Puoi interrompere la correzione e riprenderla in seguito</li>
+          <li>Il voto finale viene calcolato automaticamente</li>
+          <li>Lo stato dello studente si aggiorna nella lista (es. "Completato", icona verde)</li>
+        </ul>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Correzione di una domanda con checkbox e calcolo punteggio
+        </div>
+
+        <h3>5. Visualizzazione Risultati</h3>
+
+        <h4>5.1 Riepilogo Esame</h4>
+        <p>Dopo aver corretto gli esami, puoi visualizzare statistiche e risultati:</p>
+        <ul>
+          <li><strong>Numero totale di studenti</strong></li>
+          <li><strong>Numero di esami corretti</strong></li>
+          <li><strong>Media dei voti</strong></li>
+          <li><strong>Distribuzione voti</strong> (se disponibile nella sezione Analisi)</li>
+        </ul>
+
+        <h4>5.2 Export Risultati</h4>
+        <p>Puoi esportare i risultati per:</p>
+        <ul>
+          <li>Importarli in ESSE3</li>
+          <li>Generare report statistici</li>
+          <li>Comunicarli agli studenti</li>
+        </ul>
+
+        <h3>6. Accesso Studenti ai Risultati</h3>
+
+        <h4>6.1 Abilitazione Accesso Pubblico</h4>
+        <p>Puoi permettere agli studenti di visualizzare la correzione del loro esame:</p>
+        <ol>
+          <li>Nella sezione Valutazione, seleziona l'esame</li>
+          <li>Attiva l'<strong>accesso pubblico</strong></li>
+          <li>Imposta una password di accesso</li>
+          <li>Imposta una data di scadenza (opzionale)</li>
+          <li>Salva le impostazioni</li>
+        </ol>
+
+        <div class="warning-box">
+          <strong>🔒 Sicurezza</strong>
+          La password di accesso protegge la privacy degli studenti. Condividi la password solo attraverso canali ufficiali.
+        </div>
+
+        <h4>6.2 Accesso Studente</h4>
+        <p>Gli studenti potranno:</p>
+        <ol>
+          <li>Visitare la pagina <strong>/valutazione</strong> (senza login)</li>
+          <li>Inserire matricola e password</li>
+          <li>Selezionare il corso e l'esame</li>
+          <li>Visualizzare:
+            <ul>
+              <li>Il loro voto</li>
+              <li>Le domande con le risposte corrette evidenziate in verde</li>
+              <li>Le risposte errate evidenziate in rosso</li>
+              <li>Un pulsante per navigare tra le domande</li>
+            </ul>
+          </li>
+        </ol>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Vista studente con correzione e voto
+        </div>
+
+        <h3>7. Suggerimenti per lo Studio (AI-Powered)</h3>
+
+        <h4>7.1 Generazione Prompt per LLM</h4>
+        <p>Per ogni studente, puoi generare un prompt ottimizzato per ChatGPT/Claude che fornisce consigli di studio personalizzati:</p>
+        <ol>
+          <li>Nella lista studenti, clicca sull'icona <strong>🤖</strong> (robot)</li>
+          <li>Si aprirà un modale con un prompt pre-compilato contenente:
+            <ul>
+              <li>Tutte le domande dell'esame</li>
+              <li>Le risposte corrette</li>
+              <li>Le risposte date dallo studente</li>
+              <li>Gli argomenti trattati</li>
+            </ul>
+          </li>
+          <li>Copia il prompt e incollalo in un LLM (es. ChatGPT, Claude)</li>
+          <li>L'LLM genererà suggerimenti personalizzati sugli argomenti da ripassare</li>
+        </ol>
+
+        <div class="tip-box">
+          <strong>🤖 Utilizzo AI</strong>
+          Questa funzione è particolarmente utile per fornire feedback costruttivi agli studenti che hanno ottenuto risultati insufficienti, aiutandoli a identificare le lacune specifiche.
+        </div>
+
+        <div class="screenshot-placeholder">
+          📸 Screenshot: Modale con prompt AI e pulsante copia
+        </div>
+
+        <h3>8. Best Practices per Valutatori</h3>
+
+        <h4>8.1 Organizzazione del Lavoro</h4>
+        <ul>
+          <li>Importa tutti gli studenti prima di iniziare le correzioni</li>
+          <li>Correggi in sessioni concentrate per mantenere coerenza</li>
+          <li>Salva frequentemente (anche se il salvataggio è automatico)</li>
+          <li>Verifica i totali prima di pubblicare i risultati</li>
+        </ul>
+
+        <h4>8.2 Comunicazione con gli Studenti</h4>
+        <ul>
+          <li>Abilita l'accesso pubblico solo dopo aver verificato tutte le correzioni</li>
+          <li>Comunica chiaramente la password di accesso</li>
+          <li>Imposta una data di scadenza ragionevole</li>
+          <li>Utilizza i prompt AI per fornire feedback costruttivi</li>
+        </ul>
+
+        <h4>8.3 Controllo Qualità</h4>
+        <ul>
+          <li>Ricontrolla i casi limite (voti molto alti o molto bassi)</li>
+          <li>Verifica che tutte le domande siano state corrette</li>
+          <li>Confronta i risultati con le aspettative</li>
+        </ul>
+
+        <div class="warning-box">
+          <strong>⚠️ Importante</strong>
+          Una volta pubblicati i risultati agli studenti tramite accesso pubblico, assicurati che tutte le correzioni siano state verificate. Modifiche successive potrebbero creare confusione.
+        </div>
+      </div>
+
+      <!-- FOOTER -->
+      <div style="text-align: center; padding: 48px 0; color: #a0aec0;">
+        <p>Per assistenza tecnica o segnalazione problemi, contatta l'amministratore del sistema.</p>
+        <p style="font-size: 0.9rem; margin-top: 16px;">C3LAB - Politecnico di Bari</p>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  </body>
+</html>

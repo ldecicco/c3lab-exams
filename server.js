@@ -467,6 +467,8 @@ app.get("/admin", requirePageRole("admin"), (req, res) => res.render("admin"));
 app.get("/admin.html", requirePageRole("admin"), (req, res) =>
   res.render("admin")
 );
+app.get("/guida", requireAuth, (req, res) => res.render("guida"));
+app.get("/guida.html", requireAuth, (req, res) => res.render("guida"));
 
 app.get("/logout", (req, res) => {
   const token = req.cookies?.session_token;
@@ -1314,6 +1316,311 @@ Rispondi in italiano in tono professionale ma amichevole.`;
 
   return prompt;
 };
+
+const generateTeachingImprovementPrompt = (examId) => {
+  // Get exam info
+  const exam = db
+    .prepare(
+      `SELECT e.id, e.title, e.date, e.mapping_json,
+              c.name AS course_name
+         FROM exams e
+         JOIN courses c ON c.id = e.course_id
+        WHERE e.id = ?`
+    )
+    .get(examId);
+
+  if (!exam || !exam.mapping_json) {
+    throw new Error("Traccia non trovata o mapping non disponibile");
+  }
+
+  const mapping = JSON.parse(exam.mapping_json);
+
+  // Verify mapping has necessary fields
+  if (!mapping.questiondictionary || !mapping.randomizedanswersdictionary) {
+    throw new Error("Mapping dell'esame non completo o non valido");
+  }
+
+  // Get all students who took the exam
+  const allStudents = db
+    .prepare(
+      `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione, ess.answers_json, ess.overrides_json
+         FROM exam_sessions es
+         JOIN exam_session_students ess ON ess.session_id = es.id
+        WHERE es.exam_id = ?`
+    )
+    .all(examId)
+    .map((row) => ({
+      matricola: row.matricola,
+      nome: row.nome || "",
+      cognome: row.cognome || "",
+      versione: row.versione,
+      answers: JSON.parse(row.answers_json || "[]"),
+      overrides: JSON.parse(row.overrides_json || "[]"),
+    }))
+    .filter((student) => {
+      // Exclude students without any answers (absent students)
+      const hasAnswers = student.answers && student.answers.some(a => a && String(a).trim() !== "");
+      const hasOverrides = student.overrides && Object.keys(student.overrides).some(k => student.overrides[k] !== null && student.overrides[k] !== undefined);
+      return hasAnswers || hasOverrides;
+    });
+
+  if (allStudents.length === 0) {
+    throw new Error("Nessuno studente ha completato l'esame");
+  }
+
+  // Get all questions
+  const questionRows = db
+    .prepare(
+      `SELECT eq.position, q.id, q.text, q.type
+         FROM exam_questions eq
+         JOIN questions q ON q.id = eq.question_id
+        WHERE eq.exam_id = ?
+        ORDER BY eq.position`
+    )
+    .all(examId);
+
+  const questions = questionRows.map((row) => {
+    const answers = db
+      .prepare(
+        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      )
+      .all(row.id)
+      .map((ans) => ({
+        position: ans.position,
+        text: ans.text,
+        isCorrect: Boolean(ans.is_correct),
+      }));
+    const topics = db
+      .prepare(
+        `SELECT t.name
+           FROM question_topics qt
+           JOIN topics t ON t.id = qt.topic_id
+          WHERE qt.question_id = ?
+          ORDER BY t.name`
+      )
+      .all(row.id)
+      .map((t) => t.name);
+    return {
+      id: row.id,
+      position: row.position,
+      text: row.text,
+      type: row.type,
+      answers,
+      topics: topics.length > 0 ? topics : ["Generale"],
+    };
+  });
+
+  // Calculate statistics per question
+  const maxPoints = getMaxPoints(mapping);
+  const questionStats = questions.map((q, originalIndex) => {
+    let totalAttempts = 0;
+    let correctCount = 0;
+    let wrongCount = 0;
+    let totalPoints = 0;
+    let earnedPoints = 0;
+
+    allStudents.forEach((student) => {
+      const qdict = mapping.questiondictionary?.[student.versione - 1];
+      const adict = mapping.randomizedanswersdictionary?.[student.versione - 1];
+
+      // Skip if student has invalid version or mapping is missing
+      if (!qdict || !Array.isArray(qdict) || !adict || !Array.isArray(adict)) {
+        return;
+      }
+
+      const displayedToOriginal = [];
+      qdict.forEach((displayed, original) => {
+        displayedToOriginal[displayed - 1] = original;
+      });
+
+      const displayedIndex = displayedToOriginal.indexOf(originalIndex);
+      if (displayedIndex === -1) return;
+
+      totalAttempts++;
+
+      const order = adict[originalIndex];
+      const selectedLetters = String(student.answers[displayedIndex] || "").split("");
+      const orderSafe = Array.isArray(order) ? order : [];
+      const correctLetters = orderSafe
+        .map((originalAnswerIndex, idx) => {
+          const answer = q.answers[originalAnswerIndex - 1];
+          return answer?.isCorrect ? ANSWER_OPTIONS[idx] || String(idx + 1) : null;
+        })
+        .filter(Boolean);
+
+      const pointsTotal = getQuestionPoints(mapping.correctiondictionary?.[originalIndex] || []) || 0;
+      const override = student.overrides?.[originalIndex];
+      let pointsEarned = 0;
+      let isCorrect = false;
+
+      if (typeof override === "number" && Number.isFinite(override)) {
+        pointsEarned = override;
+      } else {
+        const selectedSet = selectedLetters.slice().sort().join(",");
+        const correctSet = correctLetters.slice().sort().join(",");
+        if (selectedSet && selectedSet === correctSet) {
+          pointsEarned = pointsTotal;
+          isCorrect = true;
+        }
+      }
+
+      totalPoints += pointsTotal;
+      earnedPoints += pointsEarned;
+
+      if (isCorrect) {
+        correctCount++;
+      } else {
+        wrongCount++;
+      }
+    });
+
+    const successRate = totalAttempts > 0 ? Math.round((correctCount / totalAttempts) * 100) : 0;
+
+    return {
+      index: originalIndex + 1,
+      text: q.text,
+      type: q.type,
+      topics: q.topics,
+      answers: q.answers,
+      totalAttempts,
+      correctCount,
+      wrongCount,
+      successRate,
+      avgPoints: totalAttempts > 0 ? (earnedPoints / totalAttempts).toFixed(2) : 0,
+      maxPoints: totalAttempts > 0 ? (totalPoints / totalAttempts).toFixed(2) : 0,
+    };
+  });
+
+  // Calculate overall statistics
+  const totalStudents = allStudents.length;
+  const grades = allStudents.map((s) => {
+    const score = gradeStudent(s, mapping) || 0;
+    return maxPoints ? (score / maxPoints) * 30 : 0;
+  });
+  const avgGrade = grades.length > 0 ? (grades.reduce((a, b) => a + b, 0) / grades.length).toFixed(1) : 0;
+  const minGrade = grades.length > 0 ? Math.min(...grades).toFixed(1) : 0;
+  const maxGrade = grades.length > 0 ? Math.max(...grades).toFixed(1) : 0;
+
+  // Calculate topic performance
+  const topicPerformance = {};
+  questionStats.forEach((qstat) => {
+    qstat.topics.forEach((topic) => {
+      if (!topicPerformance[topic]) {
+        topicPerformance[topic] = {
+          questionsCount: 0,
+          totalSuccessRate: 0,
+          questions: [],
+        };
+      }
+      topicPerformance[topic].questionsCount++;
+      topicPerformance[topic].totalSuccessRate += qstat.successRate;
+      topicPerformance[topic].questions.push({
+        index: qstat.index,
+        text: qstat.text.substring(0, 80) + "...",
+        successRate: qstat.successRate,
+      });
+    });
+  });
+
+  const topicSummary = Object.entries(topicPerformance)
+    .map(([topic, data]) => {
+      const avgSuccess = Math.round(data.totalSuccessRate / data.questionsCount);
+      return { topic, avgSuccess, questionsCount: data.questionsCount, data };
+    })
+    .sort((a, b) => a.avgSuccess - b.avgSuccess);
+
+  // Generate the prompt
+  const topicSummaryText = topicSummary
+    .map((t) => `- ${t.topic}: ${t.avgSuccess}% di risposte corrette (${t.questionsCount} domande)`)
+    .join("\n");
+
+  const problematicQuestions = questionStats
+    .filter((q) => q.successRate < 60)
+    .sort((a, b) => a.successRate - b.successRate)
+    .slice(0, 10);
+
+  const problematicQuestionsText = problematicQuestions
+    .map((q) => {
+      const topicsList = q.topics.join(", ");
+      let detail = `\n### Domanda ${q.index} [${q.successRate}% di successo]\n`;
+      detail += `**Argomento**: ${topicsList}\n`;
+      detail += `**Statistiche**: ${q.correctCount}/${q.totalAttempts} corrette, ${q.wrongCount} errate\n`;
+      detail += `**Punti medi**: ${q.avgPoints}/${q.maxPoints}\n\n`;
+      detail += `**Testo domanda**:\n${q.text}\n\n`;
+      detail += `**Opzioni di risposta**:\n`;
+      q.answers.forEach((ans, idx) => {
+        const marker = ans.isCorrect ? "[CORRETTA]" : "";
+        detail += `${ANSWER_OPTIONS[idx] || idx + 1}. ${ans.text} ${marker}\n`;
+      });
+      return detail;
+    })
+    .join("\n---\n");
+
+  const prompt = `Sei un consulente pedagogico esperto del Politecnico di Bari. Il tuo compito è fornire consigli al professore su come migliorare l'insegnamento basandoti sui risultati complessivi dell'esame.
+
+## CONTESTO ESAME
+- Corso: ${exam.course_name}
+- Esame: ${exam.title}
+- Data: ${exam.date || "N/A"}
+- Numero studenti: ${totalStudents}
+
+## STATISTICHE GENERALI
+- Voto medio: ${avgGrade}/30
+- Voto minimo: ${minGrade}/30
+- Voto massimo: ${maxGrade}/30
+- Numero domande: ${questions.length}
+
+## PERFORMANCE PER ARGOMENTO
+${topicSummaryText}
+
+## DOMANDE PIÙ PROBLEMATICHE
+${problematicQuestionsText}
+
+## RICHIESTA
+Analizza attentamente i dati sopra riportati e fornisci consigli al professore seguendo queste linee guida:
+
+1. **Analisi critica**: Identifica i 2-3 argomenti dove la classe ha avuto le maggiori difficoltà
+2. **Cause possibili**: Suggerisci possibili motivi per cui gli studenti hanno faticato su questi argomenti:
+   - Concetti troppo astratti senza esempi pratici?
+   - Insufficiente tempo dedicato in aula?
+   - Prerequisiti non consolidati?
+   - Formulazione delle domande poco chiara?
+3. **Strategie didattiche**: Per ogni argomento critico, proponi strategie concrete:
+   - Metodi di insegnamento alternativi
+   - Esercitazioni pratiche mirate
+   - Materiali didattici supplementari
+   - Approcci per rendere i concetti più accessibili
+4. **Punti di forza**: Evidenzia gli argomenti dove la classe ha performato bene
+5. **Raccomandazioni per il prossimo anno**:
+   - Modifiche al programma o all'ordine degli argomenti
+   - Più tempo su certi topic
+   - Nuove modalità di valutazione
+
+Sii:
+- Costruttivo e orientato alle soluzioni
+- Specifico riferendoti ai dati reali dell'esame
+- Onesto nell'identificare aree critiche
+- Pratico con suggerimenti attuabili
+- Conciso ma completo (max 600 parole)
+
+Rispondi in italiano in tono professionale e rispettoso.`;
+
+  return prompt;
+};
+
+app.post("/api/teaching-improvement-prompt", requireAuth, (req, res) => {
+  const examId = Number(req.body.examId);
+  console.log(`[teaching-improvement-prompt] Request: examId=${examId}`);
+
+  try {
+    const prompt = generateTeachingImprovementPrompt(examId);
+    console.log(`[teaching-improvement-prompt] Prompt generated, length: ${prompt.length}`);
+    res.json({ prompt });
+  } catch (err) {
+    console.error(`[teaching-improvement-prompt] Error:`, err);
+    res.status(500).json({ error: err.message || "Errore generazione prompt" });
+  }
+});
 
 const extractListBlock = (text, key) => {
   const marker = `${key}=list(`;
