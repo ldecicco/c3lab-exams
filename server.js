@@ -499,6 +499,7 @@ const loadUser = (req, res, next) => {
   req.activeExamId = user?.activeExamId ?? null;
   req.sessionToken = token || null;
   res.locals.user = user || null;
+  res.locals.requireTwoFactor = Boolean(user && !user.totpEnabled);
   res.locals.activeCourseId = user?.activeCourseId ?? null;
   if (user?.activeCourseId) {
     const course = db
@@ -520,6 +521,21 @@ const loadUser = (req, res, next) => {
 };
 
 app.use(loadUser);
+
+app.use((req, res, next) => {
+  if (!req.user || req.user.totpEnabled) return next();
+  if (!req.path.startsWith("/api") && !req.path.startsWith("/auth")) return next();
+  const allowed = [
+    "/auth/logout",
+    "/auth/me",
+    "/api/2fa/setup/start",
+    "/api/2fa/setup/verify",
+    "/api/2fa/disable",
+    "/api/users/me/password",
+  ];
+  if (allowed.includes(req.path)) return next();
+  res.status(403).json({ error: "2FA richiesto" });
+});
 
 app.use((req, res, next) => {
   if (!csrfProtection || !req.user) return next();

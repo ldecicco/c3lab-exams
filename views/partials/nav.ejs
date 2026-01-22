@@ -153,6 +153,7 @@
     </div>
   </div>
 </div>
+<div class="twofa-lock is-hidden" id="twoFaLock"></div>
 <div class="modal-backdrop is-hidden" id="twoFaBackdrop"></div>
 <div class="modal-panel is-hidden" id="twoFaModal" role="dialog" aria-modal="true" aria-labelledby="twoFaTitle">
   <div class="modal-header">
@@ -345,6 +346,7 @@
     const twoFaSecret = document.getElementById("twoFaSecret");
     const twoFaCode = document.getElementById("twoFaCode");
     const twoFaDisablePassword = document.getElementById("twoFaDisablePassword");
+    const twoFaLock = document.getElementById("twoFaLock");
     let twoFaEnabled = <%= user?.totpEnabled ? 'true' : 'false' %>;
     if (!openButton || !modal || !backdrop || !fileInput || !cropImage || !saveButton || !preview) return;
 
@@ -457,6 +459,9 @@
         if (twoFaEnabled) {
           twoFaSetupSection.classList.add("is-hidden");
         }
+      }
+      if (twoFaLock) {
+        twoFaLock.classList.toggle("is-hidden", twoFaEnabled);
       }
     };
 
@@ -586,6 +591,11 @@
           if (twoFaError) twoFaError.textContent = err.message || "Errore 2FA";
         }
       });
+    }
+
+    if (!twoFaEnabled) {
+      openTwoFa();
+      if (twoFaLock) twoFaLock.classList.remove("is-hidden");
     }
 
     const updatePreview = (dataUrl) => {
