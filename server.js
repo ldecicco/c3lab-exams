@@ -931,6 +931,7 @@ router.get("/api/public-exams", (req, res) => {
          FROM exams e
          JOIN courses c ON c.id = e.course_id
         WHERE e.public_access_enabled = 1
+          AND e.is_draft = 0
           AND (e.public_access_expires_at IS NULL OR e.public_access_expires_at > datetime('now'))
           AND EXISTS (
             SELECT 1
@@ -952,7 +953,7 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
   }
   const exam = db
     .prepare(
-      `SELECT e.id, e.title, e.date, e.mapping_json, e.public_access_enabled,
+      `SELECT e.id, e.title, e.date, e.mapping_json, e.public_access_enabled, e.is_draft,
               e.public_access_password_hash, e.public_access_expires_at,
               e.public_access_show_notes,
               EXISTS (
@@ -978,8 +979,18 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
     err.status = 403;
     throw err;
   }
+  if (exam.is_draft) {
+    const err = new Error("Traccia non chiusa.");
+    err.status = 403;
+    throw err;
+  }
   if (exam.public_access_expires_at && new Date(exam.public_access_expires_at) <= new Date()) {
     const err = new Error("Accesso scaduto.");
+    err.status = 403;
+    throw err;
+  }
+  if (!exam.has_results) {
+    const err = new Error("Risultati non disponibili.");
     err.status = 403;
     throw err;
   }
