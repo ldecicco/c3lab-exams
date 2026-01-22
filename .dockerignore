@@ -32,7 +32,6 @@ Thumbs.db
 npm-debug.log*
 
 # Test files
-*.pdf
 *.tex
 *.autosave
 untitled.slx.autosave
