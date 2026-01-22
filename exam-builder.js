@@ -733,7 +733,7 @@ const renderBankList = (questions) => {
     const content = createEl("div", "empty-state-content");
     const title = createEl("strong", null, "Nessuna domanda trovata.");
     const link = createEl("a", "btn btn-primary", "+ Aggiungi domanda");
-    link.href = "/questions";
+    link.href = "questions";
     content.appendChild(title);
     content.appendChild(link);
     empty.appendChild(content);
