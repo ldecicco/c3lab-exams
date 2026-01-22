@@ -7,11 +7,11 @@
   .map((part) => part[0].toUpperCase())
   .join("") || "U"; %>
 <% const avatarThumbPath = user?.avatarThumbPath
-  ? `/${String(user.avatarThumbPath).replace(/^\/+/, "")}`
+  ? `${String(user.avatarThumbPath).replace(/^\/+/, "")}`
   : ""; %>
 <nav class="top-nav">
   <a href="home" class="nav-logo" aria-label="Home">
-    <img src="/assets/logo.png" alt="Logo" />
+    <img src="assets/logo.png" alt="Logo" />
   </a>
   <% const role = user?.role || ""; %>
   <% const isAdmin = role === "admin"; %>
