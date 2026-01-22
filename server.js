@@ -538,6 +538,16 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  if (!req.user || req.user.totpEnabled) return next();
+  if (req.method !== "GET") return next();
+  const pathOnly = req.path || "";
+  const allowedPrefixes = ["/2fa-setup", "/logout", "/auth", "/api/2fa"];
+  if (allowedPrefixes.some((prefix) => pathOnly.startsWith(prefix))) return next();
+  if (pathOnly.includes(".")) return next();
+  res.redirect(BASE_PATH + "/2fa-setup");
+});
+
+app.use((req, res, next) => {
   if (!csrfProtection || !req.user) return next();
   csrfProtection(req, res, (err) => {
     if (err) return next(err);
@@ -634,6 +644,7 @@ const publicExamsLimiter = createRateLimiter({
 
 router.get("/", (req, res) => res.redirect(BASE_PATH + "/home"));
 router.get("/login", (req, res) => res.render("login"));
+router.get("/2fa-setup", requireAuth, (req, res) => res.render("twofa"));
 router.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
   res.render("home")
 );

@@ -593,9 +593,8 @@
       });
     }
 
-    if (!twoFaEnabled) {
-      openTwoFa();
-      if (twoFaLock) twoFaLock.classList.remove("is-hidden");
+    if (twoFaLock) {
+      twoFaLock.classList.add("is-hidden");
     }
 
     const updatePreview = (dataUrl) => {

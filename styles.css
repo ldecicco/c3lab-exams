@@ -615,6 +615,29 @@ h1 {
   z-index: 39;
 }
 
+.twofa-page .card {
+  border-radius: 16px;
+}
+
+.twofa-setup {
+  display: grid;
+  gap: 12px;
+}
+
+.twofa-qr {
+  padding: 12px;
+  border: 1px dashed rgba(15, 76, 129, 0.3);
+  border-radius: 12px;
+  width: fit-content;
+  background: #fff;
+}
+
+.twofa-qr img {
+  display: block;
+  max-width: 220px;
+  height: auto;
+}
+
 .top-nav .nav-chip {
   background: rgba(15, 76, 129, 0.1);
   border: 1px solid rgba(15, 76, 129, 0.25);
