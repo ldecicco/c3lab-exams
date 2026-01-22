@@ -15,6 +15,7 @@ const cookieParser = require("cookie-parser");
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const BASE_PATH = process.env.BASE_PATH || '';
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -397,6 +398,11 @@ const loadUser = (req, res, next) => {
 
 app.use(loadUser);
 
+app.use((req, res, next) => {
+  res.locals.basePath = BASE_PATH;
+  next();
+});
+
 const requireAuth = (req, res, next) => {
   if (!req.user) {
     res.status(401).json({ error: "Autenticazione richiesta" });
@@ -419,7 +425,7 @@ const requireRole = (...roles) => (req, res, next) => {
 
 const requirePageRole = (...roles) => (req, res, next) => {
   if (!req.user) {
-    res.redirect("/login");
+    res.redirect(BASE_PATH + "/login");
     return;
   }
   if (!roles.includes(req.user.role)) {
@@ -443,15 +449,15 @@ const ensureAdminUser = () => {
 
 ensureAdminUser();
 
-app.get("/", (req, res) => res.redirect("/home"));
+app.get("/", (req, res) => res.redirect(BASE_PATH + "/home"));
 app.get("/login", (req, res) => res.render("login"));
 app.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
   res.render("home")
 );
 app.get("/valutazione", (req, res) => res.render("index"));
 app.get("/valutazione/", (req, res) => res.render("index"));
-app.get("/index", (req, res) => res.redirect("/valutazione"));
-app.get("/index.html", (req, res) => res.redirect("/valutazione"));
+app.get("/index", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
+app.get("/index.html", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
 app.get("/questions", requirePageRole("admin", "creator"), (req, res) =>
   res.render("questions")
 );
@@ -483,7 +489,7 @@ app.get("/logout", (req, res) => {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
   }
   res.clearCookie("session_token");
-  res.redirect("/login");
+  res.redirect(BASE_PATH + "/login");
 });
 
 app.post("/auth/login", (req, res) => {
