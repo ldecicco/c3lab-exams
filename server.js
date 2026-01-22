@@ -21,6 +21,15 @@ try {
   );
   helmet = null;
 }
+let rateLimit;
+try {
+  rateLimit = require("express-rate-limit");
+} catch (err) {
+  console.warn(
+    "[security] express-rate-limit non installato, rate limiting disattivato. Esegui: npm install express-rate-limit"
+  );
+  rateLimit = null;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -479,6 +488,35 @@ ensureAdminUser();
 
 const router = express.Router();
 
+const createRateLimiter = (options) => {
+  if (!rateLimit) {
+    return (req, res, next) => next();
+  }
+  return rateLimit({
+    standardHeaders: true,
+    legacyHeaders: false,
+    ...options,
+  });
+};
+
+const loginLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 5,
+  message: { error: "Troppi tentativi di login. Riprova tra un minuto." },
+});
+
+const publicResultsLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 20,
+  message: { error: "Troppe richieste. Riprova tra un minuto." },
+});
+
+const publicExamsLimiter = createRateLimiter({
+  windowMs: 60 * 1000,
+  max: 30,
+  message: { error: "Troppe richieste. Riprova tra un minuto." },
+});
+
 router.get("/", (req, res) => res.redirect(BASE_PATH + "/home"));
 router.get("/login", (req, res) => res.render("login"));
 router.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
@@ -526,7 +564,7 @@ router.get("/logout", (req, res) => {
   res.redirect(BASE_PATH + "/login");
 });
 
-router.post("/auth/login", (req, res) => {
+router.post("/auth/login", loginLimiter, (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
   if (!username || !password) {
@@ -943,7 +981,7 @@ router.post("/api/users/me/password", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-router.get("/api/public-exams", (req, res) => {
+router.get("/api/public-exams", publicExamsLimiter, (req, res) => {
   const rows = db
     .prepare(
       `SELECT e.id, e.title, e.date, c.id AS course_id, c.name AS course_name
@@ -1208,7 +1246,7 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
   };
 };
 
-router.post("/api/public-results", (req, res) => {
+router.post("/api/public-results", publicResultsLimiter, (req, res) => {
   const examId = Number(req.body.examId);
   const matricola = String(req.body.matricola || "").trim();
   const password = String(req.body.password || "");
