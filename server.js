@@ -449,41 +449,43 @@ const ensureAdminUser = () => {
 
 ensureAdminUser();
 
-app.get("/", (req, res) => res.redirect(BASE_PATH + "/home"));
-app.get("/login", (req, res) => res.render("login"));
-app.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
+const router = express.Router();
+
+router.get("/", (req, res) => res.redirect(BASE_PATH + "/home"));
+router.get("/login", (req, res) => res.render("login"));
+router.get("/home", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
   res.render("home")
 );
-app.get("/valutazione", (req, res) => res.render("index"));
-app.get("/valutazione/", (req, res) => res.render("index"));
-app.get("/index", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
-app.get("/index.html", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
-app.get("/questions", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/valutazione", (req, res) => res.render("index"));
+router.get("/valutazione/", (req, res) => res.render("index"));
+router.get("/index", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
+router.get("/index.html", (req, res) => res.redirect(BASE_PATH + "/valutazione"));
+router.get("/questions", requirePageRole("admin", "creator"), (req, res) =>
   res.render("questions")
 );
-app.get("/questions.html", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/questions.html", requirePageRole("admin", "creator"), (req, res) =>
   res.render("questions")
 );
-app.get("/exam-builder", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/exam-builder", requirePageRole("admin", "creator"), (req, res) =>
   res.render("exam-builder")
 );
-app.get("/exam-builder.html", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/exam-builder.html", requirePageRole("admin", "creator"), (req, res) =>
   res.render("exam-builder")
 );
-app.get("/dashboard", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/dashboard", requirePageRole("admin", "creator"), (req, res) =>
   res.render("dashboard")
 );
-app.get("/dashboard.html", requirePageRole("admin", "creator"), (req, res) =>
+router.get("/dashboard.html", requirePageRole("admin", "creator"), (req, res) =>
   res.render("dashboard")
 );
-app.get("/admin", requirePageRole("admin"), (req, res) => res.render("admin"));
-app.get("/admin.html", requirePageRole("admin"), (req, res) =>
+router.get("/admin", requirePageRole("admin"), (req, res) => res.render("admin"));
+router.get("/admin.html", requirePageRole("admin"), (req, res) =>
   res.render("admin")
 );
-app.get("/guida", requireAuth, (req, res) => res.render("guida"));
-app.get("/guida.html", requireAuth, (req, res) => res.render("guida"));
+router.get("/guida", requireAuth, (req, res) => res.render("guida"));
+router.get("/guida.html", requireAuth, (req, res) => res.render("guida"));
 
-app.get("/logout", (req, res) => {
+router.get("/logout", (req, res) => {
   const token = req.cookies?.session_token;
   if (token) {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
@@ -492,7 +494,7 @@ app.get("/logout", (req, res) => {
   res.redirect(BASE_PATH + "/login");
 });
 
-app.post("/auth/login", (req, res) => {
+router.post("/auth/login", (req, res) => {
   const username = String(req.body.username || "").trim();
   const password = String(req.body.password || "");
   if (!username || !password) {
@@ -515,7 +517,7 @@ app.post("/auth/login", (req, res) => {
   res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
 });
 
-app.post("/auth/logout", (req, res) => {
+router.post("/auth/logout", (req, res) => {
   const token = req.cookies?.session_token;
   if (token) {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
@@ -524,7 +526,7 @@ app.post("/auth/logout", (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/session/course", requireAuth, (req, res) => {
+router.get("/api/session/course", requireAuth, (req, res) => {
   const courseId = req.activeCourseId;
   if (!Number.isFinite(Number(courseId))) {
     res.json({ course: null });
@@ -536,7 +538,7 @@ app.get("/api/session/course", requireAuth, (req, res) => {
   res.json({ course: course || null });
 });
 
-app.post("/api/session/course", requireAuth, (req, res) => {
+router.post("/api/session/course", requireAuth, (req, res) => {
   const courseId = Number(req.body?.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -557,7 +559,7 @@ app.post("/api/session/course", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/session/exam", requireAuth, (req, res) => {
+router.get("/api/session/exam", requireAuth, (req, res) => {
   const examId = req.activeExamId;
   if (!Number.isFinite(Number(examId))) {
     res.json({ exam: null });
@@ -573,7 +575,7 @@ app.get("/api/session/exam", requireAuth, (req, res) => {
   res.json({ exam });
 });
 
-app.post("/api/session/exam", requireAuth, (req, res) => {
+router.post("/api/session/exam", requireAuth, (req, res) => {
   const examId = Number(req.body?.examId);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "examId mancante" });
@@ -601,18 +603,18 @@ app.post("/api/session/exam", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/auth/me", (req, res) => {
+router.get("/auth/me", (req, res) => {
   res.json({ user: req.user || null });
 });
 
-app.get("/api/users", requireRole("admin"), (req, res) => {
+router.get("/api/users", requireRole("admin"), (req, res) => {
   const users = db
     .prepare("SELECT id, username, role, created_at FROM users ORDER BY username")
     .all();
   res.json({ users });
 });
 
-app.post("/api/users", requireRole("admin"), (req, res) => {
+router.post("/api/users", requireRole("admin"), (req, res) => {
   const payload = req.body || {};
   const username = String(payload.username || "").trim();
   const password = String(payload.password || "");
@@ -632,7 +634,7 @@ app.post("/api/users", requireRole("admin"), (req, res) => {
   }
 });
 
-app.put("/api/users/:id", requireRole("admin"), (req, res) => {
+router.put("/api/users/:id", requireRole("admin"), (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isFinite(userId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -675,7 +677,7 @@ app.put("/api/users/:id", requireRole("admin"), (req, res) => {
   }
 });
 
-app.delete("/api/users/:id", requireRole("admin"), (req, res) => {
+router.delete("/api/users/:id", requireRole("admin"), (req, res) => {
   const userId = Number(req.params.id);
   if (!Number.isFinite(userId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -698,7 +700,7 @@ app.delete("/api/users/:id", requireRole("admin"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/users/me/avatar", requireAuth, (req, res) => {
+router.post("/api/users/me/avatar", requireAuth, (req, res) => {
   const payload = req.body || {};
   const originalBase64 = String(payload.originalBase64 || "");
   const croppedBase64 = String(payload.croppedBase64 || "");
@@ -757,7 +759,7 @@ app.post("/api/users/me/avatar", requireAuth, (req, res) => {
   res.json({ avatar_path: originalRel, avatar_thumb_path: thumbRel });
 });
 
-app.post("/api/users/me/password", requireAuth, (req, res) => {
+router.post("/api/users/me/password", requireAuth, (req, res) => {
   const userId = req.user.id;
   const currentPassword = String(req.body.currentPassword || "");
   const newPassword = String(req.body.newPassword || "");
@@ -778,7 +780,7 @@ app.post("/api/users/me/password", requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/public-exams", (req, res) => {
+router.get("/api/public-exams", (req, res) => {
   const rows = db
     .prepare(
       `SELECT e.id, e.title, e.date, c.id AS course_id, c.name AS course_name
@@ -1032,7 +1034,7 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
   };
 };
 
-app.post("/api/public-results", (req, res) => {
+router.post("/api/public-results", (req, res) => {
   const examId = Number(req.body.examId);
   const matricola = String(req.body.matricola || "").trim();
   const password = String(req.body.password || "");
@@ -1044,7 +1046,7 @@ app.post("/api/public-results", (req, res) => {
   }
 });
 
-app.post("/api/study-advice-prompt", (req, res) => {
+router.post("/api/study-advice-prompt", (req, res) => {
   const examId = Number(req.body.examId);
   const matricola = String(req.body.matricola || "").trim();
   const password = String(req.body.password || "");
@@ -1061,7 +1063,7 @@ app.post("/api/study-advice-prompt", (req, res) => {
   }
 });
 
-app.post("/api/study-advice-prompt-admin", requireAuth, (req, res) => {
+router.post("/api/study-advice-prompt-admin", requireAuth, (req, res) => {
   const examId = Number(req.body.examId);
   const matricola = String(req.body.matricola || "").trim();
 
@@ -1661,7 +1663,7 @@ Rispondi in italiano in tono professionale e rispettoso.`;
   return prompt;
 };
 
-app.post("/api/teaching-improvement-prompt", requireAuth, (req, res) => {
+router.post("/api/teaching-improvement-prompt", requireAuth, (req, res) => {
   const examId = Number(req.body.examId);
   console.log(`[teaching-improvement-prompt] Request: examId=${examId}`);
 
@@ -1877,7 +1879,7 @@ const mergePdfs = async (outputPath, inputPaths) => {
   return { ok: false, error: "pdfunite/gs non disponibili per unire i PDF" };
 };
 
-app.post("/api/mapping", (req, res) => {
+router.post("/api/mapping", (req, res) => {
   try {
     const mapping = convertRtoMapping(req.body || "");
     res.json(mapping);
@@ -1886,7 +1888,7 @@ app.post("/api/mapping", (req, res) => {
   }
 });
 
-app.get("/api/courses", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/courses", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const rows = db
     .prepare(
       `SELECT c.id, c.name, c.code,
@@ -1982,7 +1984,7 @@ app.get("/api/courses", requireRole("admin", "creator", "evaluator"), (req, res)
   });
 });
 
-app.post("/api/courses", requireRole("admin"), (req, res) => {
+router.post("/api/courses", requireRole("admin"), (req, res) => {
   const payload = req.body || {};
   const name = String(payload.name || "").trim();
   const code = String(payload.code || "").trim();
@@ -2002,7 +2004,7 @@ app.post("/api/courses", requireRole("admin"), (req, res) => {
   res.json({ course });
 });
 
-app.put("/api/courses/:id", requireRole("admin"), (req, res) => {
+router.put("/api/courses/:id", requireRole("admin"), (req, res) => {
   const courseId = Number(req.params.id);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2030,7 +2032,7 @@ app.put("/api/courses/:id", requireRole("admin"), (req, res) => {
   }
 });
 
-app.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -2049,7 +2051,7 @@ app.get("/api/topics", requireRole("admin", "creator"), (req, res) => {
   res.json({ topics: rows });
 });
 
-app.get("/api/shortcuts", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/shortcuts", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId non valido." });
@@ -2066,7 +2068,7 @@ app.get("/api/shortcuts", requireRole("admin", "creator"), (req, res) => {
   res.json({ shortcuts });
 });
 
-app.post("/api/shortcuts", requireRole("admin"), (req, res) => {
+router.post("/api/shortcuts", requireRole("admin"), (req, res) => {
   const courseId = Number(req.body?.courseId);
   const label = String(req.body?.label || "").trim();
   const snippet = String(req.body?.snippet || "").trim();
@@ -2102,7 +2104,7 @@ app.post("/api/shortcuts", requireRole("admin"), (req, res) => {
   }
 });
 
-app.put("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
+router.put("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   const courseId = Number(req.body?.courseId);
   const label = String(req.body?.label || "").trim();
@@ -2148,7 +2150,7 @@ app.put("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
   }
 });
 
-app.delete("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
+router.delete("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido." });
@@ -2162,7 +2164,7 @@ app.delete("/api/shortcuts/:id", requireRole("admin"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/topics", requireRole("admin"), (req, res) => {
+router.post("/api/topics", requireRole("admin"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const name = String(payload.name || "").trim();
@@ -2186,7 +2188,7 @@ app.post("/api/topics", requireRole("admin"), (req, res) => {
   res.json({ topic });
 });
 
-app.put("/api/topics/:id", requireRole("admin"), (req, res) => {
+router.put("/api/topics/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2214,7 +2216,7 @@ app.put("/api/topics/:id", requireRole("admin"), (req, res) => {
   }
 });
 
-app.delete("/api/topics/:id", requireRole("admin"), (req, res) => {
+router.delete("/api/topics/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2231,7 +2233,7 @@ app.delete("/api/topics/:id", requireRole("admin"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/images", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/images", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -2271,7 +2273,7 @@ app.get("/api/images", requireRole("admin", "creator"), (req, res) => {
   res.json({ images: updatedRows });
 });
 
-app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const name = String(payload.name || "").trim();
@@ -2358,7 +2360,7 @@ app.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   res.json({ image });
 });
 
-app.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
+router.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2398,7 +2400,7 @@ app.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/images/:id/thumbnail", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/images/:id/thumbnail", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2437,7 +2439,7 @@ app.post("/api/images/:id/thumbnail", requireRole("admin", "creator"), (req, res
   res.json({ thumbnail_path: thumbRel });
 });
 
-app.delete("/api/courses/:id", requireRole("admin"), (req, res) => {
+router.delete("/api/courses/:id", requireRole("admin"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2468,7 +2470,7 @@ app.delete("/api/courses/:id", requireRole("admin"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   const topicId = Number(req.query.topicId);
   const search = String(req.query.search || "").trim();
@@ -2546,7 +2548,7 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   res.json({ questions: rows });
 });
 
-app.post("/api/questions", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
   const question = payload.question || {};
@@ -2563,7 +2565,7 @@ app.post("/api/questions", requireRole("admin", "creator"), (req, res) => {
   res.json({ questionId });
 });
 
-app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2636,7 +2638,7 @@ app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, 
   res.json({ questionId });
 });
 
-app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
+router.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   const payload = req.body || {};
   const courseId = Number(payload.courseId);
@@ -2703,7 +2705,7 @@ app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   res.json({ questionId: id });
 });
 
-app.delete("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
+router.delete("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2722,7 +2724,7 @@ app.delete("/api/questions/:id", requireRole("admin", "creator"), (req, res) => 
   res.json({ ok: true });
 });
 
-app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2788,7 +2790,7 @@ app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   });
 });
 
-app.get("/api/exams", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const rows = db
     .prepare(
       `SELECT e.id, e.title, e.date, e.updated_at, e.course_id,
@@ -2865,7 +2867,7 @@ const gradeStudent = (student, mapping) => {
   return total;
 };
 
-app.get("/api/exams/stats", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams/stats", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const exams = db
     .prepare("SELECT id, mapping_json FROM exams")
     .all()
@@ -2928,7 +2930,7 @@ app.get("/api/exams/stats", requireRole("admin", "creator", "evaluator"), (req, 
   res.json({ stats });
 });
 
-app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
     res.status(400).json({ error: "Id non valido" });
@@ -2993,7 +2995,7 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
   });
 });
 
-app.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3067,7 +3069,7 @@ app.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evalua
   res.json({ ok: true });
 });
 
-app.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
+router.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
   const courseId = Number(req.query.courseId);
   if (!Number.isFinite(courseId)) {
     res.status(400).json({ error: "courseId mancante" });
@@ -3191,7 +3193,7 @@ const replaceExamQuestions = (examId, questions, courseId) => {
   });
 };
 
-app.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const exam = payload.exam || {};
   const courseId = Number(exam.courseId);
@@ -3238,7 +3240,7 @@ app.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
   res.json({ examId });
 });
 
-app.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
+router.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3284,7 +3286,7 @@ app.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   res.json({ examId });
 });
 
-app.post("/api/exams/draft", (req, res) => {
+router.post("/api/exams/draft", (req, res) => {
   const payload = req.body || {};
   const exam = payload.exam || {};
   const courseId = Number(exam.courseId);
@@ -3358,7 +3360,7 @@ app.post("/api/exams/draft", (req, res) => {
   res.json({ examId });
 });
 
-app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res) => {
+router.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3468,7 +3470,7 @@ app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res
   res.json({ ok: true });
 });
 
-app.post("/api/exams/:id/unlock", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/exams/:id/unlock", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3505,7 +3507,7 @@ app.post("/api/exams/:id/unlock", requireRole("admin", "creator"), (req, res) =>
   res.json({ ok: true });
 });
 
-app.get("/api/exams/:id/mapping", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams/:id/mapping", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3531,7 +3533,7 @@ app.get("/api/exams/:id/mapping", requireRole("admin", "creator", "evaluator"), 
   res.json({ mapping: JSON.parse(row.mapping_json) });
 });
 
-app.get("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3556,7 +3558,7 @@ app.get("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"),
   res.json({ sessions: rows });
 });
 
-app.get("/api/exams/:id/cheating", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/exams/:id/cheating", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   const sessionId = Number(req.query.sessionId);
   const permutations = Math.min(5000, Math.max(100, Number(req.query.permutations) || 5000));
@@ -3742,7 +3744,7 @@ app.get("/api/exams/:id/cheating", requireRole("admin", "creator", "evaluator"),
   });
 });
 
-app.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3775,7 +3777,7 @@ app.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator")
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
-app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3811,7 +3813,7 @@ app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   res.json({ session, students });
 });
 
-app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3897,7 +3899,7 @@ app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   }
 });
 
-app.delete("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.delete("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
   const sessionId = Number(req.params.id);
   if (!Number.isFinite(sessionId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3916,7 +3918,7 @@ app.delete("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (r
   res.json({ ok: true });
 });
 
-app.delete("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
+router.delete("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3949,7 +3951,7 @@ app.delete("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
   res.json({ ok: true });
 });
 
-app.post("/api/exams/:id/clear-results", requireRole("admin", "creator"), (req, res) => {
+router.post("/api/exams/:id/clear-results", requireRole("admin", "creator"), (req, res) => {
   const examId = Number(req.params.id);
   if (!Number.isFinite(examId)) {
     res.status(400).json({ error: "Id non valido" });
@@ -3971,7 +3973,7 @@ app.post("/api/exams/:id/clear-results", requireRole("admin", "creator"), (req, 
   res.json({ ok: true });
 });
 
-app.post("/api/import-esse3", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.post("/api/import-esse3", requireRole("admin", "creator", "evaluator"), (req, res) => {
   try {
     if (!req.body || !req.body.length) {
       res.status(400).json({ error: "File vuoto" });
@@ -4012,7 +4014,7 @@ app.post("/api/import-esse3", requireRole("admin", "creator", "evaluator"), (req
   }
 });
 
-app.post("/api/results-xls", requireRole("admin", "creator", "evaluator"), (req, res) => {
+router.post("/api/results-xls", requireRole("admin", "creator", "evaluator"), (req, res) => {
   try {
     const payload = req.body || {};
     if (!payload.fileBase64 || !Array.isArray(payload.results)) {
@@ -4061,7 +4063,7 @@ app.post("/api/results-xls", requireRole("admin", "creator", "evaluator"), (req,
   }
 });
 
-app.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) => {
+router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) => {
   try {
     const payload = req.body || {};
     const latex = typeof payload.latex === "string" ? payload.latex : "";
@@ -4118,7 +4120,7 @@ app.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) =
   }
 });
 
-app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, res) => {
+router.post("/api/generate-traces", requireRole("admin", "creator"), async (req, res) => {
   try {
     const payload = req.body || {};
     const latex = typeof payload.latex === "string" ? payload.latex : "";
@@ -4215,7 +4217,10 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
 });
 
 if (BASE_PATH) {
+  app.use(BASE_PATH, router);
   app.use(BASE_PATH, express.static(path.join(__dirname)));
+} else {
+  app.use(router);
 }
 app.use(express.static(path.join(__dirname)));
 
