@@ -149,6 +149,42 @@
     </div>
   </div>
 </div>
+<script>
+  (() => {
+    const meta = document.querySelector('meta[name="csrf-token"]');
+    if (!meta) return;
+    const token = meta.getAttribute("content");
+    if (!token) return;
+    const originalFetch = window.fetch;
+    window.fetch = function (resource, options = {}) {
+      const opts = options || {};
+      const method = String(opts.method || "GET").toUpperCase();
+      const url = typeof resource === "string" ? resource : resource?.url || "";
+      let sameOrigin = true;
+      if (url && (url.startsWith("http://") || url.startsWith("https://"))) {
+        try {
+          const parsed = new URL(url);
+          sameOrigin = parsed.origin === window.location.origin;
+        } catch {
+          sameOrigin = false;
+        }
+      }
+      if (sameOrigin && !["GET", "HEAD", "OPTIONS"].includes(method)) {
+        if (opts.headers instanceof Headers) {
+          if (!opts.headers.has("X-CSRF-Token")) {
+            opts.headers.set("X-CSRF-Token", token);
+          }
+        } else {
+          opts.headers = opts.headers || {};
+          if (!("X-CSRF-Token" in opts.headers)) {
+            opts.headers["X-CSRF-Token"] = token;
+          }
+        }
+      }
+      return originalFetch(resource, opts);
+    };
+  })();
+</script>
 <% if (activeCourseName) { %>
   <script>
     (() => {

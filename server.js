@@ -30,6 +30,15 @@ try {
   );
   rateLimit = null;
 }
+let csrf;
+try {
+  csrf = require("csurf");
+} catch (err) {
+  console.warn(
+    "[security] csurf non installato, protezione CSRF disattivata. Esegui: npm install csurf"
+  );
+  csrf = null;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -368,6 +377,17 @@ const SESSION_COOKIE_OPTIONS = (expiresAt) => ({
   expires: expiresAt,
 });
 
+const csrfProtection = csrf
+  ? csrf({
+      cookie: {
+        key: "csrf_token",
+        httpOnly: true,
+        sameSite: "strict",
+        secure: USE_SECURE_COOKIES,
+      },
+    })
+  : null;
+
 const createSession = (userId) => {
   const token = crypto.randomBytes(32).toString("hex");
   const expiresAt = new Date();
@@ -434,6 +454,19 @@ const loadUser = (req, res, next) => {
 };
 
 app.use(loadUser);
+
+app.use((req, res, next) => {
+  if (!csrfProtection || !req.user) return next();
+  csrfProtection(req, res, (err) => {
+    if (err) return next(err);
+    try {
+      res.locals.csrfToken = req.csrfToken();
+    } catch {
+      res.locals.csrfToken = null;
+    }
+    next();
+  });
+});
 
 app.use((req, res, next) => {
   res.locals.basePath = BASE_PATH;
@@ -4435,6 +4468,18 @@ if (BASE_PATH) {
   app.use(router);
 }
 app.use(express.static(path.join(__dirname)));
+
+app.use((err, req, res, next) => {
+  if (err && err.code === "EBADCSRFTOKEN") {
+    if (req.path.startsWith("/api")) {
+      res.status(403).json({ error: "CSRF non valido" });
+      return;
+    }
+    res.status(403).send("CSRF non valido");
+    return;
+  }
+  next(err);
+});
 
 app.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
