@@ -1792,13 +1792,13 @@ const copyLatexAssets = (assets, destDir) => {
   });
 };
 
-const runPdflatex = (cwd, jobName, texArg) =>
+const runPdflatex = (outputDir, jobName, texArg, cwd = outputDir) =>
   new Promise((resolve) => {
     const args = [
       "-interaction=nonstopmode",
       "-halt-on-error",
       "-output-directory",
-      cwd,
+      outputDir,
       "-jobname",
       jobName,
       texArg,
@@ -3385,10 +3385,11 @@ app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res
   const texPath = path.join(tmpDir, "exam.tex");
   fs.writeFileSync(texPath, latex, "utf8");
   copyLatexAssets(collectLatexAssets(latex), tmpDir);
+  const texInput = texPath.replace(/\\/g, "/");
 
   const jobName = "exam-map";
-  const texArg = `\\def\\myversion{1}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{exam.tex}`;
-  const first = await runPdflatex(tmpDir, jobName, texArg);
+  const texArg = `\\def\\myversion{1}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
+  const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
   if (!first.ok) {
     res.status(400).json({
       error: "Errore compilazione LaTeX",
@@ -3396,7 +3397,7 @@ app.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, res
     });
     return;
   }
-  const second = await runPdflatex(tmpDir, jobName, texArg);
+  const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
   if (!second.ok) {
     res.status(400).json({
       error: "Errore compilazione LaTeX",
@@ -4046,6 +4047,7 @@ app.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) =
     const texPath = path.join(tmpDir, "exam.tex");
     fs.writeFileSync(texPath, latex, "utf8");
     copyLatexAssets(collectLatexAssets(latex), tmpDir);
+    const texInput = texPath.replace(/\\/g, "/");
 
     const args = [
       "-interaction=nonstopmode",
@@ -4111,8 +4113,8 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
     const pdfPaths = [];
     for (let i = 1; i <= versions; i += 1) {
       const jobName = `exam-${i}`;
-      const texArg = `\\def\\myversion{${i}}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{exam.tex}`;
-      const first = await runPdflatex(tmpDir, jobName, texArg);
+      const texArg = `\\def\\myversion{${i}}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
+      const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
       if (!first.ok) {
         res.status(400).json({
           error: "Errore compilazione LaTeX",
@@ -4120,7 +4122,7 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
         });
         return;
       }
-      const second = await runPdflatex(tmpDir, jobName, texArg);
+      const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
       if (!second.ok) {
         res.status(400).json({
           error: "Errore compilazione LaTeX",
@@ -4144,8 +4146,8 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
     }
 
     const answersJob = "exam-answers";
-    const answersArg = `\\def\\mynumversions{${versions}}\\def\\myoutput{answers}\\input{exam.tex}`;
-    const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg);
+    const answersArg = `\\def\\mynumversions{${versions}}\\def\\myoutput{answers}\\input{${texInput}}`;
+    const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
     if (!answersFirst.ok) {
       res.status(400).json({
         error: "Errore compilazione LaTeX (answers)",
@@ -4153,7 +4155,7 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
       });
       return;
     }
-    const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg);
+    const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
     if (!answersSecond.ok) {
       res.status(400).json({
         error: "Errore compilazione LaTeX (answers)",
