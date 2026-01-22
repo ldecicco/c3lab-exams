@@ -111,7 +111,41 @@
     </div>
     <div class="modal-footer">
       <button class="btn btn-outline-secondary" type="button" id="avatarCancel">Annulla</button>
+      <button class="btn btn-outline-secondary" type="button" id="openPasswordModal">
+        <i class="fa-solid fa-key"></i>
+        Cambia password
+      </button>
       <button class="btn btn-primary" type="button" id="avatarSave" disabled>Salva</button>
+    </div>
+  </div>
+</div>
+<div class="modal-backdrop is-hidden" id="passwordBackdrop"></div>
+<div class="modal-panel is-hidden" id="passwordModal" role="dialog" aria-modal="true" aria-labelledby="passwordModalTitle">
+  <div class="modal-header">
+    <h3 class="h5 mb-0" id="passwordModalTitle">Cambia password</h3>
+    <button class="icon-button" type="button" id="passwordClose" aria-label="Chiudi">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <div class="modal-body">
+    <div class="vstack gap-3">
+      <label class="field">
+        <span>Password attuale</span>
+        <input id="passwordCurrent" class="form-control" type="password" autocomplete="current-password" />
+      </label>
+      <label class="field">
+        <span>Nuova password</span>
+        <input id="passwordNew" class="form-control" type="password" autocomplete="new-password" />
+      </label>
+      <label class="field">
+        <span>Conferma nuova password</span>
+        <input id="passwordConfirm" class="form-control" type="password" autocomplete="new-password" />
+      </label>
+      <div class="text-danger small" id="passwordError" style="min-height: 1.2rem;"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-outline-secondary" type="button" id="passwordCancel">Annulla</button>
+      <button class="btn btn-primary" type="button" id="passwordSave">Aggiorna</button>
     </div>
   </div>
 </div>
@@ -204,6 +238,16 @@
     const cropImage = document.getElementById("avatarCropImage");
     const saveButton = document.getElementById("avatarSave");
     const preview = document.getElementById("avatarPreview");
+    const passwordBackdrop = document.getElementById("passwordBackdrop");
+    const passwordModal = document.getElementById("passwordModal");
+    const passwordClose = document.getElementById("passwordClose");
+    const passwordCancel = document.getElementById("passwordCancel");
+    const passwordSave = document.getElementById("passwordSave");
+    const passwordCurrent = document.getElementById("passwordCurrent");
+    const passwordNew = document.getElementById("passwordNew");
+    const passwordConfirm = document.getElementById("passwordConfirm");
+    const passwordError = document.getElementById("passwordError");
+    const openPasswordModal = document.getElementById("openPasswordModal");
     if (!openButton || !modal || !backdrop || !fileInput || !cropImage || !saveButton || !preview) return;
 
     let cropper = null;
@@ -271,6 +315,66 @@
       originalName = "";
       saveButton.disabled = true;
     };
+
+    const closePasswordModal = () => {
+      if (passwordBackdrop) passwordBackdrop.classList.add("is-hidden");
+      if (passwordModal) passwordModal.classList.add("is-hidden");
+      if (passwordError) passwordError.textContent = "";
+      if (passwordCurrent) passwordCurrent.value = "";
+      if (passwordNew) passwordNew.value = "";
+      if (passwordConfirm) passwordConfirm.value = "";
+    };
+
+    if (openPasswordModal) {
+      openPasswordModal.addEventListener("click", () => {
+        if (passwordBackdrop) passwordBackdrop.classList.remove("is-hidden");
+        if (passwordModal) passwordModal.classList.remove("is-hidden");
+      });
+    }
+    if (passwordClose) passwordClose.addEventListener("click", closePasswordModal);
+    if (passwordCancel) passwordCancel.addEventListener("click", closePasswordModal);
+    if (passwordBackdrop) {
+      passwordBackdrop.addEventListener("click", (event) => {
+        if (event.target === passwordBackdrop) closePasswordModal();
+      });
+    }
+    if (passwordSave) {
+      passwordSave.addEventListener("click", async () => {
+        if (passwordError) passwordError.textContent = "";
+        const current = String(passwordCurrent?.value || "");
+        const next = String(passwordNew?.value || "");
+        const confirm = String(passwordConfirm?.value || "");
+        if (!current || !next || !confirm) {
+          if (passwordError) passwordError.textContent = "Compila tutti i campi.";
+          return;
+        }
+        if (next.length < 8 || !/\d/.test(next)) {
+          if (passwordError) {
+            passwordError.textContent = "La nuova password deve avere almeno 8 caratteri e un numero.";
+          }
+          return;
+        }
+        if (next !== confirm) {
+          if (passwordError) passwordError.textContent = "Le password non coincidono.";
+          return;
+        }
+        try {
+          const res = await fetch("/api/users/me/password", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ currentPassword: current, newPassword: next }),
+          });
+          const data = await res.json();
+          if (!res.ok) {
+            throw new Error(data.error || "Errore aggiornamento password");
+          }
+          showToast("Password aggiornata.", "success");
+          closePasswordModal();
+        } catch (err) {
+          if (passwordError) passwordError.textContent = err.message || "Errore aggiornamento password.";
+        }
+      });
+    }
 
     const updatePreview = (dataUrl) => {
       preview.innerHTML = "";

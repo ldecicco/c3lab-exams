@@ -751,6 +751,27 @@ app.post("/api/users/me/avatar", requireAuth, (req, res) => {
   res.json({ avatar_path: originalRel, avatar_thumb_path: thumbRel });
 });
 
+app.post("/api/users/me/password", requireAuth, (req, res) => {
+  const userId = req.user.id;
+  const currentPassword = String(req.body.currentPassword || "");
+  const newPassword = String(req.body.newPassword || "");
+  if (!currentPassword || !newPassword) {
+    res.status(400).json({ error: "Password mancanti." });
+    return;
+  }
+  const user = db
+    .prepare("SELECT id, password_hash FROM users WHERE id = ?")
+    .get(userId);
+  if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+    res.status(400).json({ error: "Password attuale non valida." });
+    return;
+  }
+  const hash = bcrypt.hashSync(newPassword, 10);
+  db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
+    .run(hash, userId);
+  res.json({ ok: true });
+});
+
 app.get("/api/public-exams", (req, res) => {
   const rows = db
     .prepare(
