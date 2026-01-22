@@ -39,6 +39,24 @@ try {
   );
   csrf = null;
 }
+let speakeasy;
+try {
+  speakeasy = require("speakeasy");
+} catch (err) {
+  console.warn(
+    "[security] speakeasy non installato, 2FA disattivata. Esegui: npm install speakeasy"
+  );
+  speakeasy = null;
+}
+let qrcode;
+try {
+  qrcode = require("qrcode");
+} catch (err) {
+  console.warn(
+    "[security] qrcode non installato, QR 2FA disattivato. Esegui: npm install qrcode"
+  );
+  qrcode = null;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -75,6 +93,14 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now'))
   );
   CREATE TABLE IF NOT EXISTS auth_sessions (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER NOT NULL,
+    token TEXT NOT NULL UNIQUE,
+    expires_at TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
+  CREATE TABLE IF NOT EXISTS login_2fa (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     user_id INTEGER NOT NULL,
     token TEXT NOT NULL UNIQUE,
@@ -256,6 +282,8 @@ ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");
 ensureColumn("users", "avatar_path", "TEXT");
 ensureColumn("users", "avatar_thumb_path", "TEXT");
+ensureColumn("users", "totp_secret", "TEXT");
+ensureColumn("users", "totp_enabled", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("questions", "note", "TEXT");
 ensureColumn("answers", "note", "TEXT");
 ensureColumn("exam_sessions", "target_top_grade", "REAL DEFAULT 30");
@@ -422,11 +450,24 @@ const createSession = (userId) => {
   return { token, expiresAt };
 };
 
+const TWO_FA_TTL_MINUTES = Number(process.env.TWO_FA_TTL_MINUTES || 5);
+
+const createTwoFaToken = (userId) => {
+  const token = crypto.randomBytes(32).toString("hex");
+  const expiresAt = new Date();
+  expiresAt.setMinutes(expiresAt.getMinutes() + TWO_FA_TTL_MINUTES);
+  db.prepare(
+    "INSERT INTO login_2fa (user_id, token, expires_at) VALUES (?, ?, ?)"
+  ).run(userId, token, expiresAt.toISOString());
+  return { token, expiresAt };
+};
+
 const getUserFromToken = (token) => {
   if (!token) return null;
   const row = db
     .prepare(
       `SELECT u.id, u.username, u.role, u.avatar_path, u.avatar_thumb_path,
+              u.totp_enabled,
               s.expires_at, s.active_course_id, s.active_exam_id
          FROM auth_sessions s
          JOIN users u ON u.id = s.user_id
@@ -444,6 +485,7 @@ const getUserFromToken = (token) => {
     role: row.role,
     avatarPath: row.avatar_path || "",
     avatarThumbPath: row.avatar_thumb_path || "",
+    totpEnabled: Boolean(row.totp_enabled),
     activeCourseId: row.active_course_id || null,
     activeExamId: row.active_exam_id || null,
   };
@@ -632,13 +674,66 @@ router.post("/auth/login", loginLimiter, (req, res) => {
     return;
   }
   const user = db
-    .prepare("SELECT id, username, password_hash, role FROM users WHERE username = ?")
+    .prepare("SELECT id, username, password_hash, role, totp_enabled FROM users WHERE username = ?")
     .get(username);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
     logSecurityEvent(req, "login_failed", `username=${username}`);
     res.status(401).json({ error: "Credenziali non valide" });
     return;
   }
+  if (user.totp_enabled) {
+    if (!speakeasy) {
+      res.status(500).json({ error: "2FA non disponibile sul server." });
+      return;
+    }
+    const pending = createTwoFaToken(user.id);
+    logSecurityEvent(req, "login_otp_required", "", user.id);
+    res.json({ requiresOtp: true, tempToken: pending.token });
+    return;
+  }
+  const session = createSession(user.id);
+  res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
+  logSecurityEvent(req, "login_success", "", user.id);
+  res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
+});
+
+router.post("/auth/login-2fa", loginLimiter, (req, res) => {
+  const tempToken = String(req.body.tempToken || "");
+  const otp = String(req.body.otp || "").trim();
+  if (!tempToken || !otp) {
+    res.status(400).json({ error: "Dati mancanti" });
+    return;
+  }
+  const pending = db
+    .prepare("SELECT user_id, expires_at FROM login_2fa WHERE token = ?")
+    .get(tempToken);
+  if (!pending) {
+    res.status(401).json({ error: "Token non valido" });
+    return;
+  }
+  if (new Date(pending.expires_at) <= new Date()) {
+    db.prepare("DELETE FROM login_2fa WHERE token = ?").run(tempToken);
+    res.status(401).json({ error: "Token scaduto" });
+    return;
+  }
+  const user = db
+    .prepare("SELECT id, username, role, totp_secret FROM users WHERE id = ?")
+    .get(pending.user_id);
+  if (!user || !user.totp_secret || !speakeasy) {
+    res.status(401).json({ error: "2FA non configurata" });
+    return;
+  }
+  const ok = speakeasy.totp.verify({
+    secret: user.totp_secret,
+    encoding: "base32",
+    token: otp,
+    window: 1,
+  });
+  if (!ok) {
+    res.status(401).json({ error: "Codice non valido" });
+    return;
+  }
+  db.prepare("DELETE FROM login_2fa WHERE token = ?").run(tempToken);
   const session = createSession(user.id);
   res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
   logSecurityEvent(req, "login_success", "", user.id);
@@ -892,6 +987,89 @@ router.post("/api/users/me/avatar", requireAuth, (req, res) => {
   removeIfExists(current?.avatar_thumb_path);
 
   res.json({ avatar_path: originalRel, avatar_thumb_path: thumbRel });
+});
+
+router.post("/api/2fa/setup/start", requireAuth, async (req, res) => {
+  if (!speakeasy) {
+    res.status(500).json({ error: "2FA non disponibile sul server." });
+    return;
+  }
+  const userId = req.user.id;
+  const username = req.user.username || "utente";
+  const secret = speakeasy.generateSecret({
+    name: `C3LAB (${username})`,
+  });
+  if (!secret.base32) {
+    res.status(500).json({ error: "Errore generazione 2FA" });
+    return;
+  }
+  db.prepare("UPDATE users SET totp_secret = ?, totp_enabled = 0 WHERE id = ?").run(
+    secret.base32,
+    userId
+  );
+  let qrCodeDataUrl = "";
+  if (qrcode && secret.otpauth_url) {
+    try {
+      qrCodeDataUrl = await qrcode.toDataURL(secret.otpauth_url);
+    } catch (err) {
+      qrCodeDataUrl = "";
+    }
+  }
+  res.json({
+    otpauthUrl: secret.otpauth_url,
+    qrCodeDataUrl,
+    secret: secret.base32,
+  });
+});
+
+router.post("/api/2fa/setup/verify", requireAuth, (req, res) => {
+  if (!speakeasy) {
+    res.status(500).json({ error: "2FA non disponibile sul server." });
+    return;
+  }
+  const token = String(req.body.token || "").trim();
+  if (!token) {
+    res.status(400).json({ error: "Codice mancante" });
+    return;
+  }
+  const user = db.prepare("SELECT totp_secret FROM users WHERE id = ?").get(req.user.id);
+  if (!user || !user.totp_secret) {
+    res.status(400).json({ error: "2FA non inizializzata" });
+    return;
+  }
+  const ok = speakeasy.totp.verify({
+    secret: user.totp_secret,
+    encoding: "base32",
+    token,
+    window: 1,
+  });
+  if (!ok) {
+    res.status(400).json({ error: "Codice non valido" });
+    return;
+  }
+  db.prepare("UPDATE users SET totp_enabled = 1 WHERE id = ?").run(req.user.id);
+  logSecurityEvent(req, "2fa_enabled", "", req.user.id);
+  res.json({ ok: true });
+});
+
+router.post("/api/2fa/disable", requireAuth, (req, res) => {
+  const password = String(req.body.password || "");
+  if (!password) {
+    res.status(400).json({ error: "Password mancante" });
+    return;
+  }
+  const user = db
+    .prepare("SELECT id, password_hash FROM users WHERE id = ?")
+    .get(req.user.id);
+  if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    res.status(400).json({ error: "Password non valida" });
+    return;
+  }
+  db.prepare("UPDATE users SET totp_enabled = 0, totp_secret = NULL WHERE id = ?").run(
+    req.user.id
+  );
+  logSecurityEvent(req, "2fa_disabled", "", req.user.id);
+  res.json({ ok: true });
 });
 
 router.get("/api/db/tables", requireRole("admin"), (req, res) => {

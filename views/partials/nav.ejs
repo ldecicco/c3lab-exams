@@ -115,6 +115,10 @@
         <i class="fa-solid fa-key"></i>
         Cambia password
       </button>
+      <button class="btn btn-outline-secondary" type="button" id="openTwoFaModal">
+        <i class="fa-solid fa-shield-halved"></i>
+        Gestisci 2FA
+      </button>
       <button class="btn btn-primary" type="button" id="avatarSave" disabled>Salva</button>
     </div>
   </div>
@@ -147,6 +151,46 @@
       <button class="btn btn-outline-secondary" type="button" id="passwordCancel">Annulla</button>
       <button class="btn btn-primary" type="button" id="passwordSave">Aggiorna</button>
     </div>
+  </div>
+</div>
+<div class="modal-backdrop is-hidden" id="twoFaBackdrop"></div>
+<div class="modal-panel is-hidden" id="twoFaModal" role="dialog" aria-modal="true" aria-labelledby="twoFaTitle">
+  <div class="modal-header">
+    <h3 class="h5 mb-0" id="twoFaTitle">Sicurezza 2FA</h3>
+    <button class="icon-button" type="button" id="twoFaClose" aria-label="Chiudi">
+      <i class="fa-solid fa-xmark"></i>
+    </button>
+  </div>
+  <div class="modal-body">
+    <div class="text-secondary mb-3" id="twoFaStatus"></div>
+    <div class="vstack gap-3" id="twoFaSetupSection">
+      <div class="text-secondary">Scansiona il QR con Google/Microsoft Authenticator.</div>
+      <div class="twofa-qr is-hidden" id="twoFaQrWrap">
+        <img id="twoFaQr" alt="QR 2FA" />
+      </div>
+      <div class="text-secondary small" id="twoFaSecret"></div>
+      <label class="field">
+        <span>Codice 2FA</span>
+        <input id="twoFaCode" class="form-control" type="text" inputmode="numeric" autocomplete="one-time-code" />
+      </label>
+      <div class="actions">
+        <button class="btn btn-primary" type="button" id="twoFaVerify">Conferma</button>
+      </div>
+    </div>
+    <div class="vstack gap-3 is-hidden" id="twoFaDisableSection">
+      <label class="field">
+        <span>Password attuale</span>
+        <input id="twoFaDisablePassword" class="form-control" type="password" autocomplete="current-password" />
+      </label>
+      <div class="actions">
+        <button class="btn btn-outline-secondary" type="button" id="twoFaDisable">Disabilita 2FA</button>
+      </div>
+    </div>
+    <div class="text-danger small" id="twoFaError" style="min-height: 1.2rem;"></div>
+  </div>
+  <div class="modal-footer">
+    <button class="btn btn-outline-secondary" type="button" id="twoFaStart">Attiva 2FA</button>
+    <button class="btn btn-outline-secondary" type="button" id="twoFaCancel">Chiudi</button>
   </div>
 </div>
 <script>
@@ -284,6 +328,24 @@
     const passwordConfirm = document.getElementById("passwordConfirm");
     const passwordError = document.getElementById("passwordError");
     const openPasswordModal = document.getElementById("openPasswordModal");
+    const openTwoFaModal = document.getElementById("openTwoFaModal");
+    const twoFaBackdrop = document.getElementById("twoFaBackdrop");
+    const twoFaModal = document.getElementById("twoFaModal");
+    const twoFaClose = document.getElementById("twoFaClose");
+    const twoFaCancel = document.getElementById("twoFaCancel");
+    const twoFaStatus = document.getElementById("twoFaStatus");
+    const twoFaStart = document.getElementById("twoFaStart");
+    const twoFaVerify = document.getElementById("twoFaVerify");
+    const twoFaDisable = document.getElementById("twoFaDisable");
+    const twoFaError = document.getElementById("twoFaError");
+    const twoFaSetupSection = document.getElementById("twoFaSetupSection");
+    const twoFaDisableSection = document.getElementById("twoFaDisableSection");
+    const twoFaQrWrap = document.getElementById("twoFaQrWrap");
+    const twoFaQr = document.getElementById("twoFaQr");
+    const twoFaSecret = document.getElementById("twoFaSecret");
+    const twoFaCode = document.getElementById("twoFaCode");
+    const twoFaDisablePassword = document.getElementById("twoFaDisablePassword");
+    let twoFaEnabled = <%= user?.totpEnabled ? 'true' : 'false' %>;
     if (!openButton || !modal || !backdrop || !fileInput || !cropImage || !saveButton || !preview) return;
 
     let cropper = null;
@@ -361,10 +423,55 @@
       if (passwordConfirm) passwordConfirm.value = "";
     };
 
+    const openTwoFa = () => {
+      if (twoFaBackdrop) twoFaBackdrop.classList.remove("is-hidden");
+      if (twoFaModal) twoFaModal.classList.remove("is-hidden");
+      if (twoFaError) twoFaError.textContent = "";
+      if (twoFaCode) twoFaCode.value = "";
+      if (twoFaDisablePassword) twoFaDisablePassword.value = "";
+      if (twoFaQrWrap) twoFaQrWrap.classList.add("is-hidden");
+      if (twoFaSecret) twoFaSecret.textContent = "";
+      if (twoFaSetupSection) twoFaSetupSection.classList.add("is-hidden");
+      updateTwoFaView();
+    };
+
+    const closeTwoFa = () => {
+      if (twoFaBackdrop) twoFaBackdrop.classList.add("is-hidden");
+      if (twoFaModal) twoFaModal.classList.add("is-hidden");
+      if (twoFaError) twoFaError.textContent = "";
+    };
+
+    const updateTwoFaView = () => {
+      if (twoFaStatus) {
+        twoFaStatus.textContent = twoFaEnabled
+          ? "2FA attivo: richiesto al login."
+          : "2FA non attivo.";
+      }
+      if (twoFaDisableSection) {
+        twoFaDisableSection.classList.toggle("is-hidden", !twoFaEnabled);
+      }
+      if (twoFaStart) {
+        twoFaStart.disabled = twoFaEnabled;
+      }
+      if (twoFaSetupSection) {
+        if (twoFaEnabled) {
+          twoFaSetupSection.classList.add("is-hidden");
+        }
+      }
+    };
+
     if (openPasswordModal) {
       openPasswordModal.addEventListener("click", () => {
         if (passwordBackdrop) passwordBackdrop.classList.remove("is-hidden");
         if (passwordModal) passwordModal.classList.remove("is-hidden");
+      });
+    }
+    if (openTwoFaModal) openTwoFaModal.addEventListener("click", openTwoFa);
+    if (twoFaClose) twoFaClose.addEventListener("click", closeTwoFa);
+    if (twoFaCancel) twoFaCancel.addEventListener("click", closeTwoFa);
+    if (twoFaBackdrop) {
+      twoFaBackdrop.addEventListener("click", (event) => {
+        if (event.target === twoFaBackdrop) closeTwoFa();
       });
     }
     if (passwordClose) passwordClose.addEventListener("click", closePasswordModal);
@@ -408,6 +515,75 @@
           closePasswordModal();
         } catch (err) {
           if (passwordError) passwordError.textContent = err.message || "Errore aggiornamento password.";
+        }
+      });
+    }
+
+    if (twoFaStart) {
+      twoFaStart.addEventListener("click", async () => {
+        if (twoFaError) twoFaError.textContent = "";
+        try {
+          const res = await fetch("api/2fa/setup/start", { method: "POST" });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Errore 2FA");
+          if (twoFaSetupSection) twoFaSetupSection.classList.remove("is-hidden");
+          if (twoFaQrWrap) twoFaQrWrap.classList.toggle("is-hidden", !data.qrCodeDataUrl);
+          if (twoFaQr && data.qrCodeDataUrl) twoFaQr.src = data.qrCodeDataUrl;
+          if (twoFaSecret) twoFaSecret.textContent = data.secret ? `Chiave: ${data.secret}` : "";
+          if (twoFaCode) twoFaCode.focus();
+        } catch (err) {
+          if (twoFaError) twoFaError.textContent = err.message || "Errore 2FA";
+        }
+      });
+    }
+
+    if (twoFaVerify) {
+      twoFaVerify.addEventListener("click", async () => {
+        if (twoFaError) twoFaError.textContent = "";
+        const token = String(twoFaCode?.value || "").trim();
+        if (!token) {
+          if (twoFaError) twoFaError.textContent = "Inserisci il codice.";
+          return;
+        }
+        try {
+          const res = await fetch("api/2fa/setup/verify", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ token }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Errore 2FA");
+          twoFaEnabled = true;
+          updateTwoFaView();
+          showToast("2FA attivo.", "success");
+          if (twoFaSetupSection) twoFaSetupSection.classList.add("is-hidden");
+        } catch (err) {
+          if (twoFaError) twoFaError.textContent = err.message || "Errore 2FA";
+        }
+      });
+    }
+
+    if (twoFaDisable) {
+      twoFaDisable.addEventListener("click", async () => {
+        if (twoFaError) twoFaError.textContent = "";
+        const password = String(twoFaDisablePassword?.value || "");
+        if (!password) {
+          if (twoFaError) twoFaError.textContent = "Inserisci la password.";
+          return;
+        }
+        try {
+          const res = await fetch("api/2fa/disable", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ password }),
+          });
+          const data = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(data.error || "Errore 2FA");
+          twoFaEnabled = false;
+          updateTwoFaView();
+          showToast("2FA disattivato.", "success");
+        } catch (err) {
+          if (twoFaError) twoFaError.textContent = err.message || "Errore 2FA";
         }
       });
     }

@@ -29,6 +29,10 @@
               <span>Password</span>
               <input class="form-control" name="password" type="password" autocomplete="current-password" required />
             </label>
+            <label class="field is-hidden" id="otpField">
+              <span>Codice 2FA</span>
+              <input class="form-control" name="otp" type="text" inputmode="numeric" autocomplete="one-time-code" />
+            </label>
             <button class="btn btn-primary" type="submit">Entra</button>
             <div class="text-danger small" id="loginError"></div>
           </form>
@@ -38,9 +42,28 @@
     <script>
       const form = document.getElementById("loginForm");
       const error = document.getElementById("loginError");
+      const otpField = document.getElementById("otpField");
+      let pendingToken = "";
       form.addEventListener("submit", async (event) => {
         event.preventDefault();
         error.textContent = "";
+        if (pendingToken) {
+          const res = await fetch("auth/login-2fa", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              tempToken: pendingToken,
+              otp: form.otp.value.trim(),
+            }),
+          });
+          if (!res.ok) {
+            const info = await res.json().catch(() => ({}));
+            error.textContent = info.error || "Codice non valido";
+            return;
+          }
+          window.location.href = "home";
+          return;
+        }
         const body = {
           username: form.username.value.trim(),
           password: form.password.value,
@@ -53,6 +76,16 @@
         if (!res.ok) {
           const info = await res.json().catch(() => ({}));
           error.textContent = info.error || "Login fallito";
+          return;
+        }
+        const info = await res.json().catch(() => ({}));
+        if (info.requiresOtp) {
+          pendingToken = info.tempToken || "";
+          otpField.classList.remove("is-hidden");
+          form.otp.focus();
+          form.password.disabled = true;
+          form.username.disabled = true;
+          form.querySelector("button[type='submit']").textContent = "Verifica";
           return;
         }
         window.location.href = "home";
