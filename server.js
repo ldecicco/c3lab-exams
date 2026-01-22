@@ -82,6 +82,15 @@ db.exec(`
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(user_id) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS security_events (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    user_id INTEGER,
+    event_type TEXT NOT NULL,
+    ip TEXT,
+    details TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(user_id) REFERENCES users(id)
+  );
   CREATE TABLE IF NOT EXISTS courses (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     name TEXT NOT NULL UNIQUE,
@@ -377,6 +386,21 @@ const SESSION_COOKIE_OPTIONS = (expiresAt) => ({
   expires: expiresAt,
 });
 
+const getRequestIp = (req) => {
+  const forwarded = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim();
+  return forwarded || req.ip || "";
+};
+
+const logSecurityEvent = (req, type, details = "", userId = null) => {
+  try {
+    db.prepare(
+      "INSERT INTO security_events (user_id, event_type, ip, details) VALUES (?, ?, ?, ?)"
+    ).run(userId, type, getRequestIp(req), details || "");
+  } catch (err) {
+    console.warn("[security] log event failed", err.message);
+  }
+};
+
 const csrfProtection = csrf
   ? csrf({
       cookie: {
@@ -594,6 +618,9 @@ router.get("/logout", (req, res) => {
     sameSite: "strict",
     secure: USE_SECURE_COOKIES,
   });
+  if (req.user) {
+    logSecurityEvent(req, "logout", "", req.user.id);
+  }
   res.redirect(BASE_PATH + "/login");
 });
 
@@ -608,11 +635,13 @@ router.post("/auth/login", loginLimiter, (req, res) => {
     .prepare("SELECT id, username, password_hash, role FROM users WHERE username = ?")
     .get(username);
   if (!user || !bcrypt.compareSync(password, user.password_hash)) {
+    logSecurityEvent(req, "login_failed", `username=${username}`);
     res.status(401).json({ error: "Credenziali non valide" });
     return;
   }
   const session = createSession(user.id);
   res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
+  logSecurityEvent(req, "login_success", "", user.id);
   res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
 });
 
@@ -626,6 +655,9 @@ router.post("/auth/logout", (req, res) => {
     sameSite: "strict",
     secure: USE_SECURE_COOKIES,
   });
+  if (req.user) {
+    logSecurityEvent(req, "logout", "", req.user.id);
+  }
   res.json({ ok: true });
 });
 
@@ -1000,6 +1032,7 @@ router.post("/api/users/me/password", requireAuth, (req, res) => {
     .prepare("SELECT id, password_hash FROM users WHERE id = ?")
     .get(userId);
   if (!user || !bcrypt.compareSync(currentPassword, user.password_hash)) {
+    logSecurityEvent(req, "password_change_failed", "", userId);
     res.status(400).json({ error: "Password attuale non valida." });
     return;
   }
@@ -1011,6 +1044,7 @@ router.post("/api/users/me/password", requireAuth, (req, res) => {
   }
   const session = createSession(userId);
   res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
+  logSecurityEvent(req, "password_change", "", userId);
   res.json({ ok: true });
 });
 
@@ -3258,6 +3292,9 @@ router.post("/api/exams/:id/public-access", requireRole("admin", "creator", "eva
               public_access_show_notes = 0
         WHERE id = ?`
     ).run(examId);
+    if (req.user) {
+      logSecurityEvent(req, "public_access_disabled", `examId=${examId}`, req.user.id);
+    }
     res.json({ ok: true });
     return;
   }
@@ -3311,6 +3348,14 @@ router.post("/api/exams/:id/public-access", requireRole("admin", "creator", "eva
             public_access_show_notes = ?
       WHERE id = ?`
   ).run(hash, expiresAt.toISOString(), showNotes ? 1 : 0, examId);
+  if (req.user) {
+    logSecurityEvent(
+      req,
+      "public_access_enabled",
+      `examId=${examId}; expires=${expiresAt.toISOString()}; showNotes=${showNotes ? 1 : 0}`,
+      req.user.id
+    );
+  }
   res.json({ ok: true });
 });
 
