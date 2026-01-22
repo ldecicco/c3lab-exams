@@ -50,16 +50,19 @@ const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
 const toggleShortcutsBtn = document.getElementById("toggleShortcuts");
 const toggleUsersBtn = document.getElementById("toggleUsers");
+const toggleDbBtn = document.getElementById("toggleDb");
 const adminActionButtons = [
   toggleUsersBtn,
   toggleCoursesBtn,
   toggleTopicsBtn,
   toggleShortcutsBtn,
+  toggleDbBtn,
 ].filter(Boolean);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
 const adminShortcutsSection = document.getElementById("adminShortcutsSection");
 const adminUsersSection = document.getElementById("adminUsersSection");
+const adminDbSection = document.getElementById("adminDbSection");
 const adminEmptyState = document.getElementById("adminEmptyState");
 const adminUserNameInput = document.getElementById("adminUserName");
 const adminUserPasswordInput = document.getElementById("adminUserPassword");
@@ -118,6 +121,22 @@ const adminToolbarNew = document.getElementById("adminToolbarNew");
 const adminToolbarDuplicate = document.getElementById("adminToolbarDuplicate");
 const adminToolbarSave = document.getElementById("adminToolbarSave");
 const adminToolbarReset = document.getElementById("adminToolbarReset");
+const adminDbTableSelect = document.getElementById("adminDbTable");
+const adminDbSearch = document.getElementById("adminDbSearch");
+const adminDbLimit = document.getElementById("adminDbLimit");
+const adminDbRefresh = document.getElementById("adminDbRefresh");
+const adminDbExport = document.getElementById("adminDbExport");
+const adminDbStatus = document.getElementById("adminDbStatus");
+const adminDbCount = document.getElementById("adminDbCount");
+const adminDbTableHead = document.getElementById("adminDbTableHead");
+const adminDbTableBody = document.getElementById("adminDbTableBody");
+const adminDbPrev = document.getElementById("adminDbPrev");
+const adminDbNext = document.getElementById("adminDbNext");
+let dbTablesCache = [];
+let dbSearchTimer = null;
+let dbOrderBy = "";
+let dbOrderDir = "ASC";
+let dbOffset = 0;
 const adminPreviewRefresh = document.getElementById("adminPreviewRefresh");
 const adminToolbarBank = document.getElementById("adminToolbarBank");
 const adminSaveStateBadge = document.getElementById("adminSaveState");
@@ -815,6 +834,7 @@ const showAdminSection = (section) => {
     adminCoursesSection,
     adminTopicsSection,
     adminShortcutsSection,
+    adminDbSection,
   ];
   sections.forEach((item) => {
     if (!item) return;
@@ -829,6 +849,7 @@ const showAdminSection = (section) => {
   if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
   if (section === adminShortcutsSection && toggleShortcutsBtn)
     toggleShortcutsBtn.classList.add("is-active");
+  if (section === adminDbSection && toggleDbBtn) toggleDbBtn.classList.add("is-active");
 };
 
 const renderImagePickerList = (images) => {
@@ -877,6 +898,153 @@ const renderImagePickerList = (images) => {
     item.appendChild(details);
     imagePickerList.appendChild(item);
   });
+};
+
+const renderDbTables = (tables) => {
+  if (!adminDbTableSelect) return;
+  adminDbTableSelect.innerHTML = "";
+  if (!tables.length) {
+    const opt = document.createElement("option");
+    opt.value = "";
+    opt.textContent = "Nessuna tabella";
+    adminDbTableSelect.appendChild(opt);
+    adminDbTableSelect.disabled = true;
+    return;
+  }
+  tables.forEach((name) => {
+    const opt = document.createElement("option");
+    opt.value = name;
+    opt.textContent = name;
+    adminDbTableSelect.appendChild(opt);
+  });
+  adminDbTableSelect.disabled = false;
+};
+
+const loadDbTables = async () => {
+  if (!adminDbTableSelect) return;
+  try {
+    const payload = await apiFetch("/api/db/tables");
+    dbTablesCache = payload.tables || [];
+    renderDbTables(dbTablesCache);
+  } catch (err) {
+    if (adminDbStatus) adminDbStatus.textContent = err.message;
+    renderDbTables([]);
+  }
+};
+
+const renderDbRows = ({ columns, rows, total }) => {
+  if (adminDbTableHead) adminDbTableHead.innerHTML = "";
+  if (adminDbTableBody) adminDbTableBody.innerHTML = "";
+  if (adminDbCount) {
+    const shown = rows.length;
+    const start = total ? dbOffset + 1 : 0;
+    const end = total ? dbOffset + shown : 0;
+    adminDbCount.textContent =
+      total !== null ? `Mostrate ${start}-${end} di ${total} righe` : "";
+  }
+  if (!columns || !columns.length) return;
+  if (adminDbTableHead) {
+    const tr = document.createElement("tr");
+    columns.forEach((col) => {
+      const th = document.createElement("th");
+      const name = typeof col === "string" ? col : col.name;
+      th.textContent = name || "";
+      if (name) {
+        th.classList.add("sortable");
+        th.style.cursor = "pointer";
+        if (dbOrderBy === name) {
+          th.textContent = `${name} ${dbOrderDir === "ASC" ? "▲" : "▼"}`;
+        }
+        th.addEventListener("click", () => {
+          if (dbOrderBy === name) {
+            dbOrderDir = dbOrderDir === "ASC" ? "DESC" : "ASC";
+          } else {
+            dbOrderBy = name;
+            dbOrderDir = "ASC";
+          }
+          dbOffset = 0;
+          loadDbRows();
+        });
+      }
+      tr.appendChild(th);
+    });
+    adminDbTableHead.appendChild(tr);
+  }
+  if (adminDbTableBody) {
+    rows.forEach((row) => {
+      const tr = document.createElement("tr");
+      columns.forEach((col) => {
+        const td = document.createElement("td");
+        const name = typeof col === "string" ? col : col.name;
+        const value = row[name];
+        td.textContent = value === null || value === undefined ? "" : String(value);
+        tr.appendChild(td);
+      });
+      adminDbTableBody.appendChild(tr);
+    });
+  }
+  if (adminDbPrev) adminDbPrev.disabled = dbOffset <= 0;
+  if (adminDbNext) adminDbNext.disabled = !total || dbOffset + rows.length >= total;
+};
+
+const loadDbRows = async () => {
+  let table = adminDbTableSelect?.value;
+  if (!table && dbTablesCache.length && adminDbTableSelect) {
+    adminDbTableSelect.value = dbTablesCache[0];
+    table = adminDbTableSelect.value;
+  }
+  if (!table) return;
+  const search = String(adminDbSearch?.value || "").trim();
+  const limit = Number(adminDbLimit?.value || 100);
+  try {
+    if (adminDbStatus) adminDbStatus.textContent = "Caricamento...";
+    const payload = await apiFetch("/api/db/query", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table,
+        search,
+        limit,
+        offset: dbOffset,
+        orderBy: dbOrderBy,
+        orderDir: dbOrderDir,
+      }),
+    });
+    renderDbRows(payload);
+    if (adminDbStatus) adminDbStatus.textContent = "";
+  } catch (err) {
+    if (adminDbStatus) adminDbStatus.textContent = err.message;
+    renderDbRows({ columns: [], rows: [], total: 0 });
+  }
+};
+
+const exportDbCsv = async () => {
+  const table = adminDbTableSelect?.value;
+  if (!table) return;
+  const search = String(adminDbSearch?.value || "").trim();
+  const limit = Number(adminDbLimit?.value || 100);
+  try {
+    const response = await fetch("/api/db/export", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        table,
+        search,
+        limit,
+        orderBy: dbOrderBy,
+        orderDir: dbOrderDir,
+      }),
+    });
+    if (!response.ok) throw new Error("Errore export");
+    const blob = await response.blob();
+    const link = document.createElement("a");
+    link.href = URL.createObjectURL(blob);
+    link.download = `${table}.csv`;
+    link.click();
+    URL.revokeObjectURL(link.href);
+  } catch (err) {
+    if (adminDbStatus) adminDbStatus.textContent = err.message;
+  }
 };
 
 const updateImageFieldState = () => {
@@ -2299,6 +2467,16 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       if (willOpen) loadUsers();
     });
   }
+  if (toggleDbBtn && adminDbSection) {
+    toggleDbBtn.addEventListener("click", () => {
+      const willOpen = adminDbSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminDbSection : null);
+      if (willOpen) {
+        loadDbTables();
+        loadDbRows();
+      }
+    });
+  }
   if (adminUpdateCourseBtn) adminUpdateCourseBtn.addEventListener("click", updateCourse);
   if (adminCancelCourseBtn) adminCancelCourseBtn.addEventListener("click", cancelCourseEdit);
   if (adminUpdateTopicBtn) adminUpdateTopicBtn.addEventListener("click", updateTopic);
@@ -2310,6 +2488,48 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   if (adminCreateUserBtn) adminCreateUserBtn.addEventListener("click", createUser);
   if (adminUpdateUserBtn) adminUpdateUserBtn.addEventListener("click", updateUser);
   if (adminCancelUserBtn) adminCancelUserBtn.addEventListener("click", cancelUserEdit);
+  if (adminDbTableSelect) {
+    adminDbTableSelect.addEventListener("change", () => {
+      dbOffset = 0;
+      dbOrderBy = "";
+      dbOrderDir = "ASC";
+      loadDbRows();
+    });
+  }
+  if (adminDbRefresh)
+    adminDbRefresh.addEventListener("click", () => {
+      dbOffset = 0;
+      loadDbRows();
+    });
+  if (adminDbExport) adminDbExport.addEventListener("click", exportDbCsv);
+  if (adminDbLimit)
+    adminDbLimit.addEventListener("change", () => {
+      dbOffset = 0;
+      loadDbRows();
+    });
+  if (adminDbSearch) {
+    adminDbSearch.addEventListener("input", () => {
+      if (dbSearchTimer) clearTimeout(dbSearchTimer);
+      dbSearchTimer = setTimeout(() => {
+        dbOffset = 0;
+        loadDbRows();
+      }, 250);
+    });
+  }
+  if (adminDbPrev) {
+    adminDbPrev.addEventListener("click", () => {
+      const limit = Number(adminDbLimit?.value || 100);
+      dbOffset = Math.max(0, dbOffset - limit);
+      loadDbRows();
+    });
+  }
+  if (adminDbNext) {
+    adminDbNext.addEventListener("click", () => {
+      const limit = Number(adminDbLimit?.value || 100);
+      dbOffset += limit;
+      loadDbRows();
+    });
+  }
 };
 
 init();

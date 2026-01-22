@@ -759,6 +759,132 @@ router.post("/api/users/me/avatar", requireAuth, (req, res) => {
   res.json({ avatar_path: originalRel, avatar_thumb_path: thumbRel });
 });
 
+router.get("/api/db/tables", requireRole("admin"), (req, res) => {
+  const tables = db
+    .prepare(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name NOT LIKE 'sqlite_%' ORDER BY name"
+    )
+    .all()
+    .map((row) => row.name);
+  res.json({ tables });
+});
+
+const getDbTableColumns = (tableName) => {
+  const rows = db
+    .prepare(`PRAGMA table_info("${tableName.replace(/"/g, '""')}")`)
+    .all();
+  return rows.map((row) => row.name);
+};
+
+router.post("/api/db/query", requireRole("admin"), (req, res) => {
+  const payload = req.body || {};
+  const table = String(payload.table || "").trim();
+  if (!table) {
+    res.status(400).json({ error: "Tabella mancante" });
+    return;
+  }
+  const columns = getDbTableColumns(table);
+  if (!columns.length) {
+    res.status(400).json({ error: "Tabella non valida" });
+    return;
+  }
+  const limit = Math.min(Math.max(Number(payload.limit) || 100, 1), 2000);
+  const offset = Math.max(Number(payload.offset) || 0, 0);
+  const search = String(payload.search || "").trim();
+  const orderBy = String(payload.orderBy || "").trim();
+  const orderDir =
+    String(payload.orderDir || "ASC").toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+  const quotedColumns = columns.map((col) => `"${col.replace(/"/g, '""')}"`);
+  const whereParts = [];
+  const whereParams = [];
+  if (search) {
+    const like = `%${search}%`;
+    columns.forEach((col) => {
+      whereParts.push(`CAST("${col.replace(/"/g, '""')}" AS TEXT) LIKE ?`);
+      whereParams.push(like);
+    });
+  }
+  const whereClause = whereParts.length ? ` WHERE ${whereParts.join(" OR ")}` : "";
+  const orderClause = columns.includes(orderBy)
+    ? ` ORDER BY "${orderBy.replace(/"/g, '""')}" ${orderDir}`
+    : "";
+
+  const total = db
+    .prepare(`SELECT COUNT(*) as total FROM "${table.replace(/"/g, '""')}"${whereClause}`)
+    .get(...whereParams)?.total;
+
+  const rows = db
+    .prepare(
+      `SELECT ${quotedColumns.join(", ")} FROM "${table.replace(/"/g, '""')}"${whereClause}${orderClause} LIMIT ? OFFSET ?`
+    )
+    .all(...whereParams, limit, offset);
+
+  res.json({ columns, rows, total: Number(total || 0) });
+});
+
+router.post("/api/db/export", requireRole("admin"), (req, res) => {
+  const payload = req.body || {};
+  const table = String(payload.table || "").trim();
+  if (!table) {
+    res.status(400).json({ error: "Tabella mancante" });
+    return;
+  }
+  const columns = getDbTableColumns(table);
+  if (!columns.length) {
+    res.status(400).json({ error: "Tabella non valida" });
+    return;
+  }
+  const limit = Math.min(Math.max(Number(payload.limit) || 1000, 1), 10000);
+  const search = String(payload.search || "").trim();
+  const orderBy = String(payload.orderBy || "").trim();
+  const orderDir =
+    String(payload.orderDir || "ASC").toUpperCase() === "DESC" ? "DESC" : "ASC";
+
+  const quotedColumns = columns.map((col) => `"${col.replace(/"/g, '""')}"`);
+  const whereParts = [];
+  const whereParams = [];
+  if (search) {
+    const like = `%${search}%`;
+    columns.forEach((col) => {
+      whereParts.push(`CAST("${col.replace(/"/g, '""')}" AS TEXT) LIKE ?`);
+      whereParams.push(like);
+    });
+  }
+  const whereClause = whereParts.length ? ` WHERE ${whereParts.join(" OR ")}` : "";
+  const orderClause = columns.includes(orderBy)
+    ? ` ORDER BY "${orderBy.replace(/"/g, '""')}" ${orderDir}`
+    : "";
+
+  const rows = db
+    .prepare(
+      `SELECT ${quotedColumns.join(", ")} FROM "${table.replace(/"/g, '""')}"${whereClause}${orderClause} LIMIT ?`
+    )
+    .all(...whereParams, limit);
+
+  const escapeCsv = (value) => {
+    if (value === null || value === undefined) return "";
+    const text = String(value);
+    if (text.includes('"') || text.includes(",") || text.includes("\n")) {
+      return `"${text.replace(/"/g, '""')}"`;
+    }
+    return text;
+  };
+
+  const csvLines = [];
+  csvLines.push(columns.map(escapeCsv).join(","));
+  rows.forEach((row) => {
+    csvLines.push(columns.map((col) => escapeCsv(row[col])).join(","));
+  });
+
+  res.setHeader("Content-Type", "text/csv; charset=utf-8");
+  res.setHeader(
+    "Content-Disposition",
+    `attachment; filename="${table}.csv"`
+  );
+  res.send(csvLines.join("\n"));
+});
+
 router.post("/api/users/me/password", requireAuth, (req, res) => {
   const userId = req.user.id;
   const currentPassword = String(req.body.currentPassword || "");

@@ -71,6 +71,10 @@
             <i class="fa-regular fa-image"></i>
             Immagini
           </button>
+          <button class="btn btn-outline-secondary" type="button" id="toggleDb">
+            <i class="fa-solid fa-database"></i>
+            Database
+          </button>
         </div>
       </div>
 
@@ -218,6 +222,63 @@
           <div class="text-secondary small" id="adminUserStatus"></div>
         </div>
         <div id="adminUserList" class="user-grid"></div>
+      </section>
+
+      <section class="card shadow-sm is-hidden" id="adminDbSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Database</h2>
+          <p class="text-secondary mb-0">Consulta le tabelle SQLite in sola lettura.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Tabella</span>
+            <select id="adminDbTable" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Filtro testo</span>
+            <input id="adminDbSearch" class="form-control" type="text" placeholder="Cerca nelle colonne" />
+          </label>
+          <label class="field">
+            <span>Limite righe</span>
+            <select id="adminDbLimit" class="form-select">
+              <option value="50">50</option>
+              <option value="100" selected>100</option>
+              <option value="250">250</option>
+              <option value="500">500</option>
+              <option value="1000">1000</option>
+            </select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-secondary" id="adminDbRefresh" type="button">
+            <i class="fa-solid fa-rotate"></i>
+            Aggiorna
+          </button>
+          <button class="btn btn-outline-primary" id="adminDbExport" type="button">
+            <i class="fa-solid fa-file-csv"></i>
+            Esporta CSV
+          </button>
+          <div class="text-secondary small" id="adminDbStatus"></div>
+        </div>
+        <div class="list-panel">
+          <div class="text-secondary small mb-2" id="adminDbCount"></div>
+          <div class="table-wrap">
+            <table class="table table-striped table-sm align-middle">
+              <thead id="adminDbTableHead"></thead>
+              <tbody id="adminDbTableBody"></tbody>
+            </table>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline-secondary" id="adminDbPrev" type="button">
+              <i class="fa-solid fa-chevron-left"></i>
+              Precedente
+            </button>
+            <button class="btn btn-outline-secondary" id="adminDbNext" type="button">
+              Successiva
+              <i class="fa-solid fa-chevron-right"></i>
+            </button>
+          </div>
+        </div>
       </section>
 
       <div class="empty-state" id="adminEmptyState">
