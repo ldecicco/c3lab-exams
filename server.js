@@ -524,7 +524,12 @@ app.use(loadUser);
 
 app.use((req, res, next) => {
   if (!req.user || req.user.totpEnabled) return next();
-  if (!req.path.startsWith("/api") && !req.path.startsWith("/auth")) return next();
+  const rawPath = req.path || "";
+  const normalizedPath =
+    BASE_PATH && rawPath.startsWith(BASE_PATH)
+      ? rawPath.slice(BASE_PATH.length) || "/"
+      : rawPath;
+  if (!normalizedPath.startsWith("/api") && !normalizedPath.startsWith("/auth")) return next();
   const allowed = [
     "/auth/logout",
     "/auth/me",
@@ -533,14 +538,18 @@ app.use((req, res, next) => {
     "/api/2fa/disable",
     "/api/users/me/password",
   ];
-  if (allowed.includes(req.path)) return next();
+  if (allowed.includes(normalizedPath)) return next();
   res.status(403).json({ error: "2FA richiesto" });
 });
 
 app.use((req, res, next) => {
   if (!req.user || req.user.totpEnabled) return next();
   if (req.method !== "GET") return next();
-  const pathOnly = req.path || "";
+  const rawPath = req.path || "";
+  const pathOnly =
+    BASE_PATH && rawPath.startsWith(BASE_PATH)
+      ? rawPath.slice(BASE_PATH.length) || "/"
+      : rawPath;
   const allowedPrefixes = ["/2fa-setup", "/logout", "/auth", "/api/2fa"];
   if (allowedPrefixes.some((prefix) => pathOnly.startsWith(prefix))) return next();
   if (pathOnly.includes(".")) return next();
