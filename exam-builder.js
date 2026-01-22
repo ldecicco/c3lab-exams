@@ -1683,6 +1683,7 @@ const generateTraces = async () => {
     });
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
+      if (info.details) console.error("[generate-traces]", info.details);
       hideLoadingToast();
       showToast(info.error || "Errore generazione tracce", "error");
       if (pdfStatus) {

@@ -4178,7 +4178,11 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
       answersName: "tracce-answers.pdf",
     });
   } catch (err) {
-    res.status(500).json({ error: err.message || "Errore generazione tracce" });
+    console.error("[generate-traces]", err);
+    res.status(500).json({
+      error: err.message || "Errore generazione tracce",
+      details: err.stack || "",
+    });
   }
 });
 
