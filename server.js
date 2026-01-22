@@ -4214,6 +4214,9 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
   }
 });
 
+if (BASE_PATH) {
+  app.use(BASE_PATH, express.static(path.join(__dirname)));
+}
 app.use(express.static(path.join(__dirname)));
 
 app.listen(PORT, () => {
