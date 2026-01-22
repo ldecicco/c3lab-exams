@@ -175,7 +175,12 @@
               </div>
             </details>
             <div class="section-divider"></div>
-            <div class="section-label">Testo domanda</div>
+            <div class="section-header">
+              <div class="section-label">Testo domanda</div>
+              <button class="btn btn-outline-secondary btn-sm" type="button" id="adminQuestionNoteBtn">
+                Note
+              </button>
+            </div>
             <div class="shortcut-toolbar">
               <span class="shortcut-label">Scorciatoie</span>
               <div class="chip-row" id="adminShortcutBar"></div>
@@ -310,10 +315,6 @@
       <div class="modal-body">
         <div class="grid">
           <label class="field">
-            <span>Corso</span>
-            <select id="bankCourse" class="form-select"></select>
-          </label>
-          <label class="field">
             <span>Argomento</span>
             <select id="bankTopic" class="form-select"></select>
           </label>
@@ -337,16 +338,47 @@
       </div>
     </div>
 
-    <div class="modal-backdrop is-hidden" id="questionPreviewBackdrop"></div>
-    <div class="modal-panel is-hidden" id="questionPreviewModal" role="dialog" aria-modal="true" aria-labelledby="questionPreviewTitle">
+    <div class="modal-backdrop is-hidden" id="questionNoteBackdrop"></div>
+    <div class="modal-panel is-hidden" id="questionNoteModal" role="dialog" aria-modal="true" aria-labelledby="questionNoteTitle">
       <div class="modal-header">
-        <h3 class="h5 mb-0" id="questionPreviewTitle">Anteprima domanda</h3>
-        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="questionPreviewClose" aria-label="Chiudi">
+        <h3 class="h5 mb-0" id="questionNoteTitle">Note domanda</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="questionNoteClose" aria-label="Chiudi">
           <i class="fa-solid fa-xmark"></i>
         </button>
       </div>
       <div class="modal-body">
-        <div class="question-preview" id="questionPreviewBody"></div>
+        <label class="field">
+          <span>Nota (LaTeX)</span>
+          <textarea id="questionNoteText" class="form-control" rows="4"></textarea>
+        </label>
+        <div class="latex-preview-block" id="questionNotePreview"></div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-danger" type="button" id="questionNoteDelete">Elimina nota</button>
+          <button class="btn btn-outline-secondary" type="button" id="questionNoteCancel">Annulla</button>
+          <button class="btn btn-primary" type="button" id="questionNoteSave">Salva</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="answerNoteBackdrop"></div>
+    <div class="modal-panel is-hidden" id="answerNoteModal" role="dialog" aria-modal="true" aria-labelledby="answerNoteTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="answerNoteTitle">Note risposta</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="answerNoteClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <label class="field">
+          <span>Nota (LaTeX)</span>
+          <textarea id="answerNoteText" class="form-control" rows="4"></textarea>
+        </label>
+        <div class="latex-preview-block" id="answerNotePreview"></div>
+        <div class="modal-footer">
+          <button class="btn btn-outline-danger" type="button" id="answerNoteDelete">Elimina nota</button>
+          <button class="btn btn-outline-secondary" type="button" id="answerNoteCancel">Annulla</button>
+          <button class="btn btn-primary" type="button" id="answerNoteSave">Salva</button>
+        </div>
       </div>
     </div>
 

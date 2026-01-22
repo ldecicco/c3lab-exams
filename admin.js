@@ -129,7 +129,25 @@ const questionPreviewBackdrop = document.getElementById("questionPreviewBackdrop
 const questionPreviewModal = document.getElementById("questionPreviewModal");
 const questionPreviewCloseBtn = document.getElementById("questionPreviewClose");
 const questionPreviewBody = document.getElementById("questionPreviewBody");
+const adminQuestionNoteBtn = document.getElementById("adminQuestionNoteBtn");
+const questionNoteBackdrop = document.getElementById("questionNoteBackdrop");
+const questionNoteModal = document.getElementById("questionNoteModal");
+const questionNoteClose = document.getElementById("questionNoteClose");
+const questionNoteCancel = document.getElementById("questionNoteCancel");
+const questionNoteDelete = document.getElementById("questionNoteDelete");
+const questionNoteSave = document.getElementById("questionNoteSave");
+const questionNoteText = document.getElementById("questionNoteText");
+const questionNotePreview = document.getElementById("questionNotePreview");
+const answerNoteBackdrop = document.getElementById("answerNoteBackdrop");
+const answerNoteModal = document.getElementById("answerNoteModal");
+const answerNoteClose = document.getElementById("answerNoteClose");
+const answerNoteCancel = document.getElementById("answerNoteCancel");
+const answerNoteDelete = document.getElementById("answerNoteDelete");
+const answerNoteSave = document.getElementById("answerNoteSave");
+const answerNoteText = document.getElementById("answerNoteText");
+const answerNotePreview = document.getElementById("answerNotePreview");
 let editingQuestionId = null;
+let editingAnswerNoteIndex = null;
 let topicOptions = [];
 let userCache = [];
 let editingCourseId = null;
@@ -595,7 +613,14 @@ const closeImagePreview = () => {
   if (imagePreviewImg) imagePreviewImg.src = "";
 };
 
-const openBankModal = () => {
+const openBankModal = async () => {
+  const courseId = Number(activeCourseId);
+  if (Number.isFinite(courseId)) {
+    await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
+  } else {
+    renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
+  }
+  await refreshQuestionBank();
   if (bankModalBackdrop) bankModalBackdrop.classList.remove("is-hidden");
   if (bankModal) bankModal.classList.remove("is-hidden");
 };
@@ -614,6 +639,55 @@ const closeQuestionPreviewModal = () => {
   if (questionPreviewBackdrop) questionPreviewBackdrop.classList.add("is-hidden");
   if (questionPreviewModal) questionPreviewModal.classList.add("is-hidden");
   if (questionPreviewBody) questionPreviewBody.innerHTML = "";
+};
+
+const openQuestionNoteModal = () => {
+  if (!questionNoteModal || !questionNoteBackdrop) return;
+  if (questionNoteText) questionNoteText.value = adminQuestionState.note || "";
+  if (questionNotePreview) {
+    renderMathPreview(adminQuestionState.note || "", questionNotePreview, null);
+  }
+  questionNoteModal.classList.remove("is-hidden");
+  questionNoteBackdrop.classList.remove("is-hidden");
+};
+
+const closeQuestionNoteModal = () => {
+  if (questionNoteModal) questionNoteModal.classList.add("is-hidden");
+  if (questionNoteBackdrop) questionNoteBackdrop.classList.add("is-hidden");
+};
+
+const openAnswerNoteModal = (index) => {
+  if (!answerNoteModal || !answerNoteBackdrop) return;
+  const answer = adminQuestionState.answers[index];
+  editingAnswerNoteIndex = Number.isFinite(index) ? index : null;
+  if (answerNoteText) answerNoteText.value = answer?.note || "";
+  if (answerNotePreview) {
+    renderMathPreview(answer?.note || "", answerNotePreview, null);
+  }
+  answerNoteModal.classList.remove("is-hidden");
+  answerNoteBackdrop.classList.remove("is-hidden");
+};
+
+const closeAnswerNoteModal = () => {
+  if (answerNoteModal) answerNoteModal.classList.add("is-hidden");
+  if (answerNoteBackdrop) answerNoteBackdrop.classList.add("is-hidden");
+  editingAnswerNoteIndex = null;
+};
+
+const updateQuestionNotePreview = () => {
+  if (!questionNotePreview || !questionNoteText) return;
+  renderMathPreview(questionNoteText.value || "", questionNotePreview, null);
+};
+
+const updateAnswerNotePreview = () => {
+  if (!answerNotePreview || !answerNoteText) return;
+  renderMathPreview(answerNoteText.value || "", answerNotePreview, null);
+};
+
+const updateQuestionNoteButton = () => {
+  if (!adminQuestionNoteBtn) return;
+  const hasNote = String(adminQuestionState.note || "").trim().length > 0;
+  adminQuestionNoteBtn.classList.toggle("is-active", hasNote);
 };
 
 const setQuestionStatus = (message, tone = "info") => {
@@ -658,12 +732,14 @@ const setSaveState = (state) => {
 const getQuestionSnapshot = () => {
   const answers = adminQuestionState.answers.map((answer) => ({
     text: String(answer.text || "").trim(),
+    note: String(answer.note || "").trim(),
     correct: Boolean(answer.correct),
   }));
   const topicIds = [...adminQuestionState.topicIds].sort((a, b) => a - b);
   return JSON.stringify({
     type: adminQuestionState.type,
     text: String(adminQuestionState.text || "").trim(),
+    note: String(adminQuestionState.note || "").trim(),
     topicIds,
     image: String(adminQuestionState.image || "").trim(),
     imageLayoutEnabled: Boolean(adminQuestionState.imageLayoutEnabled),
@@ -850,6 +926,7 @@ const closeImagePicker = () => {
 };
 
 const openImageUploadModal = () => {
+  closeImagePicker();
   if (imageUploadStatus) imageUploadStatus.textContent = "";
   if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
   if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
@@ -1109,6 +1186,7 @@ const updateAdminPreviews = () => {
 const adminQuestionState = {
   type: "singola",
   text: "",
+  note: "",
   topicIds: [],
   image: "",
   imageLayoutEnabled: false,
@@ -1116,10 +1194,10 @@ const adminQuestionState = {
   imageRight: "0.5\\linewidth",
   imageScale: "0.96\\linewidth",
   answers: [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
   ],
 };
 
@@ -1154,6 +1232,15 @@ const renderAdminAnswers = () => {
       adminQuestionState.answers[idx].text = input.value;
       updateAdminPreviews();
     });
+    const noteBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Note");
+    noteBtn.type = "button";
+    noteBtn.disabled = disabled;
+    if (answer.note && answer.note.trim()) {
+      noteBtn.classList.add("is-active");
+    }
+    noteBtn.addEventListener("click", () => {
+      openAnswerNoteModal(idx);
+    });
     const remove = createEl("button", "btn btn-outline-danger btn-sm", "Rimuovi");
     remove.type = "button";
     remove.disabled = disabled;
@@ -1163,6 +1250,7 @@ const renderAdminAnswers = () => {
     });
     row.appendChild(check);
     row.appendChild(input);
+    row.appendChild(noteBtn);
     row.appendChild(remove);
     adminAnswers.appendChild(row);
   });
@@ -1173,6 +1261,7 @@ const resetAdminQuestion = () => {
   editingQuestionId = null;
   adminQuestionState.type = "singola";
   adminQuestionState.text = "";
+  adminQuestionState.note = "";
   adminQuestionState.topicIds = [];
   adminQuestionState.image = "";
   adminQuestionState.imageLayoutEnabled = false;
@@ -1181,10 +1270,10 @@ const resetAdminQuestion = () => {
   adminQuestionState.imageScale = "0.96\\linewidth";
   adminQuestionState.image = "";
   adminQuestionState.answers = [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
+    { text: "", note: "", correct: false },
   ];
   if (adminQuestionType) {
     const radio = adminQuestionType.querySelector('input[value="singola"]');
@@ -1205,6 +1294,7 @@ const resetAdminQuestion = () => {
   if (adminImageAccordion) adminImageAccordion.open = false;
   renderAdminAnswers();
   updateAdminPreviews();
+  updateQuestionNoteButton();
   if (adminEditBadge) adminEditBadge.classList.add("is-hidden");
   if (adminEditBadgeTop) adminEditBadgeTop.classList.add("is-hidden");
   lastSavedSnapshot = getQuestionSnapshot();
@@ -1276,6 +1366,7 @@ const updateTopicGate = () => {
   if (adminShortcutBar) adminShortcutBar.classList.toggle("editor-disabled", !enabled);
   if (adminShortcutAddBtn) adminShortcutAddBtn.disabled = !enabled;
   if (adminToolbarSave) adminToolbarSave.disabled = !enabled;
+  if (adminQuestionNoteBtn) adminQuestionNoteBtn.disabled = !enabled;
   const answersBlock = adminAnswers?.closest(".answers-builder");
   if (answersBlock) answersBlock.classList.toggle("editor-disabled", !enabled);
   if (adminAddAnswerBtn) adminAddAnswerBtn.disabled = !enabled;
@@ -1444,26 +1535,17 @@ const renderBankList = (questions) => {
       meta.textContent = "Nessun argomento";
     }
     const actions = createEl("div", "list-actions");
-    const previewBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Anteprima");
-    previewBtn.type = "button";
-    previewBtn.addEventListener("click", async () => {
-      try {
-        const payload = await apiFetch(`/api/questions/${question.id}`);
-        renderQuestionPreview(payload.question);
-        openQuestionPreviewModal();
-      } catch (err) {
-        if (adminQuestionStatus) adminQuestionStatus.textContent = err.message || "Errore anteprima.";
-      }
-    });
     const dupBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Duplica");
     dupBtn.type = "button";
     dupBtn.addEventListener("click", () => duplicateQuestion(question.id));
-    actions.appendChild(previewBtn);
     actions.appendChild(dupBtn);
     if (!isLocked) {
       const editBtn = createEl("button", "btn btn-outline-primary btn-sm", "Modifica");
       editBtn.type = "button";
-      editBtn.addEventListener("click", () => loadQuestionForEdit(question.id));
+      editBtn.addEventListener("click", () => {
+        closeBankModal();
+        loadQuestionForEdit(question.id);
+      });
       const delBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
       delBtn.type = "button";
       if (isUsed) {
@@ -1797,7 +1879,11 @@ const deleteTopic = async (id) => {
 const refreshQuestionBank = async () => {
   const courseRaw = bankCourseSelect?.value || "";
   const topicRaw = bankTopicSelect?.value || "";
-  const courseId = courseRaw === "" ? null : Number(courseRaw);
+  const fallbackCourseId = Number.isFinite(Number(activeCourseId))
+    ? Number(activeCourseId)
+    : null;
+  const courseId =
+    courseRaw === "" ? fallbackCourseId : Number(courseRaw);
   const topicId = topicRaw === "" ? null : Number(topicRaw);
   const search = String(bankSearchInput?.value || "").trim();
   const params = new URLSearchParams();
@@ -1817,10 +1903,13 @@ const refreshQuestionBank = async () => {
 };
 
 const duplicateQuestion = async (questionId) => {
+  const courseId = Number.isFinite(Number(activeCourseId))
+    ? Number(activeCourseId)
+    : Number(bankCourseSelect?.value || "");
   await apiFetch(`/api/questions/${questionId}/duplicate`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ courseId: Number(bankCourseSelect?.value || "") }),
+    body: JSON.stringify({ courseId }),
   });
   await refreshQuestionBank();
 };
@@ -1862,6 +1951,7 @@ const loadQuestionForEdit = async (questionId) => {
   }
   adminQuestionState.type = q.type || "singola";
   adminQuestionState.text = q.text || "";
+  adminQuestionState.note = q.note || "";
   adminQuestionState.image = q.imagePath || "";
   adminQuestionState.imageLayoutEnabled = Boolean(q.imageLayoutEnabled);
   adminQuestionState.imageLeft = q.imageLeftWidth || "0.5\\linewidth";
@@ -1869,6 +1959,7 @@ const loadQuestionForEdit = async (questionId) => {
   adminQuestionState.imageScale = q.imageScale || "0.96\\linewidth";
   adminQuestionState.answers = (q.answers || []).map((ans) => ({
     text: ans.text,
+    note: ans.note || "",
     correct: Boolean(ans.isCorrect),
   }));
   adminQuestionState.topicIds = q.topicIds || [];
@@ -1880,6 +1971,7 @@ const loadQuestionForEdit = async (questionId) => {
   updateImageLayoutState();
   updateImagePickButton();
   updateAdminPreviews();
+  updateQuestionNoteButton();
   lastSavedSnapshot = getQuestionSnapshot();
   setSaveState("saved");
 };
@@ -1911,6 +2003,7 @@ const saveAdminQuestion = async () => {
     courseId,
     question: {
       text,
+      note: String(adminQuestionState.note || "").trim(),
       type: adminQuestionState.type,
       imagePath: String(adminQuestionState.image || "").trim(),
       imageLayoutEnabled: Boolean(adminQuestionImageLayout?.checked),
@@ -1920,6 +2013,7 @@ const saveAdminQuestion = async () => {
       topics: Array.from(new Set(topics)),
       answers: answers.map((answer) => ({
         text: answer.text.trim(),
+        note: String(answer.note || "").trim(),
         isCorrect: Boolean(answer.correct),
       })),
     },
@@ -1977,7 +2071,7 @@ const init = async () => {
   if (adminAddTopicBtn) adminAddTopicBtn.addEventListener("click", createTopic);
   if (adminAddAnswerBtn) {
     adminAddAnswerBtn.addEventListener("click", () => {
-      adminQuestionState.answers.push({ text: "", correct: false });
+      adminQuestionState.answers.push({ text: "", note: "", correct: false });
       renderAdminAnswers();
     });
   }
@@ -2002,6 +2096,53 @@ if (adminToolbarSave) {
   if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModal);
 if (questionPreviewCloseBtn) questionPreviewCloseBtn.addEventListener("click", closeQuestionPreviewModal);
 if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", closeQuestionPreviewModal);
+  if (adminQuestionNoteBtn) adminQuestionNoteBtn.addEventListener("click", openQuestionNoteModal);
+  if (questionNoteClose) questionNoteClose.addEventListener("click", closeQuestionNoteModal);
+  if (questionNoteCancel) questionNoteCancel.addEventListener("click", closeQuestionNoteModal);
+  if (questionNoteBackdrop) questionNoteBackdrop.addEventListener("click", closeQuestionNoteModal);
+  if (questionNoteText) questionNoteText.addEventListener("input", updateQuestionNotePreview);
+  if (questionNoteSave) {
+    questionNoteSave.addEventListener("click", () => {
+      adminQuestionState.note = String(questionNoteText?.value || "").trim();
+      closeQuestionNoteModal();
+      updateQuestionNoteButton();
+      updateSaveStateFromSnapshot();
+    });
+  }
+  if (questionNoteDelete) {
+    questionNoteDelete.addEventListener("click", () => {
+      if (questionNoteText) questionNoteText.value = "";
+      adminQuestionState.note = "";
+      updateQuestionNotePreview();
+      updateQuestionNoteButton();
+      updateSaveStateFromSnapshot();
+    });
+  }
+  if (answerNoteClose) answerNoteClose.addEventListener("click", closeAnswerNoteModal);
+  if (answerNoteCancel) answerNoteCancel.addEventListener("click", closeAnswerNoteModal);
+  if (answerNoteBackdrop) answerNoteBackdrop.addEventListener("click", closeAnswerNoteModal);
+  if (answerNoteText) answerNoteText.addEventListener("input", updateAnswerNotePreview);
+  if (answerNoteSave) {
+    answerNoteSave.addEventListener("click", () => {
+      if (!Number.isFinite(editingAnswerNoteIndex)) return;
+      adminQuestionState.answers[editingAnswerNoteIndex].note = String(
+        answerNoteText?.value || ""
+      ).trim();
+      closeAnswerNoteModal();
+      renderAdminAnswers();
+      updateSaveStateFromSnapshot();
+    });
+  }
+  if (answerNoteDelete) {
+    answerNoteDelete.addEventListener("click", () => {
+      if (!Number.isFinite(editingAnswerNoteIndex)) return;
+      adminQuestionState.answers[editingAnswerNoteIndex].note = "";
+      if (answerNoteText) answerNoteText.value = "";
+      updateAnswerNotePreview();
+      renderAdminAnswers();
+      updateSaveStateFromSnapshot();
+    });
+  }
   if (adminShortcutAddBtn) adminShortcutAddBtn.addEventListener("click", openShortcutModal);
   if (shortcutModalClose) shortcutModalClose.addEventListener("click", closeShortcutModal);
   if (shortcutModalBackdrop) shortcutModalBackdrop.addEventListener("click", closeShortcutModal);
@@ -2083,6 +2224,15 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
     imagePickerNewBtn.addEventListener("click", () => {
       closeImagePicker();
       openImageUploadModal();
+    });
+  }
+  if (imagePickerList) {
+    imagePickerList.addEventListener("click", (event) => {
+      const btn = event.target?.closest?.("button");
+      if (!btn) return;
+      const label = String(btn.textContent || "").trim().toLowerCase();
+      if (label !== "modifica") return;
+      closeImagePicker();
     });
   }
   if (imagePickerCloseBtn) imagePickerCloseBtn.addEventListener("click", closeImagePicker);

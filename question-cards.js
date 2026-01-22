@@ -8,6 +8,7 @@
 
   const normalizeQuestion = (question) => ({
     text: question.text || "",
+    note: question.note || "",
     image:
       question.image ||
       question.imagePath ||
@@ -30,12 +31,21 @@
             if (target) target.textContent = text;
           };
     const answersMode = options.answersMode || "full";
-    const { text, image, imageThumbnail, answers } = normalizeQuestion(question);
+    const { text, note, image, imageThumbnail, answers } = normalizeQuestion(question);
 
     container.innerHTML = "";
     const textBlock = createEl("div", "selected-question-text");
     renderMath(text, textBlock);
     container.appendChild(textBlock);
+
+    if (note) {
+      const noteWrap = createEl("div", "public-question-note");
+      noteWrap.innerHTML = "<strong>Nota:</strong>";
+      const noteBody = createEl("div", "public-question-note-body");
+      renderMath(note, noteBody);
+      noteWrap.appendChild(noteBody);
+      container.appendChild(noteWrap);
+    }
 
     const previewSrc = imageThumbnail || image;
     if (previewSrc) {
@@ -59,6 +69,14 @@
       renderMath(answer.text || "", textEl);
       row.appendChild(label);
       row.appendChild(textEl);
+      if (answer.note) {
+        const noteWrap = createEl("div", "selected-answer-note");
+        noteWrap.innerHTML = "<strong>Nota:</strong>";
+        const noteBody = createEl("div", "selected-answer-note-body");
+        renderMath(answer.note || "", noteBody);
+        noteWrap.appendChild(noteBody);
+        row.appendChild(noteWrap);
+      }
       if (answer.isCorrect || answer.correct || answer.is_correct) {
         const tick = createEl("span", "answer-tick");
         tick.innerHTML =

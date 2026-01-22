@@ -30,6 +30,7 @@ const IMAGE_LAYOUT_PRESETS = {
 let currentExamId = null;
 let currentExamLocked = false;
 let currentExamHasResults = false;
+let activeCourseId = null;
 let autosaveTimer = null;
 let currentStep = 1;
 const totalSteps = 3;
@@ -621,11 +622,12 @@ const resetExamState = () => {
   clearTimeout(autosaveTimer);
   autosaveTimer = null;
   state.meta.examName = "";
-  state.meta.courseId = null;
+  state.meta.courseId = Number.isFinite(activeCourseId) ? activeCourseId : null;
   state.meta.isDraft = true;
   courseTopics = [];
   state.questions = [];
   nextQuestionId = 1;
+  state.meta.date = normalizeDateToInput(state.meta.date || "");
   renderSelectedQuestions();
   renderLatex();
   if (examStatus) examStatus.textContent = "";
@@ -1129,6 +1131,11 @@ const lockExam = async () => {
     return;
   }
   try {
+    if (lockExamBtn) {
+      lockExamBtn.disabled = true;
+      lockExamBtn.classList.add("is-loading");
+    }
+    showToast("Chiusura traccia in corso...", "info");
     await apiFetch(`/api/exams/${currentExamId}/lock`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -1143,6 +1150,8 @@ const lockExam = async () => {
     await loadExamHistory();
   } catch (err) {
     if (examStatus) examStatus.textContent = err.message;
+  } finally {
+    if (lockExamBtn) lockExamBtn.classList.remove("is-loading");
   }
 };
 
@@ -1727,6 +1736,7 @@ const init = async () => {
   }
   if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
   if (mainLayout) mainLayout.classList.remove("is-hidden");
+  activeCourseId = activeCourse.id;
   if (!state.meta.courseId) {
     state.meta.courseId = activeCourse.id;
   }

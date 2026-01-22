@@ -157,6 +157,7 @@ db.exec(`
     exam_id INTEGER NOT NULL,
     title TEXT,
     result_date TEXT,
+    target_top_grade REAL DEFAULT 30,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(exam_id) REFERENCES exams(id)
@@ -170,6 +171,7 @@ db.exec(`
     versione INTEGER,
     answers_json TEXT NOT NULL,
     overrides_json TEXT,
+    normalized_score REAL,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     UNIQUE(session_id, matricola),
@@ -201,12 +203,17 @@ ensureColumn("exams", "mapping_json", "TEXT");
 ensureColumn("exams", "public_access_enabled", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("exams", "public_access_password_hash", "TEXT");
 ensureColumn("exams", "public_access_expires_at", "TEXT");
+ensureColumn("exams", "public_access_show_notes", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("images", "source_name", "TEXT");
 ensureColumn("images", "source_path", "TEXT");
 ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");
 ensureColumn("users", "avatar_path", "TEXT");
 ensureColumn("users", "avatar_thumb_path", "TEXT");
+ensureColumn("questions", "note", "TEXT");
+ensureColumn("answers", "note", "TEXT");
+ensureColumn("exam_sessions", "target_top_grade", "REAL DEFAULT 30");
+ensureColumn("exam_session_students", "normalized_score", "REAL");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 const isQuestionLocked = (questionId) =>
@@ -752,6 +759,12 @@ app.get("/api/public-exams", (req, res) => {
          JOIN courses c ON c.id = e.course_id
         WHERE e.public_access_enabled = 1
           AND (e.public_access_expires_at IS NULL OR e.public_access_expires_at > datetime('now'))
+          AND EXISTS (
+            SELECT 1
+            FROM exam_session_students ess
+            JOIN exam_sessions es ON es.id = ess.session_id
+           WHERE es.exam_id = e.id
+          )
         ORDER BY e.date DESC, e.updated_at DESC`
     )
     .all();
@@ -768,6 +781,14 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
     .prepare(
       `SELECT e.id, e.title, e.date, e.mapping_json, e.public_access_enabled,
               e.public_access_password_hash, e.public_access_expires_at,
+              e.public_access_show_notes,
+              EXISTS (
+                SELECT 1
+                  FROM exam_session_students ess
+                  JOIN exam_sessions es ON es.id = ess.session_id
+                 WHERE es.exam_id = e.id
+                 LIMIT 1
+              ) AS has_results,
               c.name AS course_name
          FROM exams e
          JOIN courses c ON c.id = e.course_id
@@ -857,9 +878,11 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
     ? Math.round(rawGrade * factor)
     : Math.round(rawGrade);
 
+  const allowNotes = Boolean(exam.public_access_show_notes) && Boolean(exam.has_results);
+
   const questionRows = db
     .prepare(
-      `SELECT eq.position, q.id, q.text, q.type
+      `SELECT eq.position, q.id, q.text, q.note, q.type
          FROM exam_questions eq
          JOIN questions q ON q.id = eq.question_id
         WHERE eq.exam_id = ?
@@ -869,12 +892,13 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
   const questions = questionRows.map((row) => {
     const answers = db
       .prepare(
-        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+        "SELECT position, text, note, is_correct FROM answers WHERE question_id = ? ORDER BY position"
       )
       .all(row.id)
       .map((ans) => ({
         position: ans.position,
         text: ans.text,
+        note: allowNotes ? ans.note || "" : "",
         isCorrect: Boolean(ans.is_correct),
       }));
     const topics = db
@@ -891,6 +915,7 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
       id: row.id,
       position: row.position,
       text: row.text,
+      note: allowNotes ? row.note || "" : "",
       type: row.type,
       answers,
       topics,
@@ -946,6 +971,7 @@ const getPublicResultsPayload = ({ examId, matricola, password }) => {
       index: displayedIndex + 1,
       text: q.text,
       type: q.type,
+      note: q.note || "",
       topics: q.topics || [],
       answers: displayedAnswers,
       selectedLetters,
@@ -2438,7 +2464,7 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const havingSql = unusedOnly ? "HAVING is_used = 0" : "";
   const stmt = db.prepare(`
-    SELECT q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+    SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
            q.image_left_width, q.image_right_width, q.image_scale,
            i.thumbnail_path AS image_thumbnail_path,
            GROUP_CONCAT(DISTINCT t.name) AS topics,
@@ -2479,12 +2505,13 @@ app.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
     if (!includeAnswers) return base;
     const answers = db
       .prepare(
-        "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+        "SELECT position, text, note, is_correct FROM answers WHERE question_id = ? ORDER BY position"
       )
       .all(row.id)
       .map((ans) => ({
         position: ans.position,
         text: ans.text,
+        note: ans.note || "",
         isCorrect: Boolean(ans.is_correct),
       }));
     return { ...base, answers };
@@ -2516,9 +2543,9 @@ app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, 
     return;
   }
   const requestedCourseId = Number((req.body || {}).courseId);
-  const question = db
+    const question = db
     .prepare(
-      `SELECT q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+      `SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
               q.image_left_width, q.image_right_width, q.image_scale,
               i.thumbnail_path AS image_thumbnail_path
          FROM questions q
@@ -2542,11 +2569,12 @@ app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, 
     .map((row) => row.name);
   const answers = db
     .prepare(
-      "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      "SELECT position, text, note, is_correct FROM answers WHERE question_id = ? ORDER BY position"
     )
     .all(id)
     .map((row) => ({
       text: row.text,
+      note: row.note || "",
       isCorrect: Boolean(row.is_correct),
     }));
   const courseRow = db
@@ -2566,6 +2594,7 @@ app.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (req, 
   const questionId = insertQuestion(
     {
       text: question.text,
+      note: question.note || "",
       type: question.type,
       imagePath: question.image_path,
       imageLayoutEnabled: Boolean(question.image_layout_enabled),
@@ -2606,12 +2635,13 @@ app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   const tx = db.transaction(() => {
     db.prepare(
       `UPDATE questions
-          SET text = ?, type = ?, image_path = ?, image_layout_enabled = ?,
+          SET text = ?, note = ?, type = ?, image_path = ?, image_layout_enabled = ?,
               image_left_width = ?, image_right_width = ?, image_scale = ?,
               updated_at = datetime('now')
         WHERE id = ?`
     ).run(
       question.text,
+      question.note || null,
       question.type,
       question.imagePath || null,
       question.imageLayoutEnabled ? 1 : 0,
@@ -2624,10 +2654,16 @@ app.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
     db.prepare("DELETE FROM question_topics WHERE question_id = ?").run(id);
     const answers = Array.isArray(question.answers) ? question.answers : [];
     const insertAnswer = db.prepare(
-      "INSERT INTO answers (question_id, position, text, is_correct) VALUES (?, ?, ?, ?)"
+      "INSERT INTO answers (question_id, position, text, note, is_correct) VALUES (?, ?, ?, ?, ?)"
     );
     answers.forEach((answer, idx) => {
-      insertAnswer.run(id, idx + 1, answer.text || "", answer.isCorrect ? 1 : 0);
+      insertAnswer.run(
+        id,
+        idx + 1,
+        answer.text || "",
+        answer.note || null,
+        answer.isCorrect ? 1 : 0
+      );
     });
     const topics = Array.isArray(question.topics) ? question.topics : [];
     const topicIds = upsertTopics(courseId, topics);
@@ -2679,12 +2715,13 @@ app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
   }
   const answers = db
     .prepare(
-      "SELECT position, text, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+      "SELECT position, text, note, is_correct FROM answers WHERE question_id = ? ORDER BY position"
     )
     .all(id)
     .map((row) => ({
       position: row.position,
       text: row.text,
+      note: row.note || "",
       isCorrect: Boolean(row.is_correct),
     }));
   const topicRows = db
@@ -2709,6 +2746,7 @@ app.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => {
       id: question.id,
       courseId,
       text: question.text,
+      note: question.note || "",
       type: question.type,
       imagePath: question.image_path || "",
       imageThumbnailPath: question.image_thumbnail_path || "",
@@ -2882,7 +2920,7 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
                  WHERE es.exam_id = exams.id
                  LIMIT 1
               ) AS has_results,
-              public_access_enabled, public_access_expires_at
+              public_access_enabled, public_access_expires_at, public_access_show_notes
          FROM exams WHERE id = ?`
     )
     .get(id);
@@ -2920,7 +2958,9 @@ app.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req, re
       lockedAt: exam.locked_at || "",
       hasResults: Boolean(exam.has_results),
       publicAccessEnabled: Boolean(exam.public_access_enabled),
+      publicAccessHasPassword: Boolean(exam.public_access_password_hash),
       publicAccessExpiresAt: exam.public_access_expires_at || "",
+      publicAccessShowNotes: Boolean(exam.public_access_show_notes),
     },
     questions,
   });
@@ -2934,16 +2974,33 @@ app.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evalua
   }
   const payload = req.body || {};
   const enabled = Boolean(payload.enabled);
+  const showNotes = Boolean(payload.showNotes);
   if (!enabled) {
     db.prepare(
       `UPDATE exams
           SET public_access_enabled = 0,
               public_access_password_hash = NULL,
-              public_access_expires_at = NULL
+              public_access_expires_at = NULL,
+              public_access_show_notes = 0
         WHERE id = ?`
     ).run(examId);
     res.json({ ok: true });
     return;
+  }
+  if (showNotes) {
+    const hasResults = db
+      .prepare(
+        `SELECT 1
+           FROM exam_session_students ess
+           JOIN exam_sessions es ON es.id = ess.session_id
+          WHERE es.exam_id = ?
+          LIMIT 1`
+      )
+      .get(examId);
+    if (!hasResults) {
+      res.status(400).json({ error: "Le note sono visibili solo dopo la correzione." });
+      return;
+    }
   }
   const password = String(payload.password || "");
   const expiresAtRaw = payload.expiresAt ? String(payload.expiresAt).trim() : "";
@@ -2976,9 +3033,10 @@ app.post("/api/exams/:id/public-access", requireRole("admin", "creator", "evalua
     `UPDATE exams
         SET public_access_enabled = 1,
             public_access_password_hash = ?,
-            public_access_expires_at = ?
+            public_access_expires_at = ?,
+            public_access_show_notes = ?
       WHERE id = ?`
-  ).run(hash, expiresAt.toISOString(), examId);
+  ).run(hash, expiresAt.toISOString(), showNotes ? 1 : 0, examId);
   res.json({ ok: true });
 });
 
@@ -3050,11 +3108,12 @@ const insertQuestion = (question, courseId) => {
   const info = db
     .prepare(
       `INSERT INTO questions
-        (text, type, image_path, image_layout_enabled, image_left_width, image_right_width, image_scale)
-       VALUES (?, ?, ?, ?, ?, ?, ?)`
+        (text, note, type, image_path, image_layout_enabled, image_left_width, image_right_width, image_scale)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       question.text,
+      question.note || null,
       question.type,
       question.imagePath || null,
       question.imageLayoutEnabled ? 1 : 0,
@@ -3065,13 +3124,14 @@ const insertQuestion = (question, courseId) => {
   const questionId = info.lastInsertRowid;
   const answers = Array.isArray(question.answers) ? question.answers : [];
   const insertAnswer = db.prepare(
-    "INSERT INTO answers (question_id, position, text, is_correct) VALUES (?, ?, ?, ?)"
+    "INSERT INTO answers (question_id, position, text, note, is_correct) VALUES (?, ?, ?, ?, ?)"
   );
   answers.forEach((answer, idx) => {
     insertAnswer.run(
       questionId,
       idx + 1,
       answer.text || "",
+      answer.note || null,
       answer.isCorrect ? 1 : 0
     );
   });
@@ -3668,12 +3728,22 @@ app.post("/api/exams/:id/sessions", requireRole("admin", "creator", "evaluator")
   const payload = req.body || {};
   const title = payload.title ? String(payload.title).trim() : null;
   const resultDate = payload.resultDate ? String(payload.resultDate).trim() : null;
-  const info = db
-    .prepare(
-      `INSERT INTO exam_sessions (exam_id, title, result_date, created_at, updated_at)
-       VALUES (?, ?, ?, datetime('now'), datetime('now'))`
-    )
-    .run(examId, title, resultDate);
+  const hasTargetTopGrade = Object.prototype.hasOwnProperty.call(payload, "targetTopGrade");
+  const targetTopGrade = Number(payload.targetTopGrade);
+  const targetTopGradeValue = Number.isFinite(targetTopGrade) ? targetTopGrade : null;
+  const info = hasTargetTopGrade
+    ? db
+        .prepare(
+          `INSERT INTO exam_sessions (exam_id, title, result_date, target_top_grade, created_at, updated_at)
+           VALUES (?, ?, ?, ?, datetime('now'), datetime('now'))`
+        )
+        .run(examId, title, resultDate, targetTopGradeValue)
+    : db
+        .prepare(
+          `INSERT INTO exam_sessions (exam_id, title, result_date, created_at, updated_at)
+           VALUES (?, ?, ?, datetime('now'), datetime('now'))`
+        )
+        .run(examId, title, resultDate);
   res.status(201).json({ id: info.lastInsertRowid });
 });
 
@@ -3685,7 +3755,7 @@ app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   }
   const session = db
     .prepare(
-      `SELECT id, exam_id, title, result_date, created_at, updated_at
+      `SELECT id, exam_id, title, result_date, target_top_grade, created_at, updated_at
          FROM exam_sessions WHERE id = ?`
     )
     .get(sessionId);
@@ -3695,7 +3765,7 @@ app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   }
   const students = db
     .prepare(
-      `SELECT matricola, nome, cognome, versione, answers_json, overrides_json
+      `SELECT matricola, nome, cognome, versione, answers_json, overrides_json, normalized_score
          FROM exam_session_students
         WHERE session_id = ?
         ORDER BY created_at DESC`
@@ -3708,6 +3778,7 @@ app.get("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
       versione: row.versione,
       answers: JSON.parse(row.answers_json || "[]"),
       overrides: JSON.parse(row.overrides_json || "[]"),
+      normalizedScore: row.normalized_score,
     }));
   res.json({ session, students });
 });
@@ -3727,10 +3798,30 @@ app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   const title = payload.title ? String(payload.title).trim() : null;
   const resultDate = payload.resultDate ? String(payload.resultDate).trim() : null;
   const students = Array.isArray(payload.students) ? payload.students : [];
+  const includeNormalization = payload.includeNormalization === true;
+  const targetTopGrade = Number(payload.targetTopGrade);
+  const targetTopGradeValue = Number.isFinite(targetTopGrade) ? targetTopGrade : null;
+  const existingScores = includeNormalization
+    ? null
+    : new Map(
+        db
+          .prepare(
+            `SELECT matricola, normalized_score
+               FROM exam_session_students
+              WHERE session_id = ?`
+          )
+          .all(sessionId)
+          .map((row) => [String(row.matricola).trim(), row.normalized_score])
+      );
 
-  const updateSession = db.prepare(
+  const updateSessionBasic = db.prepare(
     `UPDATE exam_sessions
         SET title = ?, result_date = ?, updated_at = datetime('now')
+      WHERE id = ?`
+  );
+  const updateSessionWithNormalization = db.prepare(
+    `UPDATE exam_sessions
+        SET title = ?, result_date = ?, target_top_grade = ?, updated_at = datetime('now')
       WHERE id = ?`
   );
   const deleteStudents = db.prepare(
@@ -3738,17 +3829,25 @@ app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
   );
   const insertStudent = db.prepare(
     `INSERT INTO exam_session_students
-      (session_id, matricola, nome, cognome, versione, answers_json, overrides_json, created_at, updated_at)
-     VALUES (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
+      (session_id, matricola, nome, cognome, versione, answers_json, overrides_json, normalized_score, created_at, updated_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))`
   );
 
   const tx = db.transaction(() => {
-    updateSession.run(title, resultDate, sessionId);
+    if (includeNormalization) {
+      updateSessionWithNormalization.run(title, resultDate, targetTopGradeValue, sessionId);
+    } else {
+      updateSessionBasic.run(title, resultDate, sessionId);
+    }
     deleteStudents.run(sessionId);
     students.forEach((student) => {
       if (!student || !student.matricola) return;
       const answers = Array.isArray(student.answers) ? student.answers : [];
       const overrides = Array.isArray(student.overrides) ? student.overrides : [];
+      const normalizedScore = Number(student.normalizedScore);
+      const normalizedValue = includeNormalization
+        ? (Number.isFinite(normalizedScore) ? normalizedScore : null)
+        : existingScores.get(String(student.matricola).trim()) ?? null;
       insertStudent.run(
         sessionId,
         String(student.matricola).trim(),
@@ -3756,7 +3855,8 @@ app.put("/api/sessions/:id", requireRole("admin", "creator", "evaluator"), (req,
         student.cognome ? String(student.cognome).trim() : "",
         student.versione ? Number(student.versione) : null,
         JSON.stringify(answers),
-        JSON.stringify(overrides)
+        JSON.stringify(overrides),
+        normalizedValue
       );
     });
   });
@@ -3813,6 +3913,7 @@ app.delete("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
         WHERE session_id IN (SELECT id FROM exam_sessions WHERE exam_id = ?)`
     ).run(examId);
     db.prepare("DELETE FROM exam_sessions WHERE exam_id = ?").run(examId);
+    db.prepare("DELETE FROM exam_question_snapshots WHERE exam_id = ?").run(examId);
     db.prepare("DELETE FROM exam_questions WHERE exam_id = ?").run(examId);
     db.prepare("DELETE FROM exams WHERE id = ?").run(examId);
   });
@@ -3840,88 +3941,6 @@ app.post("/api/exams/:id/clear-results", requireRole("admin", "creator"), (req, 
   });
   tx();
   res.json({ ok: true });
-});
-
-app.post("/api/results-pdf", requireRole("admin", "creator", "evaluator"), (req, res) => {
-  try {
-    const payload = req.body || {};
-    const rows = Array.isArray(payload.rows) ? payload.rows : [];
-    const date = payload.date || "";
-    const title = "Fondamenti di Automatica - Mod. 1";
-    const department = "Ing. Informatica e dell'Automazione";
-    const uni = `Politecnico di Bari${date ? " - " + date : ""}`;
-    // const note = "N.B. E' obbligatorio scrivere il proprio nome, cognome e matricola su tutti i fogli.";
-    const logoPath = path.join(__dirname, "logo_poliba_esteso_trasparente.png");
-    const fontRegularPath = path.join(__dirname, "fonts", "Roboto-Regular.ttf");
-    const fontBoldPath = path.join(__dirname, "fonts", "Roboto-Bold.ttf");
-
-    const doc = new PDFDocument({ size: "A4", margin: 40 });
-    res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", "attachment; filename=risultati.pdf");
-    doc.pipe(res);
-
-    if (fs.existsSync(logoPath)) {
-      doc.image(logoPath, 40, 32, { width: 120 });
-    }
-
-    let fontRegular = "Times-Roman";
-    let fontBold = "Times-Bold";
-    if (fs.existsSync(fontRegularPath) && fs.existsSync(fontBoldPath)) {
-      doc.registerFont("Roboto", fontRegularPath);
-      doc.registerFont("Roboto-Bold", fontBoldPath);
-      fontRegular = "Roboto";
-      fontBold = "Roboto-Bold";
-    }
-
-    doc.font(fontBold).fontSize(14).text(title, 180, 36, { align: "right" });
-    doc.font(fontRegular).fontSize(11).text(department, 180, 56, { align: "right" });
-    doc.font(fontRegular).fontSize(11).text(uni, 180, 72, { align: "right" });
-    // doc.font("Times-Italic").fontSize(9).text(note, 180, 90, { align: "right" });
-
-    doc.moveDown(4);
-    // doc.font("Times-Bold").fontSize(13).text("Risultati (voto / 30)", { align: "left" });
-    // doc.moveDown(0.5);
-
-    const startY = doc.y;
-    const colX = [40, 160, 290, 400, 480];
-    const tableLeft = 40;
-    const tableRight = 555;
-    const rowHeight = 16;
-    const headers = ["Matricola", "Nome", "Cognome", "Voto / 30", "Voto norm."];
-    doc.font(fontBold).fontSize(10);
-    headers.forEach((h, idx) => {
-      doc.text(h, colX[idx], startY, { width: colX[idx + 1] ? colX[idx + 1] - colX[idx] - 10 : 80 });
-    });
-    doc.moveDown(0.6);
-    doc.moveTo(40, doc.y).lineTo(555, doc.y).stroke();
-    doc.moveDown(0.4);
-
-    doc.font(fontRegular).fontSize(10);
-    rows.forEach((row, idx) => {
-      let y = doc.y;
-      if (y + rowHeight > 760) {
-        doc.addPage();
-        y = doc.y;
-      }
-      if (idx % 2 === 0) {
-        doc.save();
-        doc.fillColor("#f3f6fb");
-        doc.rect(tableLeft, y - 2, tableRight - tableLeft, rowHeight).fill();
-        doc.restore();
-      }
-      doc.fillColor("#000");
-      doc.text(String(row.matricola ?? ""), colX[0], y, { width: 110, lineBreak: false });
-      doc.text(String(row.nome ?? ""), colX[1], y, { width: 120, lineBreak: false });
-      doc.text(String(row.cognome ?? ""), colX[2], y, { width: 100, lineBreak: false });
-      doc.text(String(row.grade ?? ""), colX[3], y, { width: 70, lineBreak: false });
-      doc.text(String(row.gradeNorm ?? ""), colX[4], y, { width: 60, lineBreak: false });
-      doc.y = y + rowHeight;
-    });
-
-    doc.end();
-  } catch (err) {
-    res.status(500).json({ error: err.message || "PDF error" });
-  }
 });
 
 app.post("/api/import-esse3", requireRole("admin", "creator", "evaluator"), (req, res) => {

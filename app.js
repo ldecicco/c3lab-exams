@@ -26,10 +26,7 @@ const clearResultsModal = document.getElementById("clearResultsModal");
 const clearResultsCloseBtn = document.getElementById("clearResultsClose");
 const clearResultsCancelBtn = document.getElementById("clearResultsCancel");
 const confirmClearResultsBtn = document.getElementById("confirmClearResults");
-const gradingStatus = document.getElementById("gradingStatus");
-const gradingStats = document.getElementById("gradingStats");
 const exportGradedBtn = document.getElementById("exportGradedCsv");
-const gradingTable = document.getElementById("gradingTable");
 const gradeHistogram = document.getElementById("gradeHistogram");
 const publicAccessForm = document.getElementById("publicAccessForm");
 const publicCourseGrid = document.getElementById("publicCourseGrid");
@@ -69,13 +66,13 @@ const teachingPromptClose = document.getElementById("teachingPromptClose");
 const teachingPromptContent = document.getElementById("teachingPromptContent");
 const copyTeachingPromptBtn = document.getElementById("copyTeachingPromptBtn");
 const publicAccessControls = document.getElementById("publicAccessControls");
-const publicAccessEnabledToggle = document.getElementById("publicAccessEnabled");
+const publicAccessToggleBtn = document.getElementById("publicAccessToggleBtn");
 const publicAccessFields = document.getElementById("publicAccessFields");
 const publicAccessPasswordInput = document.getElementById("publicAccessPassword");
 const publicAccessExpiresAtInput = document.getElementById("publicAccessExpiresAt");
+const publicAccessShowNotesToggle = document.getElementById("publicAccessShowNotes");
 const publicAccessSaveBtn = document.getElementById("publicAccessSave");
-const publicAccessStatus = document.getElementById("publicAccessStatus");
-const exportResultsPdfBtn = document.getElementById("exportResultsPdf");
+const publicPasswordToggle = document.getElementById("publicPasswordToggle");
 const exportResultsXlsBtn = document.getElementById("exportResultsXls");
 const resultDateInput = document.getElementById("resultDate");
 const esse3ResultsFileInput = document.getElementById("esse3ResultsFile");
@@ -86,6 +83,13 @@ const gradingToast = document.getElementById("gradingToast");
 const studentSearchInput = document.getElementById("studentSearch");
 const gradingProgress = document.getElementById("gradingProgress");
 const gradingProgressLabel = document.getElementById("gradingProgressLabel");
+const recalcNormalizedBtn = document.getElementById("recalcNormalized");
+
+const DEBUG_VALUTAZIONE = new URLSearchParams(window.location.search).has("debug");
+const debugLog = (...args) => {
+  if (!DEBUG_VALUTAZIONE) return;
+  console.log("[valutazione-debug]", ...args);
+};
 const examPreviewBackdrop = document.getElementById("examPreviewBackdrop");
 const examPreviewModal = document.getElementById("examPreviewModal");
 const examPreviewCloseBtn = document.getElementById("examPreviewClose");
@@ -97,10 +101,10 @@ const mappingBadge = document.getElementById("mappingBadge");
 const publicAccessSummary = document.getElementById("publicAccessSummary");
 const topbarSelectExam = document.getElementById("topbarSelectExam");
 const topbarImportEsse3 = document.getElementById("topbarImportEsse3");
-const topbarExportPdf = document.getElementById("topbarExportPdf");
 const topbarExportXls = document.getElementById("topbarExportXls");
 const topbarClear = document.getElementById("topbarClear");
 const emptySelectExam = document.getElementById("emptySelectExam");
+const publicAccessMask = "••••••••";
 const sessionSelect = document.getElementById("sessionSelect");
 const newSessionBtn = document.getElementById("newSession");
 
@@ -117,6 +121,7 @@ let currentExamId = null;
 let currentExam = null;
 let publicExamsCache = [];
 let publicSelectedExam = null;
+let publicAccessEnabled = false;
 let currentSessionId = null;
 let sessionSaveTimer = null;
 let activeQuestionIndex = 1;
@@ -180,6 +185,7 @@ const initApp = async () => {
     return;
   }
   const activeCourse = await fetchActiveCourse();
+  debugLog("activeCourse", activeCourse);
   if (!activeCourse) {
     if (courseEmptyState) courseEmptyState.classList.remove("is-hidden");
     if (mainLayout) mainLayout.classList.add("is-hidden");
@@ -189,13 +195,15 @@ const initApp = async () => {
   if (courseEmptyState) courseEmptyState.classList.add("is-hidden");
   if (mainLayout) mainLayout.classList.remove("is-hidden");
   const activeExam = await fetchActiveExam();
+  debugLog("activeExam", activeExam);
   loadStudents();
   renderGrading();
   await loadExams();
   if (activeExam?.id) {
-    loadMappingFromExam(activeExam.id);
+    await loadMappingFromExam(activeExam.id);
+  } else {
+    updateExamVisibility(Boolean(mapping));
   }
-  updateExamVisibility(Boolean(mapping));
 };
 
 const formatDateLabel = (isoDate) => {
@@ -211,13 +219,6 @@ const getDefaultAccessExpiry = () => {
   return d.toISOString().slice(0, 10);
 };
 
-const setPublicAccessStatus = (text, tone = "info") => {
-  if (!publicAccessStatus) return;
-  publicAccessStatus.textContent = text;
-  publicAccessStatus.classList.remove("is-error", "is-success");
-  if (tone === "error") publicAccessStatus.classList.add("is-error");
-  if (tone === "success") publicAccessStatus.classList.add("is-success");
-};
 
 const setPublicAccessSummary = (text, isActive = false, icon = "lock") => {
   if (!publicAccessSummary) return;
@@ -233,15 +234,26 @@ const setPublicAccessSummary = (text, isActive = false, icon = "lock") => {
 };
 
 const setPublicAccessControlsEnabled = (enabled) => {
-  if (!publicAccessEnabledToggle || !publicAccessFields) return;
-  publicAccessEnabledToggle.checked = Boolean(enabled);
-  publicAccessFields.classList.toggle("is-disabled", !enabled);
+  publicAccessEnabled = Boolean(enabled);
+  if (publicAccessToggleBtn) {
+    publicAccessToggleBtn.textContent = publicAccessEnabled
+      ? "Rimuovi accesso"
+      : "Abilita accesso";
+    publicAccessToggleBtn.classList.toggle("is-active", publicAccessEnabled);
+  }
+  if (!publicAccessFields) return;
+  publicAccessFields.classList.toggle("is-disabled", !publicAccessEnabled);
   if (publicAccessPasswordInput) {
-    publicAccessPasswordInput.disabled = !enabled;
+    publicAccessPasswordInput.disabled = !publicAccessEnabled;
     publicAccessPasswordInput.value = "";
+    publicAccessPasswordInput.classList.remove("is-masked");
   }
   if (publicAccessExpiresAtInput) {
-    publicAccessExpiresAtInput.disabled = !enabled;
+    publicAccessExpiresAtInput.disabled = !publicAccessEnabled;
+  }
+  if (publicAccessShowNotesToggle) {
+    publicAccessShowNotesToggle.disabled = !publicAccessEnabled;
+    if (!publicAccessEnabled) publicAccessShowNotesToggle.checked = false;
   }
 };
 
@@ -250,46 +262,59 @@ const updatePublicAccessUI = (exam) => {
   if (!exam) {
     setPublicAccessControlsEnabled(false);
     if (publicAccessExpiresAtInput) publicAccessExpiresAtInput.value = "";
-    setPublicAccessStatus("Seleziona una traccia per configurare l'accesso studenti.");
+    showToast("Seleziona una traccia per configurare l'accesso studenti.", "error");
     setPublicAccessSummary("", false);
     return;
   }
   const enabled = Boolean(exam.publicAccessEnabled);
   setPublicAccessControlsEnabled(enabled);
+  if (publicAccessPasswordInput) {
+    publicAccessPasswordInput.classList.remove("is-masked");
+  }
   if (publicAccessExpiresAtInput) {
     publicAccessExpiresAtInput.value = exam.publicAccessExpiresAt
       ? exam.publicAccessExpiresAt.slice(0, 10)
       : "";
   }
+  if (publicAccessShowNotesToggle) {
+    publicAccessShowNotesToggle.checked = Boolean(exam.publicAccessShowNotes);
+    publicAccessShowNotesToggle.disabled = !enabled || !exam.hasResults;
+  }
   if (!enabled) {
-    setPublicAccessStatus("Accesso studenti disattivato.");
+    showToast("Accesso studenti disattivato.");
     setPublicAccessSummary("Accesso studenti disattivato", false, "unlock");
     return;
+  }
+  if (publicAccessPasswordInput && exam.publicAccessHasPassword) {
+    publicAccessPasswordInput.value = publicAccessMask;
+    publicAccessPasswordInput.classList.add("is-masked");
   }
   const expiryLabel = exam.publicAccessExpiresAt
     ? ` (scadenza ${formatDateLabel(exam.publicAccessExpiresAt.slice(0, 10))})`
     : "";
-  setPublicAccessStatus(`Accesso studenti attivo${expiryLabel}.`, "success");
+  showToast(`Accesso studenti attivo${expiryLabel}.`, "success");
   setPublicAccessSummary(`Accesso studenti attivo${expiryLabel}`, true, "lock");
 };
 
 const savePublicAccess = async () => {
   if (!currentExamId) {
-    setPublicAccessStatus("Seleziona una traccia prima di salvare.", "error");
+    showToast("Seleziona una traccia prima di salvare.", "error");
     return;
   }
-  const enabled = Boolean(publicAccessEnabledToggle?.checked);
+  const enabled = Boolean(publicAccessEnabled);
   const payload = { enabled };
   if (enabled) {
-    const password = String(publicAccessPasswordInput?.value || "").trim();
+    const passwordRaw = String(publicAccessPasswordInput?.value || "").trim();
+    const password = passwordRaw === publicAccessMask ? "" : passwordRaw;
     if (password) {
       payload.password = password;
     } else if (!currentExam || !currentExam.publicAccessEnabled) {
-      setPublicAccessStatus("Inserisci una password per abilitare l'accesso.", "error");
+      showToast("Inserisci una password per abilitare l'accesso.", "error");
       return;
     }
     const expiresAt = String(publicAccessExpiresAtInput?.value || "").trim();
     payload.expiresAt = expiresAt || getDefaultAccessExpiry();
+    payload.showNotes = Boolean(publicAccessShowNotesToggle?.checked);
   }
   try {
     const response = await fetch(`/api/exams/${currentExamId}/public-access`, {
@@ -299,7 +324,7 @@ const savePublicAccess = async () => {
     });
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
-      setPublicAccessStatus(info.error || "Errore salvataggio accesso.", "error");
+      showToast(info.error || "Errore salvataggio accesso.", "error");
       return;
     }
     const examResponse = await fetch(`/api/exams/${currentExamId}`);
@@ -308,11 +333,11 @@ const savePublicAccess = async () => {
       currentExam = examPayload.exam;
       updatePublicAccessUI(currentExam);
     } else {
-      setPublicAccessStatus("Accesso aggiornato.", "success");
+      showToast("Accesso aggiornato.", "success");
     }
     showToast("Accesso studenti aggiornato.", "success");
   } catch {
-    setPublicAccessStatus("Errore di rete.", "error");
+    showToast("Errore di rete.", "error");
   }
 };
 
@@ -540,6 +565,16 @@ const renderPublicResults = (payload) => {
       const text = document.createElement("div");
       text.className = "question-preview";
       renderLatexHtml(question.text, text);
+      let note = null;
+      if (question.note) {
+        note = document.createElement("div");
+        note.className = "public-question-note";
+        note.innerHTML = "<strong>Nota:</strong>";
+        const noteBody = document.createElement("div");
+        noteBody.className = "public-question-note-body";
+        renderLatexHtml(question.note, noteBody);
+        note.appendChild(noteBody);
+      }
       const answers = document.createElement("div");
       answers.className = "vstack gap-2 mt-3";
       question.answers.forEach((ans) => {
@@ -553,6 +588,16 @@ const renderPublicResults = (payload) => {
         renderLatexHtml(ans.text, answerText);
         row.appendChild(label);
         row.appendChild(answerText);
+        if (ans.note) {
+          const note = document.createElement("div");
+          note.className = "preview-answer-note";
+          note.innerHTML = "<strong>Nota:</strong>";
+          const noteBody = document.createElement("div");
+          noteBody.className = "preview-answer-note-body";
+          renderLatexHtml(ans.note, noteBody);
+          note.appendChild(noteBody);
+          row.appendChild(note);
+        }
         if (ans.isCorrect) {
           row.classList.add("is-correct");
         }
@@ -570,6 +615,7 @@ const renderPublicResults = (payload) => {
       });
       body.appendChild(title);
       body.appendChild(text);
+      if (note) body.appendChild(note);
       const selectionMeta = document.createElement("div");
       selectionMeta.className = "public-question-meta";
       const selectedLabel = question.selectedLetters?.length
@@ -704,17 +750,29 @@ const setMappingBadge = (text, isActive = false) => {
   if (!mappingBadge) return;
   mappingBadge.textContent = text;
   mappingBadge.classList.toggle("is-active", isActive);
+  debugLog("setMappingBadge", text, isActive);
 };
 
 const examSections = Array.from(document.querySelectorAll(".exam-section"));
 const examEmptyState = document.getElementById("examEmptyState");
+const examLockedState = document.getElementById("examLockedState");
 
-const updateExamVisibility = (hasExam) => {
+const updateExamVisibility = (hasExam, requiresClose = false) => {
+  const resolvedHasExam = Boolean(hasExam || mapping);
+  debugLog("updateExamVisibility", {
+    hasExam,
+    resolvedHasExam,
+    requiresClose,
+    mapping,
+  });
   if (examEmptyState) {
-    examEmptyState.classList.toggle("is-hidden", hasExam);
+    examEmptyState.classList.toggle("is-hidden", resolvedHasExam || requiresClose);
+  }
+  if (examLockedState) {
+    examLockedState.classList.toggle("is-hidden", !requiresClose);
   }
   examSections.forEach((section) => {
-    section.classList.toggle("is-hidden", !hasExam);
+    section.classList.toggle("is-hidden", !resolvedHasExam || requiresClose);
   });
 };
 
@@ -750,7 +808,9 @@ const renderSessionSelect = (sessions, selectedId) => {
 const loadSession = async (sessionId) => {
   if (!sessionId) return;
   try {
+    debugLog("loadSession start", sessionId);
     const response = await fetch(`/api/sessions/${sessionId}`);
+    debugLog("loadSession response", response.status);
     if (!response.ok) {
       showToast("Errore nel caricamento sessione.", "error");
       return;
@@ -760,6 +820,15 @@ const loadSession = async (sessionId) => {
     students = payload.students || [];
     persistStudents();
     resultDateInput.value = payload.session.result_date || "";
+    if (targetTopGradeInput) {
+      const target = Number(payload.session.target_top_grade);
+      targetTopGradeInput.value = Number.isFinite(target) ? target : 30;
+    }
+    debugLog("loadSession payload", {
+      sessionId: payload.session.id,
+      students: students.length,
+      targetTopGrade: payload.session.target_top_grade,
+    });
     renderTable();
     renderGrading();
     showToast("Sessione caricata.", "success");
@@ -768,13 +837,22 @@ const loadSession = async (sessionId) => {
   }
 };
 
-const saveSession = async () => {
+const saveSession = async (options = {}) => {
   if (!currentSessionId) return;
   try {
+    const includeNormalization = options.includeNormalization === true;
+    const studentsPayload = students.map((student) => {
+      const { normalizedScore, ...rest } = student;
+      return includeNormalization ? { ...rest, normalizedScore } : rest;
+    });
     const payload = {
       title: sessionSelect?.selectedOptions?.[0]?.textContent || null,
       resultDate: resultDateInput.value || "",
-      students,
+      includeNormalization,
+      ...(includeNormalization && targetTopGradeInput
+        ? { targetTopGrade: Number(targetTopGradeInput.value) }
+        : {}),
+      students: studentsPayload,
     };
     await fetch(`/api/sessions/${currentSessionId}`, {
       method: "PUT",
@@ -797,20 +875,26 @@ const scheduleSaveSession = () => {
 const loadSessionsForExam = async (examId) => {
   if (!examId) return;
   try {
+    debugLog("loadSessionsForExam start", examId);
     const response = await fetch(`/api/exams/${examId}/sessions`);
+    debugLog("loadSessionsForExam response", response.status);
     if (!response.ok) {
       renderSessionSelect([], null);
       return;
     }
     const payload = await response.json();
     const sessions = payload.sessions || [];
+    debugLog("loadSessionsForExam payload", sessions.length, sessions);
     renderSessionSelect(sessions, currentSessionId);
     if (!sessions.length) {
       const title = formatSessionTitle(resultDateInput.value || "");
       const createResponse = await fetch(`/api/exams/${examId}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
+        body: JSON.stringify({
+          title,
+          resultDate: resultDateInput.value || "",
+        }),
       });
       if (!createResponse.ok) return;
       const info = await createResponse.json();
@@ -905,6 +989,7 @@ const buildDisplayedAnswers = (question, originalIndex, version) => {
   if (!mapping || !mapping.randomizedanswersdictionary) {
     return rawAnswers.map((ans) => ({
       text: ans.text || "",
+      note: ans.note || "",
       isCorrect: Boolean(ans.isCorrect),
     }));
   }
@@ -913,6 +998,7 @@ const buildDisplayedAnswers = (question, originalIndex, version) => {
   if (!adict || !adict[originalIndex] || !cdict || !cdict[originalIndex]) {
     return rawAnswers.map((ans) => ({
       text: ans.text || "",
+      note: ans.note || "",
       isCorrect: Boolean(ans.isCorrect),
     }));
   }
@@ -924,6 +1010,7 @@ const buildDisplayedAnswers = (question, originalIndex, version) => {
       const correctRow = cdict[originalIndex] || [];
       return {
         text: answer.text || "",
+        note: answer.note || "",
         isCorrect: Boolean(correctRow[origIdx - 1] > 0),
       };
     })
@@ -949,6 +1036,16 @@ const renderExamPreview = (question, index, originalIndex, version) => {
   badgeRow.appendChild(versionBadge);
   examPreviewBody.appendChild(badgeRow);
   examPreviewBody.appendChild(text);
+  if (question.note) {
+    const note = document.createElement("div");
+    note.className = "public-question-note";
+    note.innerHTML = "<strong>Nota:</strong>";
+    const noteBody = document.createElement("div");
+    noteBody.className = "public-question-note-body";
+    renderLatexHtml(question.note, noteBody);
+    note.appendChild(noteBody);
+    examPreviewBody.appendChild(note);
+  }
   if (question.imagePath) {
     const imgWrap = document.createElement("div");
     imgWrap.className = "selected-question-image";
@@ -976,6 +1073,16 @@ const renderExamPreview = (question, index, originalIndex, version) => {
         renderLatexHtml(answer.text || "", textEl);
         row.appendChild(label);
         row.appendChild(textEl);
+        if (answer.note) {
+          const note = document.createElement("div");
+          note.className = "preview-answer-note";
+          note.innerHTML = "<strong>Nota:</strong>";
+          const noteBody = document.createElement("div");
+          noteBody.className = "preview-answer-note-body";
+          renderLatexHtml(answer.note, noteBody);
+          note.appendChild(noteBody);
+          row.appendChild(note);
+        }
         if (answer.isCorrect) {
           const tick = document.createElement("span");
           tick.className = "answer-tick";
@@ -1299,6 +1406,11 @@ const renderTable = () => {
   studentsTable.innerHTML = "";
   const query = String(studentSearchInput?.value || "").trim().toLowerCase();
   const filtered = filterStudents(query);
+  debugLog("renderTable", {
+    total: students.length,
+    filtered: filtered.length,
+    query,
+  });
   if (students.length === 0) {
     const row = document.createElement("tr");
     const cell = document.createElement("td");
@@ -1325,14 +1437,25 @@ const renderTable = () => {
   filtered.forEach(({ student, index }) => {
     const score = mapping ? gradeStudent(student) : null;
     const grade = score === null ? null : toThirty(score, maxPoints);
-    const normalized = grade === null ? null : normalizeGrade(grade);
+    const isEvaluated = score !== null;
+    const versionLabel = isEvaluated && student.versione ? student.versione : "-";
+    const answersLabel = isEvaluated
+      ? student.answers.join(" | ")
+      : "-";
+    const normalized =
+      isEvaluated
+        ? (Number.isFinite(Number(student.normalizedScore))
+            ? Number(student.normalizedScore)
+            : normalizeGrade(grade))
+        : null;
     const row = document.createElement("tr");
+    row.dataset.index = String(index);
     row.innerHTML = `
       <td>${student.matricola}</td>
       <td>${formatName(student.cognome)}</td>
       <td>${formatName(student.nome)}</td>
-      <td>${student.versione}</td>
-      <td>${student.answers.join(" | ")}</td>
+      <td>${versionLabel}</td>
+      <td>${answersLabel}</td>
       <td>${score === null ? "-" : score}</td>
       <td>${grade === null ? "-" : grade.toFixed(2)}</td>
       <td>${normalized === null ? "-" : normalized}</td>
@@ -1359,6 +1482,13 @@ const renderTable = () => {
       renderTable();
       renderGrading();
       scheduleSaveSession();
+    });
+  });
+  studentsTable.querySelectorAll("tr[data-index]").forEach((row) => {
+    row.addEventListener("dblclick", () => {
+      const idx = Number(row.dataset.index);
+      if (!Number.isFinite(idx)) return;
+      loadStudentForEdit(idx);
     });
   });
 
@@ -1423,38 +1553,28 @@ const renderTable = () => {
 
 const renderGrading = () => {
   if (!mapping) {
-    gradingStatus.textContent = "Carica un mapping per abilitare il grading automatico.";
-    gradingStats.innerHTML = "";
-    gradingTable.innerHTML = "";
-    gradeHistogram.innerHTML = "";
-    gradingFactor.textContent = "Fattore: -";
-    targetTopGradeInput.disabled = true;
+
+    if (gradeHistogram) gradeHistogram.innerHTML = "";
+    if (gradingFactor) gradingFactor.textContent = "Fattore: -";
+    if (targetTopGradeInput) targetTopGradeInput.disabled = true;
     if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
     if (exportGradedBtn) exportGradedBtn.disabled = true;
-    exportResultsPdfBtn.disabled = true;
-    exportResultsXlsBtn.disabled = true;
-    if (topbarExportPdf) topbarExportPdf.disabled = true;
+    if (exportResultsXlsBtn) exportResultsXlsBtn.disabled = true;
     if (topbarExportXls) topbarExportXls.disabled = true;
     return;
   }
-  gradingStatus.textContent = "Grading attivo. I punteggi sono calcolati automaticamente.";
+
   if (exportGradedBtn) exportGradedBtn.disabled = false;
-  exportResultsPdfBtn.disabled = false;
-  exportResultsXlsBtn.disabled = false;
-  if (topbarExportPdf) topbarExportPdf.disabled = false;
+  if (exportResultsXlsBtn) exportResultsXlsBtn.disabled = false;
   if (topbarExportXls) topbarExportXls.disabled = false;
-  targetTopGradeInput.disabled = false;
+  if (targetTopGradeInput) targetTopGradeInput.disabled = false;
   const maxPoints = getMaxPoints();
   const scores = students.map((student) => gradeStudent(student)).filter((val) => val !== null);
   if (scores.length === 0) {
-    gradingStats.innerHTML = "";
-    gradingTable.innerHTML = "";
-    gradeHistogram.innerHTML = "";
+    if (gradeHistogram) gradeHistogram.innerHTML = "";
     if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
     if (exportGradedBtn) exportGradedBtn.disabled = true;
-    exportResultsPdfBtn.disabled = true;
-    exportResultsXlsBtn.disabled = true;
-    if (topbarExportPdf) topbarExportPdf.disabled = true;
+    if (exportResultsXlsBtn) exportResultsXlsBtn.disabled = true;
     if (topbarExportXls) topbarExportXls.disabled = true;
     return;
   }
@@ -1467,33 +1587,10 @@ const renderGrading = () => {
   const bestGrade = Math.max(...grades);
   if (currentTopGradeBadge) currentTopGradeBadge.textContent = bestGrade.toFixed(1);
   const factor = getNormalizationFactor();
-  gradingFactor.textContent = factor ? `Fattore: ${factor.toFixed(3)}` : "Fattore: -";
-  gradingStats.innerHTML = `
-    <div class="stat-card"><span>Studenti valutati</span><strong>${scores.length}</strong></div>
-    <div class="stat-card"><span>Media punti</span><strong>${avg.toFixed(2)}</strong></div>
-    <div class="stat-card"><span>Media / 30</span><strong>${avgGrade.toFixed(2)}</strong></div>
-    <div class="stat-card"><span>Max punti</span><strong>${max}</strong></div>
-    <div class="stat-card"><span>Min punti</span><strong>${min}</strong></div>
-  `;
+  if (gradingFactor) {
+    gradingFactor.textContent = factor ? `Fattore: ${factor.toFixed(3)}` : "Fattore: -";
+  }
 
-  gradingTable.innerHTML = "";
-  students.forEach((student) => {
-    const score = gradeStudent(student);
-    if (score === null) return;
-    const grade = toThirty(score, maxPoints);
-    const normalized = normalizeGrade(grade);
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td>${student.matricola}</td>
-      <td>${formatName(student.cognome)}</td>
-      <td>${formatName(student.nome)}</td>
-      <td>${student.versione}</td>
-      <td>${score}</td>
-      <td>${grade.toFixed(2)}</td>
-      <td>${normalized}</td>
-    `;
-    gradingTable.appendChild(row);
-  });
 
   renderHistogram(grades.map((g) => normalizeGrade(g)));
 };
@@ -1565,16 +1662,42 @@ const loadMappingFromExam = async (selectedId) => {
   }
   currentExamId = parsedId;
   mappingStatus.textContent = "Caricamento mapping in corso...";
+  debugLog("loadMappingFromExam start", parsedId);
   try {
     const response = await fetch(`/api/exams/${parsedId}/mapping`);
+    debugLog("mapping response", response.status);
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
-      mappingStatus.textContent = info.error || "Errore nel mapping.";
+      const errorMessage = info.error || "Errore nel mapping.";
+      debugLog("mapping error", errorMessage);
+      mappingStatus.textContent = errorMessage;
       setMappingBadge("Nessuna traccia", false);
-      updateExamVisibility(false);
+      const lower = errorMessage.toLowerCase();
+      if (lower.includes("non e chiusa")) {
+        setMappingBadge("Traccia non chiusa", false);
+        updateExamVisibility(false, true);
+      } else {
+        updateExamVisibility(false);
+      }
+      try {
+        const examResponse = await fetch(`/api/exams/${parsedId}`);
+        debugLog("exam details response", examResponse.status);
+        if (examResponse.ok) {
+          const examPayload = await examResponse.json();
+          currentExam = examPayload.exam;
+          debugLog("exam details", currentExam);
+          if (currentExam?.isDraft) {
+            setMappingBadge("Traccia non chiusa", false);
+            updateExamVisibility(false, true);
+          }
+        }
+      } catch {
+        // ignore
+      }
       return;
     }
     const payload = await response.json();
+    debugLog("mapping payload", payload);
     mapping = payload.mapping;
     questionCount = mapping.Nquestions;
     mappingStatus.textContent = `Mapping caricato: ${mapping.Nquestions} domande, ${mapping.Nversions} versioni.`;
@@ -1582,10 +1705,12 @@ const loadMappingFromExam = async (selectedId) => {
     updateExamVisibility(true);
     try {
       const examResponse = await fetch(`/api/exams/${parsedId}`);
+      debugLog("exam response", examResponse.status);
       if (examResponse.ok) {
         const examPayload = await examResponse.json();
         currentExam = examPayload.exam;
         examQuestions = examPayload.questions || [];
+        debugLog("exam loaded", currentExam, examQuestions.length);
         updatePublicAccessUI(currentExam);
       } else {
         currentExam = null;
@@ -1598,13 +1723,17 @@ const loadMappingFromExam = async (selectedId) => {
       updatePublicAccessUI(null);
     }
     setActiveExam(parsedId);
-    renderTable();
-    renderGrading();
-    renderAnswerGrid();
-    applyCorrectHints();
-    updatePerQuestionScores();
-    updateExamInfo(parsedId);
     await loadSessionsForExam(parsedId);
+    try {
+      renderTable();
+      renderGrading();
+      renderAnswerGrid();
+      applyCorrectHints();
+      updatePerQuestionScores();
+      updateExamInfo(parsedId);
+    } catch (err) {
+      debugLog("loadMappingFromExam render error", err);
+    }
   } catch {
     mappingStatus.textContent = "Errore nel mapping.";
     setMappingBadge("Nessuna traccia", false);
@@ -1651,6 +1780,7 @@ const loadExams = async () => {
     }
     const payload = await response.json();
     examsCache = payload.exams || [];
+    debugLog("exams loaded", examsCache.length, examsCache);
     if (Number.isFinite(activeCourseId)) {
       examsCache = examsCache.filter((exam) => exam.course_id === activeCourseId);
     }
@@ -1860,6 +1990,27 @@ const normalizeGrade = (grade) => {
   return Math.round(grade * factor);
 };
 
+const recalcNormalizedScores = async () => {
+  if (!mapping) {
+    showToast("Carica una traccia prima di ricalcolare.", "error");
+    return;
+  }
+  const maxPoints = getMaxPoints();
+  students.forEach((student) => {
+    const score = gradeStudent(student);
+    if (score === null) {
+      student.normalizedScore = null;
+      return;
+    }
+    const grade = toThirty(score, maxPoints);
+    student.normalizedScore = normalizeGrade(grade);
+  });
+  renderTable();
+  renderGrading();
+  await saveSession({ includeNormalization: true });
+  showToast("Voti normalizzati aggiornati.", "success");
+};
+
 const renderHistogram = (normalizedGrades) => {
   if (!gradeHistogram) return;
   const buckets = Array.from({ length: 31 }, () => 0);
@@ -1868,6 +2019,7 @@ const renderHistogram = (normalizedGrades) => {
     buckets[clamped] += 1;
   });
   const maxCount = Math.max(1, ...buckets);
+  if (!gradeHistogram) return;
   gradeHistogram.innerHTML = "";
   buckets.forEach((count, idx) => {
     const bar = document.createElement("div");
@@ -1978,6 +2130,29 @@ const closeExamHistoryModal = () => {
   if (examHistoryModal) examHistoryModal.classList.add("is-hidden");
 };
 
+if (publicPasswordToggle && publicPassword) {
+  publicPasswordToggle.addEventListener("click", () => {
+    const isPassword = publicPassword.type === "password";
+    publicPassword.type = isPassword ? "text" : "password";
+    publicPasswordToggle.innerHTML = isPassword
+      ? "<i class=\"fa-regular fa-eye-slash\"></i>"
+      : "<i class=\"fa-regular fa-eye\"></i>";
+    publicPasswordToggle.setAttribute(
+      "aria-label",
+      isPassword ? "Nascondi password" : "Mostra password"
+    );
+  });
+}
+
+if (publicAccessPasswordInput) {
+  publicAccessPasswordInput.addEventListener("focus", () => {
+    if (publicAccessPasswordInput.classList.contains("is-masked")) {
+      publicAccessPasswordInput.value = "";
+      publicAccessPasswordInput.classList.remove("is-masked");
+    }
+  });
+}
+
 if (!appUser) {
   initPublicAccess();
 } else {
@@ -2004,18 +2179,23 @@ if (!appUser) {
       closeClearResultsModal();
     });
   }
-  if (publicAccessEnabledToggle) {
-    publicAccessEnabledToggle.addEventListener("change", () => {
-      const enabled = publicAccessEnabledToggle.checked;
+  if (publicAccessToggleBtn) {
+    publicAccessToggleBtn.addEventListener("click", () => {
+      const enabled = !publicAccessEnabled;
       setPublicAccessControlsEnabled(enabled);
       if (enabled && publicAccessExpiresAtInput && !publicAccessExpiresAtInput.value) {
         publicAccessExpiresAtInput.value = getDefaultAccessExpiry();
       }
       if (!enabled) {
-        setPublicAccessStatus("Accesso studenti disattivato.");
+        savePublicAccess();
       } else {
-        setPublicAccessStatus("Inserisci una password e salva per attivare.");
+        showToast("Inserisci una password e salva per attivare.");
       }
+    });
+  }
+  if (recalcNormalizedBtn) {
+    recalcNormalizedBtn.addEventListener("click", () => {
+      recalcNormalizedScores();
     });
   }
   if (publicAccessSaveBtn) publicAccessSaveBtn.addEventListener("click", savePublicAccess);
@@ -2234,11 +2414,6 @@ if (!appUser) {
       if (esse3FileInput) esse3FileInput.click();
     });
   }
-  if (topbarExportPdf) {
-    topbarExportPdf.addEventListener("click", () => {
-      if (exportResultsPdfBtn) exportResultsPdfBtn.click();
-    });
-  }
   if (topbarExportXls) {
     topbarExportXls.addEventListener("click", () => {
       if (exportResultsXlsBtn) exportResultsXlsBtn.click();
@@ -2280,45 +2455,6 @@ if (!appUser) {
       } catch {
         showToast("Errore nella creazione sessione.", "error");
       }
-    });
-  }
-  if (exportResultsPdfBtn) {
-    exportResultsPdfBtn.addEventListener("click", async () => {
-      if (!mapping || students.length === 0) return;
-      const maxPoints = getMaxPoints();
-      const hasAnyAnswer = (student) =>
-        (student.answers || []).some((value) => String(value || "").trim() !== "") ||
-        (student.overrides || []).some((value) => typeof value === "number");
-      const rows = students
-        .filter((student) => hasAnyAnswer(student) && gradeStudent(student) !== null)
-        .map((student) => {
-          const points = gradeStudent(student);
-          const grade = toThirty(points, maxPoints);
-          const gradeNorm = normalizeGrade(grade);
-          return {
-            matricola: student.matricola,
-            nome: student.nome,
-            cognome: student.cognome,
-            grade: grade.toFixed(2),
-            gradeNorm,
-          };
-        });
-      const payload = {
-        date: resultDateInput.value || "",
-        rows,
-      };
-      const response = await fetch("/api/results-pdf", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-      if (!response.ok) return;
-      const blob = await response.blob();
-      const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
-      link.download = "risultati.pdf";
-      link.click();
-      URL.revokeObjectURL(link.href);
     });
   }
   if (exportResultsXlsBtn) {

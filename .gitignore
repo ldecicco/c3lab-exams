@@ -10,6 +10,9 @@ node_modules/
 /pdf/
 risultati*.pdf
 
+#env
+.env
+
 # XLS files
 *.xls
 *.xlsx
@@ -22,6 +25,8 @@ risultati*.pdf
 *.log
 *.out
 *.r
+*.pdf
+*.tex
 *.synctex.gz
 
 # OS/editor noise
