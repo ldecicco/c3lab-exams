@@ -153,7 +153,8 @@ const createEl = (tag, className, text) => {
 };
 
 const apiFetch = async (url, options = {}) => {
-  const response = await fetch(url, options);
+  const relativeUrl = url.startsWith("/") ? url.slice(1) : url;
+  const response = await fetch(relativeUrl, options);
   if (!response.ok) {
     const info = await response.json().catch(() => ({}));
     const message = info.error || `Errore ${response.status}`;
@@ -164,7 +165,7 @@ const apiFetch = async (url, options = {}) => {
 
 const fetchActiveCourse = async () => {
   try {
-    const res = await fetch("/api/session/course");
+    const res = await fetch("api/session/course");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.course || null;
@@ -175,7 +176,7 @@ const fetchActiveCourse = async () => {
 
 const fetchActiveExam = async () => {
   try {
-    const res = await fetch("/api/session/exam");
+    const res = await fetch("api/session/exam");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.exam || null;
@@ -1584,7 +1585,7 @@ const compilePdf = async () => {
   if (latexLogWrap) latexLogWrap.classList.add("is-hidden");
   if (latexLog) latexLog.textContent = "";
   try {
-    const response = await fetch("/api/compile-pdf", {
+    const response = await fetch("api/compile-pdf", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ latex: latexPreview.value }),
@@ -1673,7 +1674,7 @@ const generateTraces = async () => {
   if (latexLogWrap) latexLogWrap.classList.add("is-hidden");
   if (latexLog) latexLog.textContent = "";
   try {
-    const response = await fetch("/api/generate-traces", {
+    const response = await fetch("api/generate-traces", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({

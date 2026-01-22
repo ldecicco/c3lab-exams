@@ -143,7 +143,7 @@ const showToast = (message, tone = "info") => {
 
 const fetchActiveCourse = async () => {
   try {
-    const res = await fetch("/api/session/course");
+    const res = await fetch("api/session/course");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.course || null;
@@ -154,7 +154,7 @@ const fetchActiveCourse = async () => {
 
 const fetchActiveExam = async () => {
   try {
-    const res = await fetch("/api/session/exam");
+    const res = await fetch("api/session/exam");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.exam || null;
@@ -166,7 +166,7 @@ const fetchActiveExam = async () => {
 const setActiveExam = async (examId) => {
   if (!Number.isFinite(Number(examId))) return;
   try {
-    await fetch("/api/session/exam", {
+    await fetch("api/session/exam", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ examId }),
@@ -317,7 +317,7 @@ const savePublicAccess = async () => {
     payload.showNotes = Boolean(publicAccessShowNotesToggle?.checked);
   }
   try {
-    const response = await fetch(`/api/exams/${currentExamId}/public-access`, {
+    const response = await fetch(`api/exams/${currentExamId}/public-access`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -327,7 +327,7 @@ const savePublicAccess = async () => {
       showToast(info.error || "Errore salvataggio accesso.", "error");
       return;
     }
-    const examResponse = await fetch(`/api/exams/${currentExamId}`);
+    const examResponse = await fetch(`api/exams/${currentExamId}`);
     if (examResponse.ok) {
       const examPayload = await examResponse.json();
       currentExam = examPayload.exam;
@@ -496,7 +496,7 @@ const closePublicAccessModal = () => {
 const loadPublicExams = async () => {
   if (!publicCourseGrid || !publicExamGrid) return;
   try {
-    const response = await fetch("/api/public-exams");
+    const response = await fetch("api/public-exams");
     if (!response.ok) throw new Error();
     const payload = await response.json();
     publicExamsCache = payload.exams || [];
@@ -708,7 +708,7 @@ const initPublicAccess = () => {
 
     // Make API request
     try {
-      const response = await fetch("/api/public-results", {
+      const response = await fetch("api/public-results", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ examId, matricola, password }),
@@ -809,7 +809,7 @@ const loadSession = async (sessionId) => {
   if (!sessionId) return;
   try {
     debugLog("loadSession start", sessionId);
-    const response = await fetch(`/api/sessions/${sessionId}`);
+    const response = await fetch(`api/sessions/${sessionId}`);
     debugLog("loadSession response", response.status);
     if (!response.ok) {
       showToast("Errore nel caricamento sessione.", "error");
@@ -854,7 +854,7 @@ const saveSession = async (options = {}) => {
         : {}),
       students: studentsPayload,
     };
-    await fetch(`/api/sessions/${currentSessionId}`, {
+    await fetch(`api/sessions/${currentSessionId}`, {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
@@ -876,7 +876,7 @@ const loadSessionsForExam = async (examId) => {
   if (!examId) return;
   try {
     debugLog("loadSessionsForExam start", examId);
-    const response = await fetch(`/api/exams/${examId}/sessions`);
+    const response = await fetch(`api/exams/${examId}/sessions`);
     debugLog("loadSessionsForExam response", response.status);
     if (!response.ok) {
       renderSessionSelect([], null);
@@ -888,7 +888,7 @@ const loadSessionsForExam = async (examId) => {
     renderSessionSelect(sessions, currentSessionId);
     if (!sessions.length) {
       const title = formatSessionTitle(resultDateInput.value || "");
-      const createResponse = await fetch(`/api/exams/${examId}/sessions`, {
+      const createResponse = await fetch(`api/exams/${examId}/sessions`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1514,7 +1514,7 @@ const renderTable = () => {
       if (promptTestContent) promptTestContent.textContent = "Caricamento prompt...";
 
       try {
-        const response = await fetch("/api/study-advice-prompt-admin", {
+        const response = await fetch("api/study-advice-prompt-admin", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -1664,7 +1664,7 @@ const loadMappingFromExam = async (selectedId) => {
   mappingStatus.textContent = "Caricamento mapping in corso...";
   debugLog("loadMappingFromExam start", parsedId);
   try {
-    const response = await fetch(`/api/exams/${parsedId}/mapping`);
+    const response = await fetch(`api/exams/${parsedId}/mapping`);
     debugLog("mapping response", response.status);
     if (!response.ok) {
       const info = await response.json().catch(() => ({}));
@@ -1680,7 +1680,7 @@ const loadMappingFromExam = async (selectedId) => {
         updateExamVisibility(false);
       }
       try {
-        const examResponse = await fetch(`/api/exams/${parsedId}`);
+        const examResponse = await fetch(`api/exams/${parsedId}`);
         debugLog("exam details response", examResponse.status);
         if (examResponse.ok) {
           const examPayload = await examResponse.json();
@@ -1704,7 +1704,7 @@ const loadMappingFromExam = async (selectedId) => {
     setMappingBadge("Traccia selezionata", true);
     updateExamVisibility(true);
     try {
-      const examResponse = await fetch(`/api/exams/${parsedId}`);
+      const examResponse = await fetch(`api/exams/${parsedId}`);
       debugLog("exam response", examResponse.status);
       if (examResponse.ok) {
         const examPayload = await examResponse.json();
@@ -1773,7 +1773,7 @@ const updateExamInfo = (examId) => {
 
 const loadExams = async () => {
   try {
-    const response = await fetch("/api/exams");
+    const response = await fetch("api/exams");
     if (!response.ok) {
       mappingStatus.textContent = "Errore caricamento tracce.";
       return;
@@ -1799,7 +1799,7 @@ const loadExams = async () => {
 
 const loadExamStats = async () => {
   try {
-    const response = await fetch("/api/exams/stats");
+    const response = await fetch("api/exams/stats");
     if (!response.ok) return {};
     const payload = await response.json();
     return payload.stats || {};
@@ -1817,7 +1817,7 @@ const importEsse3 = async () => {
   showToast("Import in corso...");
   const buffer = await file.arrayBuffer();
   esse3Base64 = btoa(String.fromCharCode(...new Uint8Array(buffer)));
-  const response = await fetch("/api/import-esse3", {
+  const response = await fetch("api/import-esse3", {
     method: "POST",
     headers: { "Content-Type": "application/vnd.ms-excel" },
     body: buffer,
@@ -2248,7 +2248,7 @@ if (!appUser) {
       if (teachingPromptContent) teachingPromptContent.textContent = "Caricamento prompt...";
 
       try {
-        const response = await fetch("/api/teaching-improvement-prompt", {
+        const response = await fetch("api/teaching-improvement-prompt", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ examId: currentExamId })
@@ -2439,7 +2439,7 @@ if (!appUser) {
       }
       const title = formatSessionTitle(resultDateInput.value || "");
       try {
-        const response = await fetch(`/api/exams/${currentExamId}/sessions`, {
+        const response = await fetch(`api/exams/${currentExamId}/sessions`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ title, resultDate: resultDateInput.value || "" }),
@@ -2481,7 +2481,7 @@ if (!appUser) {
         fileBase64,
         results,
       };
-      const response = await fetch("/api/results-xls", {
+      const response = await fetch("api/results-xls", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),

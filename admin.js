@@ -227,7 +227,8 @@ const updateImageLayoutState = () => {
 };
 
 const apiFetch = async (url, options = {}) => {
-  const response = await fetch(url, options);
+  const relativeUrl = url.startsWith("/") ? url.slice(1) : url;
+  const response = await fetch(relativeUrl, options);
   if (!response.ok) {
     const info = await response.json().catch(() => ({}));
     const message = info.error || `Errore ${response.status}`;
@@ -238,7 +239,7 @@ const apiFetch = async (url, options = {}) => {
 
 const fetchActiveCourse = async () => {
   try {
-    const res = await fetch("/api/session/course");
+    const res = await fetch("api/session/course");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.course || null;

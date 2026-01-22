@@ -17,7 +17,7 @@ const showToast = (message, tone = "info") => {
 
 const loadActiveCourse = async () => {
   try {
-    const res = await fetch("/api/session/course");
+    const res = await fetch("api/session/course");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.course || null;
@@ -28,7 +28,7 @@ const loadActiveCourse = async () => {
 
 const setActiveCourse = async (courseId, courseName) => {
   try {
-    const res = await fetch("/api/session/course", {
+    const res = await fetch("api/session/course", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ courseId }),
@@ -48,7 +48,7 @@ const setActiveCourse = async (courseId, courseName) => {
 
 const renderCourses = async () => {
   if (!courseGrid || !window.CourseCards) return;
-  const res = await fetch("/api/courses");
+  const res = await fetch("api/courses");
   if (!res.ok) {
     courseGrid.textContent = "Errore nel caricamento corsi.";
     return;

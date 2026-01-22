@@ -50,7 +50,7 @@ const showToast = (message, tone = "info") => {
 
 const fetchActiveCourse = async () => {
   try {
-    const res = await fetch("/api/session/course");
+    const res = await fetch("api/session/course");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.course || null;
@@ -61,7 +61,7 @@ const fetchActiveCourse = async () => {
 
 const fetchActiveExam = async () => {
   try {
-    const res = await fetch("/api/session/exam");
+    const res = await fetch("api/session/exam");
     if (!res.ok) return null;
     const payload = await res.json();
     return payload.exam || null;
@@ -73,7 +73,7 @@ const fetchActiveExam = async () => {
 const setActiveExam = async (examId) => {
   if (!Number.isFinite(Number(examId))) return;
   try {
-    await fetch("/api/session/exam", {
+    await fetch("api/session/exam", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ examId }),
@@ -530,7 +530,7 @@ const loadCheating = async () => {
     const params = new URLSearchParams({
       sessionId: String(currentSessionId),
     });
-    const response = await fetch(`/api/exams/${currentExamId}/cheating?${params.toString()}`);
+    const response = await fetch(`api/exams/${currentExamId}/cheating?${params.toString()}`);
     if (!response.ok) {
       renderCheatingTable({ pairs: [] });
       if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Nessun dato.";
@@ -547,7 +547,7 @@ const loadCheating = async () => {
 const loadSession = async (sessionId) => {
   if (!sessionId) return;
   try {
-    const response = await fetch(`/api/sessions/${sessionId}`);
+    const response = await fetch(`api/sessions/${sessionId}`);
     if (!response.ok) {
       showToast("Errore nel caricamento sessione.", "error");
       return;
@@ -573,7 +573,7 @@ const loadSession = async (sessionId) => {
 
 const loadSessions = async (examId) => {
   try {
-    const response = await fetch(`/api/exams/${examId}/sessions`);
+    const response = await fetch(`api/exams/${examId}/sessions`);
     if (!response.ok) {
       renderSessions([]);
       return;
@@ -597,8 +597,8 @@ const loadExam = async (examId) => {
   analysisStatus.textContent = "Caricamento traccia...";
   try {
     const [examRes, mapRes] = await Promise.all([
-      fetch(`/api/exams/${examId}`),
-      fetch(`/api/exams/${examId}/mapping`),
+      fetch(`api/exams/${examId}`),
+      fetch(`api/exams/${examId}/mapping`),
     ]);
     if (!examRes.ok || !mapRes.ok) {
       analysisStatus.textContent = "Errore nel caricamento traccia.";
@@ -628,7 +628,7 @@ const loadExam = async (examId) => {
 
 const loadExams = async () => {
   try {
-    const response = await fetch("/api/exams");
+    const response = await fetch("api/exams");
     if (!response.ok) {
       analysisExamList.textContent = "Errore nel caricamento tracce.";
       return;
@@ -668,7 +668,7 @@ const initDashboard = async () => {
 
 const loadExamStats = async () => {
   try {
-    const response = await fetch("/api/exams/stats");
+    const response = await fetch("api/exams/stats");
     if (!response.ok) return {};
     const payload = await response.json();
     return payload.stats || {};

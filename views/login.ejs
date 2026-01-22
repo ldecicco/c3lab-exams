@@ -45,7 +45,7 @@
           username: form.username.value.trim(),
           password: form.password.value,
         };
-        const res = await fetch("/auth/login", {
+        const res = await fetch("auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify(body),
@@ -55,7 +55,7 @@
           error.textContent = info.error || "Login fallito";
           return;
         }
-        window.location.href = "/home";
+        window.location.href = "home";
       });
     </script>
   </body>

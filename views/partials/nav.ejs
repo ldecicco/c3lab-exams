@@ -10,7 +10,7 @@
   ? `/${String(user.avatarThumbPath).replace(/^\/+/, "")}`
   : ""; %>
 <nav class="top-nav">
-  <a href="/home" class="nav-logo" aria-label="Home">
+  <a href="home" class="nav-logo" aria-label="Home">
     <img src="/assets/logo.png" alt="Logo" />
   </a>
   <% const role = user?.role || ""; %>
@@ -20,26 +20,26 @@
   <% const canBuild = isAdmin || isCreator; %>
   <% const canGrade = isAdmin || isCreator || isEvaluator; %>
   <% const canAnalyze = isAdmin || isCreator; %>
-  <a href="/home" class="nav-link <%= active === 'home' ? 'active' : '' %>">
+  <a href="home" class="nav-link <%= active === 'home' ? 'active' : '' %>">
     <i class="fa-solid fa-graduation-cap"></i>
     Corsi
   </a>
   <% if (canBuild) { %>
-    <a href="/questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">
+    <a href="questions" class="nav-link <%= active === 'questions' ? 'active' : '' %>">
       <i class="fa-solid fa-clipboard-question"></i>
       Domande
     </a>
-    <a href="/exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">
+    <a href="exam-builder" class="nav-link <%= active === 'exam-builder' ? 'active' : '' %>">
       <i class="fa-solid fa-layer-group"></i>
       Tracce
     </a>
   <% } %>
-  <a href="/valutazione" class="nav-link <%= active === 'valutazione' ? 'active' : '' %>">
+  <a href="valutazione" class="nav-link <%= active === 'valutazione' ? 'active' : '' %>">
     <i class="fa-solid fa-clipboard-check"></i>
     Valutazione
   </a>
   <% if (canAnalyze) { %>
-    <a href="/dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">
+    <a href="dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">
       <i class="fa-solid fa-chart-line"></i>
       Analisi
     </a>
@@ -48,7 +48,7 @@
   <% if (activeExamTitle || activeCourseName) { %>
     <div class="nav-chip-group">
       <% if (activeExamTitle) { %>
-        <a class="nav-chip nav-chip-link" href="/exam-builder?step=2" title="Apri Domande">
+        <a class="nav-chip nav-chip-link" href="exam-builder?step=2" title="Apri Domande">
           Traccia: <%= activeExamTitle %>
         </a>
       <% } %>
@@ -69,15 +69,15 @@
     <img class="nav-avatar-image <%= avatarThumbPath ? '' : 'is-hidden' %>" src="<%= avatarThumbPath %>" alt="" />
     <span class="nav-avatar-initials <%= avatarThumbPath ? 'is-hidden' : '' %>"><%= initials %></span>
   </button>
-  <a href="/guida" class="nav-link nav-icon <%= active === 'guida' ? 'active' : '' %>" title="Guida" aria-label="Guida">
+  <a href="guida" class="nav-link nav-icon <%= active === 'guida' ? 'active' : '' %>" title="Guida" aria-label="Guida">
     <i class="fa-solid fa-circle-question"></i>
   </a>
   <% if (isAdmin) { %>
-    <a href="/admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">
+    <a href="admin" class="nav-link nav-icon admin-link <%= active === 'admin' ? 'active' : '' %>" title="Admin" aria-label="Admin">
       <i class="fa-solid fa-user-gear"></i>
     </a>
   <% } %>
-  <a href="/logout" class="nav-link nav-icon" title="Esci" aria-label="Esci">
+  <a href="logout" class="nav-link nav-icon" title="Esci" aria-label="Esci">
     <i class="fa-solid fa-right-from-bracket"></i>
   </a>
 </nav>
@@ -183,7 +183,7 @@
           }
           item.addEventListener("click", async () => {
             try {
-              await fetch("/api/session/course", {
+              await fetch("api/session/course", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify({ courseId: course.id }),
@@ -202,7 +202,7 @@
         toggle.setAttribute("aria-expanded", "true");
         if (loaded) return;
         try {
-          const res = await fetch("/api/courses");
+          const res = await fetch("api/courses");
           const payload = await res.json();
           render(payload.courses || []);
         } catch {
@@ -359,7 +359,7 @@
           return;
         }
         try {
-          const res = await fetch("/api/users/me/password", {
+          const res = await fetch("api/users/me/password", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ currentPassword: current, newPassword: next }),
@@ -435,7 +435,7 @@
         const croppedBase64 = cropper
           .getCroppedCanvas({ width: 256, height: 256 })
           .toDataURL("image/png");
-        const res = await fetch("/api/users/me/avatar", {
+        const res = await fetch("api/users/me/avatar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ originalBase64, croppedBase64, originalName }),
