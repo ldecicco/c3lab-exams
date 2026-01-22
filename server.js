@@ -4109,6 +4109,7 @@ app.post("/api/generate-traces", requireRole("admin", "creator"), async (req, re
     const texPath = path.join(tmpDir, "exam.tex");
     fs.writeFileSync(texPath, latex, "utf8");
     copyLatexAssets(collectLatexAssets(latex), tmpDir);
+    const texInput = texPath.replace(/\\/g, "/");
 
     const pdfPaths = [];
     for (let i = 1; i <= versions; i += 1) {
