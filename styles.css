@@ -612,7 +612,7 @@ h1 {
   position: fixed;
   inset: 0;
   background: rgba(8, 20, 40, 0.35);
-  z-index: 1045;
+  z-index: 39;
 }
 
 .top-nav .nav-chip {
