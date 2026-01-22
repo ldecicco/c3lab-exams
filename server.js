@@ -346,8 +346,18 @@ app.use(express.raw({ type: "application/vnd.ms-excel", limit: "5mb" }));
 app.use(express.urlencoded({ extended: false }));
 app.use(cookieParser());
 
+app.set("trust proxy", 1);
+
 const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 7);
 const PUBLIC_ACCESS_TTL_DAYS = Number(process.env.PUBLIC_ACCESS_TTL_DAYS || 30);
+
+const USE_SECURE_COOKIES = process.env.NODE_ENV !== "development";
+const SESSION_COOKIE_OPTIONS = (expiresAt) => ({
+  httpOnly: true,
+  sameSite: "strict",
+  secure: USE_SECURE_COOKIES,
+  expires: expiresAt,
+});
 
 const createSession = (userId) => {
   const token = crypto.randomBytes(32).toString("hex");
@@ -508,7 +518,11 @@ router.get("/logout", (req, res) => {
   if (token) {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
   }
-  res.clearCookie("session_token");
+  res.clearCookie("session_token", {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: USE_SECURE_COOKIES,
+  });
   res.redirect(BASE_PATH + "/login");
 });
 
@@ -527,11 +541,7 @@ router.post("/auth/login", (req, res) => {
     return;
   }
   const session = createSession(user.id);
-  res.cookie("session_token", session.token, {
-    httpOnly: true,
-    sameSite: "lax",
-    expires: session.expiresAt,
-  });
+  res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
   res.json({ ok: true, user: { id: user.id, username: user.username, role: user.role } });
 });
 
@@ -540,7 +550,11 @@ router.post("/auth/logout", (req, res) => {
   if (token) {
     db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(token);
   }
-  res.clearCookie("session_token");
+  res.clearCookie("session_token", {
+    httpOnly: true,
+    sameSite: "strict",
+    secure: USE_SECURE_COOKIES,
+  });
   res.json({ ok: true });
 });
 
@@ -921,6 +935,11 @@ router.post("/api/users/me/password", requireAuth, (req, res) => {
   const hash = bcrypt.hashSync(newPassword, 10);
   db.prepare("UPDATE users SET password_hash = ?, updated_at = datetime('now') WHERE id = ?")
     .run(hash, userId);
+  if (req.sessionToken) {
+    db.prepare("DELETE FROM auth_sessions WHERE token = ?").run(req.sessionToken);
+  }
+  const session = createSession(userId);
+  res.cookie("session_token", session.token, SESSION_COOKIE_OPTIONS(session.expiresAt));
   res.json({ ok: true });
 });
 
