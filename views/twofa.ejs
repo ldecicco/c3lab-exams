@@ -1,0 +1,111 @@
+<!doctype html>
+<html lang="it">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <base href="<%= basePath %>/" />
+    <% if (csrfToken) { %><meta name="csrf-token" content="<%= csrfToken %>"><% } %>
+    <title>Attiva 2FA</title>
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
+    />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body class="twofa-page">
+    <div class="bg-orbit"></div>
+    <div class="bg-grid"></div>
+    <main class="layout container-fluid admin-layout py-4">
+      <div class="card shadow-sm" style="max-width: 720px; margin: 8vh auto;">
+        <div class="card-header">
+          <h1 class="h5 mb-0">Attiva autenticazione a due fattori (2FA)</h1>
+        </div>
+        <div class="card-body vstack gap-3">
+          <p class="text-secondary mb-0">
+            Per continuare è necessario attivare il 2FA. Usa un’app come Google Authenticator o
+            Microsoft Authenticator.
+          </p>
+          <div class="text-secondary" id="twoFaStatus">2FA non attivo.</div>
+          <div class="twofa-setup">
+            <button class="btn btn-primary" type="button" id="twoFaStart">
+              <i class="fa-solid fa-shield-halved"></i>
+              Genera QR
+            </button>
+            <div class="twofa-qr is-hidden" id="twoFaQrWrap">
+              <img id="twoFaQr" alt="QR 2FA" />
+            </div>
+            <div class="text-secondary small" id="twoFaSecret"></div>
+            <label class="field">
+              <span>Codice 2FA</span>
+              <input id="twoFaCode" class="form-control" type="text" inputmode="numeric" autocomplete="one-time-code" />
+            </label>
+            <div class="actions">
+              <button class="btn btn-outline-primary" type="button" id="twoFaVerify">Conferma</button>
+              <a class="btn btn-outline-secondary" href="logout">Esci</a>
+            </div>
+            <div class="text-danger small" id="twoFaError" style="min-height: 1.2rem;"></div>
+          </div>
+        </div>
+      </div>
+    </main>
+    <script>
+      const status = document.getElementById("twoFaStatus");
+      const startBtn = document.getElementById("twoFaStart");
+      const verifyBtn = document.getElementById("twoFaVerify");
+      const qrWrap = document.getElementById("twoFaQrWrap");
+      const qrImg = document.getElementById("twoFaQr");
+      const secretEl = document.getElementById("twoFaSecret");
+      const codeInput = document.getElementById("twoFaCode");
+      const error = document.getElementById("twoFaError");
+
+      const showError = (message) => {
+        if (error) error.textContent = message || "";
+      };
+
+      if (startBtn) {
+        startBtn.addEventListener("click", async () => {
+          showError("");
+          try {
+            const res = await fetch("api/2fa/setup/start", { method: "POST" });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Errore 2FA");
+            if (qrWrap) qrWrap.classList.toggle("is-hidden", !data.qrCodeDataUrl);
+            if (qrImg && data.qrCodeDataUrl) qrImg.src = data.qrCodeDataUrl;
+            if (secretEl) secretEl.textContent = data.secret ? `Chiave: ${data.secret}` : "";
+            if (status) status.textContent = "Scansiona il QR e inserisci il codice.";
+            if (codeInput) codeInput.focus();
+          } catch (err) {
+            showError(err.message || "Errore 2FA");
+          }
+        });
+      }
+
+      if (verifyBtn) {
+        verifyBtn.addEventListener("click", async () => {
+          showError("");
+          const token = String(codeInput?.value || "").trim();
+          if (!token) {
+            showError("Inserisci il codice.");
+            return;
+          }
+          try {
+            const res = await fetch("api/2fa/setup/verify", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ token }),
+            });
+            const data = await res.json().catch(() => ({}));
+            if (!res.ok) throw new Error(data.error || "Errore 2FA");
+            window.location.href = "home";
+          } catch (err) {
+            showError(err.message || "Errore 2FA");
+          }
+        });
+      }
+    </script>
+  </body>
+</html>
