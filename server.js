@@ -12,6 +12,15 @@ const PDFDocument = require("pdfkit");
 const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const cookieParser = require("cookie-parser");
+let helmet;
+try {
+  helmet = require("helmet");
+} catch (err) {
+  console.warn(
+    "[security] helmet non installato, headers di sicurezza disattivati. Esegui: npm install helmet"
+  );
+  helmet = null;
+}
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -19,6 +28,15 @@ const BASE_PATH = process.env.BASE_PATH || '';
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
+
+if (helmet) {
+  app.use(
+    helmet({
+      contentSecurityPolicy: false,
+      crossOriginEmbedderPolicy: false,
+    })
+  );
+}
 
 const DATA_DIR = path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
