@@ -22,6 +22,7 @@ WORKDIR /app
 # Install runtime dependencies: LaTeX, Poppler, Ghostscript
 RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-latex-extra \
+    texlive-extra-utils \
     poppler-utils \
     ghostscript \
     && rm -rf /var/lib/apt/lists/*
