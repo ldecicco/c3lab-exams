@@ -108,8 +108,11 @@ const adminImageDescription = document.getElementById("adminImageDescription");
 const adminImageFile = document.getElementById("adminImageFile");
 const adminImageSourceFile = document.getElementById("adminImageSourceFile");
 const adminUploadImageBtn = document.getElementById("adminUploadImage");
+const adminUpdateImageBtn = document.getElementById("adminUpdateImage");
+const adminCancelImageBtn = document.getElementById("adminCancelImage");
 const adminImageStatus = document.getElementById("adminImageStatus");
 const adminImageList = document.getElementById("adminImageList");
+let editingImageId = null;
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
@@ -1923,14 +1926,19 @@ const renderAdminImageList = (images) => {
     const item = document.createElement("div");
     item.className = "image-bank-item";
     item.innerHTML = `
-      <img src="data/images/${image.file_path}" alt="${image.name}" />
+      <img src="${image.file_path}" alt="${image.name}" />
       <div class="image-bank-info">
         <strong>${image.name}</strong>
         ${image.description ? `<span>${image.description}</span>` : ""}
       </div>
-      <button class="btn btn-outline-danger btn-sm" data-id="${image.id}">Elimina</button>
+      <div class="image-bank-actions">
+        <button class="btn btn-outline-secondary btn-sm edit-btn">Modifica</button>
+        <button class="btn btn-outline-danger btn-sm delete-btn">Elimina</button>
+      </div>
     `;
-    const deleteBtn = item.querySelector("button");
+    const editBtn = item.querySelector(".edit-btn");
+    editBtn?.addEventListener("click", () => setImageEditState(image));
+    const deleteBtn = item.querySelector(".delete-btn");
     deleteBtn?.addEventListener("click", async () => {
       if (!confirm(`Eliminare l'immagine "${image.name}"?`)) return;
       try {
@@ -1942,6 +1950,23 @@ const renderAdminImageList = (images) => {
     });
     adminImageList.appendChild(item);
   });
+};
+
+const setImageEditState = (image) => {
+  editingImageId = image ? image.id : null;
+  if (adminImageName) adminImageName.value = image ? image.name : "";
+  if (adminImageDescription) adminImageDescription.value = image ? (image.description || "") : "";
+  if (adminImageFile) adminImageFile.value = "";
+  if (adminImageSourceFile) adminImageSourceFile.value = "";
+  if (adminImageStatus) adminImageStatus.textContent = image ? `Modifica: ${image.name}` : "";
+  if (adminUploadImageBtn) adminUploadImageBtn.classList.toggle("is-hidden", Boolean(image));
+  if (adminUpdateImageBtn) adminUpdateImageBtn.classList.toggle("is-hidden", !image);
+  if (adminCancelImageBtn) adminCancelImageBtn.classList.toggle("is-hidden", !image);
+  if (adminImageCourse) adminImageCourse.disabled = Boolean(image);
+};
+
+const cancelImageEdit = () => {
+  setImageEditState(null);
 };
 
 const loadImagesForAdmin = async () => {
@@ -2643,15 +2668,25 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
         if (adminImageStatus) adminImageStatus.textContent = "Seleziona corso, nome e file.";
         return;
       }
-      const formData = new FormData();
-      formData.append("courseId", String(courseId));
-      formData.append("name", name);
-      formData.append("description", description);
-      formData.append("file", file);
-      if (sourceFile) formData.append("sourceFile", sourceFile);
       try {
         if (adminImageStatus) adminImageStatus.textContent = "Caricamento...";
-        await fetch("api/images", { method: "POST", body: formData });
+        const dataBase64 = await readFileAsDataUrl(file);
+        const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
+        await apiFetch("/api/images", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            courseId,
+            name,
+            description,
+            originalName: file.name,
+            dataBase64,
+            mimeType: file.type,
+            sourceOriginalName: sourceFile?.name || "",
+            sourceBase64,
+            sourceMimeType: sourceFile?.type || "",
+          }),
+        });
         if (adminImageName) adminImageName.value = "";
         if (adminImageDescription) adminImageDescription.value = "";
         if (adminImageFile) adminImageFile.value = "";
@@ -2662,6 +2697,46 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
         if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore caricamento.";
       }
     });
+  }
+  if (adminUpdateImageBtn) {
+    adminUpdateImageBtn.addEventListener("click", async () => {
+      if (!editingImageId) return;
+      const name = adminImageName?.value?.trim();
+      const description = adminImageDescription?.value?.trim() || "";
+      const file = adminImageFile?.files?.[0];
+      const sourceFile = adminImageSourceFile?.files?.[0];
+      if (!name) {
+        if (adminImageStatus) adminImageStatus.textContent = "Inserisci un nome.";
+        return;
+      }
+      try {
+        if (adminImageStatus) adminImageStatus.textContent = "Aggiornamento...";
+        const dataBase64 = file ? await readFileAsDataUrl(file) : "";
+        const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
+        await apiFetch(`/api/images/${editingImageId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            name,
+            description,
+            originalName: file?.name || "",
+            dataBase64,
+            mimeType: file?.type || "",
+            sourceOriginalName: sourceFile?.name || "",
+            sourceBase64,
+            sourceMimeType: sourceFile?.type || "",
+          }),
+        });
+        cancelImageEdit();
+        if (adminImageStatus) adminImageStatus.textContent = "Immagine aggiornata.";
+        loadImagesForAdmin();
+      } catch (err) {
+        if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore aggiornamento.";
+      }
+    });
+  }
+  if (adminCancelImageBtn) {
+    adminCancelImageBtn.addEventListener("click", cancelImageEdit);
   }
   if (adminUpdateCourseBtn) adminUpdateCourseBtn.addEventListener("click", updateCourse);
   if (adminCancelCourseBtn) adminCancelCourseBtn.addEventListener("click", cancelCourseEdit);

@@ -2890,6 +2890,110 @@ router.post("/api/images", requireRole("admin", "creator"), (req, res) => {
   res.json({ image });
 });
 
+router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const existing = db
+    .prepare("SELECT * FROM images WHERE id = ?")
+    .get(id);
+  if (!existing) {
+    res.status(404).json({ error: "Immagine non trovata" });
+    return;
+  }
+  const payload = req.body || {};
+  const name = String(payload.name || "").trim() || existing.name;
+  const description = String(payload.description || "").trim();
+  const originalName = String(payload.originalName || "").trim();
+  const dataBase64 = String(payload.dataBase64 || "").trim();
+  const sourceOriginalName = String(payload.sourceOriginalName || "").trim();
+  const sourceBase64 = String(payload.sourceBase64 || "").trim();
+
+  let relPath = existing.file_path;
+  let thumbnailRel = existing.thumbnail_path;
+  let sourceRelPath = existing.source_path;
+
+  if (dataBase64) {
+    const ext = detectExtension(originalName, dataBase64);
+    if (!ext) {
+      res.status(400).json({ error: "Estensione file non valida" });
+      return;
+    }
+    const oldAbsPath = path.join(__dirname, existing.file_path);
+    if (fs.existsSync(oldAbsPath)) fs.unlinkSync(oldAbsPath);
+    if (existing.thumbnail_path) {
+      const oldThumbPath = path.join(__dirname, existing.thumbnail_path);
+      if (fs.existsSync(oldThumbPath)) fs.unlinkSync(oldThumbPath);
+    }
+    const base = sanitizeFileBase(name || originalName || "immagine");
+    const fileName = `${Date.now()}-${base || "immagine"}${ext}`;
+    const destDir = path.join(IMAGE_DIR, String(existing.course_id));
+    fs.mkdirSync(destDir, { recursive: true });
+    const filePath = path.join(destDir, fileName);
+    const buffer = Buffer.from(stripDataUrl(dataBase64), "base64");
+    fs.writeFileSync(filePath, buffer);
+    relPath = path.relative(__dirname, filePath).replace(/\\/g, "/");
+    const baseName = path.parse(fileName).name;
+    const thumbnailAbs = canThumbnailExtension(ext)
+      ? generateThumbnail(filePath, destDir, baseName, ext)
+      : null;
+    thumbnailRel = thumbnailAbs
+      ? path.relative(__dirname, thumbnailAbs).replace(/\\/g, "/")
+      : null;
+  }
+
+  if (sourceBase64) {
+    if (existing.source_path) {
+      const oldSourcePath = path.join(__dirname, existing.source_path);
+      if (fs.existsSync(oldSourcePath)) fs.unlinkSync(oldSourcePath);
+    }
+    const base = sanitizeFileBase(name || originalName || "immagine");
+    const sourceExt = detectExtension(sourceOriginalName, sourceBase64) || ".bin";
+    const sourceName = `${Date.now()}-${base || "immagine"}-source${sourceExt}`;
+    const destDir = path.join(IMAGE_DIR, String(existing.course_id));
+    const sourcePath = path.join(destDir, sourceName);
+    const sourceBuffer = Buffer.from(stripDataUrl(sourceBase64), "base64");
+    fs.writeFileSync(sourcePath, sourceBuffer);
+    sourceRelPath = path.relative(__dirname, sourcePath).replace(/\\/g, "/");
+  }
+
+  db.prepare(
+    `UPDATE images SET
+       name = ?,
+       description = ?,
+       original_name = COALESCE(?, original_name),
+       file_path = ?,
+       mime_type = COALESCE(?, mime_type),
+       thumbnail_path = ?,
+       source_name = COALESCE(?, source_name),
+       source_path = ?,
+       source_mime_type = COALESCE(?, source_mime_type)
+     WHERE id = ?`
+  ).run(
+    name,
+    description || null,
+    originalName || null,
+    relPath,
+    payload.mimeType || null,
+    thumbnailRel,
+    sourceOriginalName || null,
+    sourceRelPath,
+    payload.sourceMimeType || null,
+    id
+  );
+
+  const image = db
+    .prepare(
+      `SELECT id, name, description, original_name, file_path, mime_type,
+              thumbnail_path, source_name, source_path, source_mime_type
+         FROM images WHERE id = ?`
+    )
+    .get(id);
+  res.json({ image });
+});
+
 router.delete("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   const id = Number(req.params.id);
   if (!Number.isFinite(id)) {
