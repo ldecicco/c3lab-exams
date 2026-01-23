@@ -570,6 +570,9 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
+  if (typeof res.locals.csrfToken === "undefined") {
+    res.locals.csrfToken = null;
+  }
   res.locals.basePath = BASE_PATH;
   next();
 });
