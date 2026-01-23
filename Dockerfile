@@ -32,6 +32,9 @@ COPY --from=builder /app/node_modules ./node_modules
 # Copy application code
 COPY . .
 
+# Minify JS for production
+RUN node scripts/minify.js
+
 # Create data directory
 RUN mkdir -p /app/data
 
