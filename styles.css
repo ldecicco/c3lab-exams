@@ -586,6 +586,10 @@ h1 {
   font-size: 1rem;
 }
 
+.top-nav .nav-link.nav-icon:hover {
+  background: rgba(47, 95, 167, 0.12);
+}
+
 .top-nav .nav-link.admin-link {
   margin-left: 0;
 }
@@ -594,8 +598,8 @@ h1 {
   width: 38px;
   height: 38px;
   border-radius: 999px;
-  border: 1px solid rgba(15, 76, 129, 0.25);
-  background: rgba(15, 76, 129, 0.12);
+  border: 1px solid rgba(47, 95, 167, 0.25);
+  background: rgba(47, 95, 167, 0.12);
   color: #ffffff;
   display: inline-flex;
   align-items: center;
@@ -620,7 +624,7 @@ h1 {
   font-size: 0.85rem;
   letter-spacing: 0.02em;
   color: #ffffff;
-  background: #0b2f4f;
+  background: #2f5fa7;
   width: 100%;
   height: 100%;
   display: grid;
@@ -658,9 +662,9 @@ h1 {
 }
 
 .top-nav .nav-chip {
-  background: rgba(15, 76, 129, 0.1);
-  border: 1px solid rgba(15, 76, 129, 0.25);
-  color: #0f4c81;
+  background: rgba(47, 95, 167, 0.1);
+  border: 1px solid rgba(47, 95, 167, 0.25);
+  color: #2f5fa7;
   padding: 6px 12px;
   border-radius: 999px;
   font-size: 0.82rem;
@@ -719,12 +723,12 @@ h1 {
 }
 
 .top-nav .nav-chip-item:hover {
-  background: rgba(13, 74, 124, 0.08);
+  background: rgba(47, 95, 167, 0.08);
 }
 
 .top-nav .nav-chip-item.is-active {
-  background: rgba(15, 76, 129, 0.16);
-  color: #0f4c81;
+  background: rgba(47, 95, 167, 0.16);
+  color: #2f5fa7;
   font-weight: 700;
 }
 
@@ -741,9 +745,9 @@ h1 {
 }
 
 .top-nav .nav-chip-link:hover {
-  background: rgba(15, 76, 129, 0.18);
-  border-color: rgba(15, 76, 129, 0.4);
-  color: #0d3d66;
+  background: rgba(47, 95, 167, 0.18);
+  border-color: rgba(242, 194, 48, 0.85);
+  color: #234a85;
 }
 
 .icon-button {
