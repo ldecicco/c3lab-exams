@@ -427,6 +427,18 @@ h1 {
   color: var(--ink);
 }
 
+.selected-question-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: start;
+}
+
+.selected-question-image {
+  display: flex;
+  justify-content: center;
+}
+
 .selected-question-image img {
   width: 100%;
   max-height: 180px;
@@ -2341,6 +2353,13 @@ input {
   font-size: 0.9rem;
   color: var(--muted);
   word-break: break-word;
+}
+
+.preview-image-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+  gap: 14px;
+  align-items: start;
 }
 
 .layout-controls {

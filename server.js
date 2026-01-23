@@ -149,6 +149,7 @@ db.exec(`
     type TEXT NOT NULL,
     image_path TEXT,
     image_layout_enabled INTEGER NOT NULL DEFAULT 0,
+    image_layout_mode TEXT NOT NULL DEFAULT 'side',
     image_left_width TEXT,
     image_right_width TEXT,
     image_scale TEXT,
@@ -278,6 +279,7 @@ ensureColumn("exams", "public_access_expires_at", "TEXT");
 ensureColumn("exams", "public_access_show_notes", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("images", "source_name", "TEXT");
 ensureColumn("images", "source_path", "TEXT");
+ensureColumn("questions", "image_layout_mode", "TEXT NOT NULL DEFAULT 'side'");
 ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");
 ensureColumn("users", "avatar_path", "TEXT");
@@ -307,7 +309,7 @@ const getExamQuestions = (examId) => {
   const questionRows = db
     .prepare(
       `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale,
+              q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
               i.thumbnail_path AS image_thumbnail_path
          FROM exam_questions eq
          JOIN questions q ON q.id = eq.question_id
@@ -345,6 +347,7 @@ const getExamQuestions = (examId) => {
       imagePath: row.image_path || "",
       imageThumbnailPath: row.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(row.image_layout_enabled),
+      imageLayoutMode: row.image_layout_mode || "side",
       imageLeftWidth: row.image_left_width || "",
       imageRightWidth: row.image_right_width || "",
       imageScale: row.image_scale || "",
@@ -2990,7 +2993,7 @@ router.get("/api/questions", requireRole("admin", "creator"), (req, res) => {
   const havingSql = unusedOnly ? "HAVING is_used = 0" : "";
   const stmt = db.prepare(`
     SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
-           q.image_left_width, q.image_right_width, q.image_scale,
+           q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
            i.thumbnail_path AS image_thumbnail_path,
            GROUP_CONCAT(DISTINCT t.name) AS topics,
            MAX(e.date) AS last_exam_date,
@@ -3071,7 +3074,7 @@ router.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (re
     const question = db
     .prepare(
       `SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
-              q.image_left_width, q.image_right_width, q.image_scale,
+              q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
               i.thumbnail_path AS image_thumbnail_path
          FROM questions q
          LEFT JOIN images i ON i.file_path = q.image_path
@@ -3123,6 +3126,7 @@ router.post("/api/questions/:id/duplicate", requireRole("admin", "creator"), (re
       type: question.type,
       imagePath: question.image_path,
       imageLayoutEnabled: Boolean(question.image_layout_enabled),
+      imageLayoutMode: question.image_layout_mode || "side",
       imageLeftWidth: question.image_left_width,
       imageRightWidth: question.image_right_width,
       imageScale: question.image_scale,
@@ -3161,7 +3165,7 @@ router.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => 
     db.prepare(
       `UPDATE questions
           SET text = ?, note = ?, type = ?, image_path = ?, image_layout_enabled = ?,
-              image_left_width = ?, image_right_width = ?, image_scale = ?,
+              image_layout_mode = ?, image_left_width = ?, image_right_width = ?, image_scale = ?,
               updated_at = datetime('now')
         WHERE id = ?`
     ).run(
@@ -3170,6 +3174,7 @@ router.put("/api/questions/:id", requireRole("admin", "creator"), (req, res) => 
       question.type,
       question.imagePath || null,
       question.imageLayoutEnabled ? 1 : 0,
+      question.imageLayoutMode || "side",
       question.imageLeftWidth || null,
       question.imageRightWidth || null,
       question.imageScale || null,
@@ -3229,7 +3234,7 @@ router.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => 
   const question = db
     .prepare(
       `SELECT id, text, type, image_path, image_layout_enabled,
-              image_left_width, image_right_width, image_scale
+              image_layout_mode, image_left_width, image_right_width, image_scale
          FROM questions
         WHERE id = ?`
     )
@@ -3276,6 +3281,7 @@ router.get("/api/questions/:id", requireRole("admin", "creator"), (req, res) => 
       imagePath: question.image_path || "",
       imageThumbnailPath: question.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(question.image_layout_enabled),
+      imageLayoutMode: question.image_layout_mode || "side",
       imageLeftWidth: question.image_left_width || "",
       imageRightWidth: question.image_right_width || "",
       imageScale: question.image_scale || "",
@@ -3644,8 +3650,8 @@ const insertQuestion = (question, courseId) => {
   const info = db
     .prepare(
       `INSERT INTO questions
-        (text, note, type, image_path, image_layout_enabled, image_left_width, image_right_width, image_scale)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+        (text, note, type, image_path, image_layout_enabled, image_layout_mode, image_left_width, image_right_width, image_scale)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       question.text,
@@ -3653,6 +3659,7 @@ const insertQuestion = (question, courseId) => {
       question.type,
       question.imagePath || null,
       question.imageLayoutEnabled ? 1 : 0,
+      question.imageLayoutMode || "side",
       question.imageLeftWidth || null,
       question.imageRightWidth || null,
       question.imageScale || null

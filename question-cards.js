@@ -19,6 +19,13 @@
       question.imageThumbnailPath ||
       question.image_thumbnail_path ||
       "",
+    imageLayoutEnabled: Boolean(
+      question.imageLayoutEnabled ?? question.image_layout_enabled ?? false
+    ),
+    imageLayoutMode:
+      question.imageLayoutMode ||
+      question.image_layout_mode ||
+      "side",
     answers: Array.isArray(question.answers) ? question.answers : [],
   });
 
@@ -31,7 +38,15 @@
             if (target) target.textContent = text;
           };
     const answersMode = options.answersMode || "full";
-    const { text, note, image, imageThumbnail, answers } = normalizeQuestion(question);
+    const {
+      text,
+      note,
+      image,
+      imageThumbnail,
+      imageLayoutEnabled,
+      imageLayoutMode,
+      answers,
+    } = normalizeQuestion(question);
 
     container.innerHTML = "";
     const textBlock = createEl("div", "selected-question-text");
@@ -45,16 +60,6 @@
       renderMath(note, noteBody);
       noteWrap.appendChild(noteBody);
       container.appendChild(noteWrap);
-    }
-
-    const previewSrc = imageThumbnail || image;
-    if (previewSrc) {
-      const imgWrap = createEl("div", "selected-question-image");
-      const img = createEl("img", "selected-preview-thumb");
-      img.src = previewSrc;
-      img.alt = image || previewSrc;
-      imgWrap.appendChild(img);
-      container.appendChild(imgWrap);
     }
 
     const trimmedAnswers = answers.filter(
@@ -86,6 +91,7 @@
       list.appendChild(row);
     });
 
+    let answersNode = list;
     if (answersMode === "accordion") {
       const details = document.createElement("details");
       details.className = "answer-accordion";
@@ -93,10 +99,28 @@
       summary.textContent = `Risposte (${trimmedAnswers.length})`;
       details.appendChild(summary);
       details.appendChild(list);
-      container.appendChild(details);
+      answersNode = details;
+    }
+
+    const previewSrc = imageThumbnail || image;
+    if (imageLayoutEnabled && previewSrc) {
+      const imgWrap = createEl("div", "selected-question-image");
+      const img = createEl("img", "selected-preview-thumb");
+      img.src = previewSrc;
+      img.alt = image || previewSrc;
+      imgWrap.appendChild(img);
+      if (imageLayoutMode === "side") {
+        const split = createEl("div", "selected-question-split");
+        split.appendChild(imgWrap);
+        split.appendChild(answersNode);
+        container.appendChild(split);
+      } else {
+        container.appendChild(imgWrap);
+        container.appendChild(answersNode);
+      }
       return;
     }
-    container.appendChild(list);
+    container.appendChild(answersNode);
   };
 
   window.QuestionCards = { renderPreview };

@@ -32,6 +32,8 @@ const adminPreviewImage = document.getElementById("adminPreviewImage");
 const adminPreviewImageMeta = document.getElementById("adminPreviewImageMeta");
 const adminQuestionImageLayout = document.getElementById("adminQuestionImageLayout");
 const adminQuestionLayoutFields = document.getElementById("adminQuestionLayoutFields");
+const adminImageLayoutMode = document.getElementById("adminImageLayoutMode");
+const adminImageSplitFields = document.getElementById("adminImageSplitFields");
 const adminImageSplit = document.getElementById("adminImageSplit");
 const adminImageSplitLabel = document.getElementById("adminImageSplitLabel");
 const adminImageSplitPresets = document.getElementById("adminImageSplitPresets");
@@ -221,6 +223,36 @@ const formatWidthPercent = (percent) => {
   return `${ratio}\\linewidth`;
 };
 
+const getSelectedImageLayoutMode = () => {
+  const selected = adminImageLayoutMode?.querySelector(
+    'input[name="adminImageLayoutMode"]:checked'
+  );
+  return selected ? selected.value : adminQuestionState.imageLayoutMode || "side";
+};
+
+const updateImageLayoutModePills = () => {
+  if (!adminImageLayoutMode) return;
+  const mode = getSelectedImageLayoutMode();
+  Array.from(adminImageLayoutMode.querySelectorAll(".radio-pill")).forEach((pill) => {
+    const input = pill.querySelector("input");
+    pill.classList.toggle("is-selected", input?.checked);
+  });
+  adminQuestionState.imageLayoutMode = mode;
+};
+
+const updateImageLayoutModeUI = () => {
+  const mode = adminQuestionState.imageLayoutMode || "side";
+  if (adminImageSplitFields) {
+    adminImageSplitFields.classList.toggle("is-hidden", mode !== "side");
+  }
+  if (adminImageScaleLabel) {
+    const scale = Number(adminImageScaleRange?.value || 96);
+    const safeScale = Number.isFinite(scale) ? scale : 96;
+    adminImageScaleLabel.textContent =
+      mode === "below" ? `${safeScale}% della pagina` : `${safeScale}% della colonna`;
+  }
+};
+
 const updateImageLayoutState = () => {
   const split = Number(adminImageSplit?.value || 50);
   const safeSplit = Number.isFinite(split) ? split : 50;
@@ -234,9 +266,7 @@ const updateImageLayoutState = () => {
   if (adminImageSplitLabel) {
     adminImageSplitLabel.textContent = `Immagine ${left}% • Risposte ${right}%`;
   }
-  if (adminImageScaleLabel) {
-    adminImageScaleLabel.textContent = `${safeScale}% della colonna`;
-  }
+  updateImageLayoutModeUI();
   if (adminImageSplitPreview) {
     const imageBlock = adminImageSplitPreview.querySelector(".layout-preview-image");
     const textBlock = adminImageSplitPreview.querySelector(".layout-preview-text");
@@ -763,6 +793,7 @@ const getQuestionSnapshot = () => {
     topicIds,
     image: String(adminQuestionState.image || "").trim(),
     imageLayoutEnabled: Boolean(adminQuestionState.imageLayoutEnabled),
+    imageLayoutMode: adminQuestionState.imageLayoutMode || "side",
     imageLeft: String(adminQuestionState.imageLeft || "").trim(),
     imageRight: String(adminQuestionState.imageRight || "").trim(),
     imageScale: String(adminQuestionState.imageScale || "").trim(),
@@ -797,18 +828,6 @@ const renderQuestionPreview = (question) => {
   renderMathPreview(question.text, textBlock, null);
   questionPreviewBody.appendChild(textBlock);
 
-  if (question.imageLayoutEnabled && question.imagePath) {
-    const imageWrap = createEl("div", "preview-image");
-    const img = document.createElement("img");
-    const thumb = question.imageThumbnailPath || question.imagePath;
-    img.src = thumb;
-    img.alt = "Anteprima immagine";
-    const meta = createEl("div", "preview-image-meta", question.imagePath.split("/").pop());
-    imageWrap.appendChild(img);
-    imageWrap.appendChild(meta);
-    questionPreviewBody.appendChild(imageWrap);
-  }
-
   const answersWrap = createEl("div", "preview-answer-list");
   question.answers.forEach((answer, idx) => {
     const row = createEl("div", "preview-answer-row");
@@ -825,7 +844,28 @@ const renderQuestionPreview = (question) => {
     }
     answersWrap.appendChild(row);
   });
-  questionPreviewBody.appendChild(answersWrap);
+  if (question.imageLayoutEnabled && question.imagePath) {
+    const imageWrap = createEl("div", "preview-image");
+    const img = document.createElement("img");
+    const thumb = question.imageThumbnailPath || question.imagePath;
+    img.src = thumb;
+    img.alt = "Anteprima immagine";
+    const meta = createEl("div", "preview-image-meta", question.imagePath.split("/").pop());
+    imageWrap.appendChild(img);
+    imageWrap.appendChild(meta);
+    const mode = question.imageLayoutMode || "side";
+    if (mode === "side") {
+      const split = createEl("div", "preview-image-split");
+      split.appendChild(imageWrap);
+      split.appendChild(answersWrap);
+      questionPreviewBody.appendChild(split);
+    } else {
+      questionPreviewBody.appendChild(imageWrap);
+      questionPreviewBody.appendChild(answersWrap);
+    }
+  } else {
+    questionPreviewBody.appendChild(answersWrap);
+  }
 };
 
 const showAdminSection = (section) => {
@@ -1050,11 +1090,18 @@ const exportDbCsv = async () => {
 const updateImageFieldState = () => {
   const enabled = Boolean(adminQuestionImageLayout?.checked);
   if (adminPickImageBtn) adminPickImageBtn.disabled = !enabled;
-  if (adminImageSplit) adminImageSplit.disabled = !enabled;
+  if (adminImageLayoutMode) {
+    adminImageLayoutMode.querySelectorAll("input").forEach((input) => {
+      input.disabled = !enabled;
+    });
+  }
+  const mode = adminQuestionState.imageLayoutMode || "side";
+  const splitEnabled = enabled && mode === "side";
+  if (adminImageSplit) adminImageSplit.disabled = !splitEnabled;
   if (adminImageScaleRange) adminImageScaleRange.disabled = !enabled;
   if (adminImageSplitPresets) {
     adminImageSplitPresets.querySelectorAll("button").forEach((btn) => {
-      btn.disabled = !enabled;
+      btn.disabled = !splitEnabled;
     });
   }
   if (adminImageScalePresets) {
@@ -1062,6 +1109,7 @@ const updateImageFieldState = () => {
       btn.disabled = !enabled;
     });
   }
+  updateImageLayoutModeUI();
 };
 
 const updateImagePickButton = () => {
@@ -1359,6 +1407,7 @@ const adminQuestionState = {
   topicIds: [],
   image: "",
   imageLayoutEnabled: false,
+  imageLayoutMode: "side",
   imageLeft: "0.5\\linewidth",
   imageRight: "0.5\\linewidth",
   imageScale: "0.96\\linewidth",
@@ -1434,6 +1483,7 @@ const resetAdminQuestion = () => {
   adminQuestionState.topicIds = [];
   adminQuestionState.image = "";
   adminQuestionState.imageLayoutEnabled = false;
+  adminQuestionState.imageLayoutMode = "side";
   adminQuestionState.imageLeft = "0.5\\linewidth";
   adminQuestionState.imageRight = "0.5\\linewidth";
   adminQuestionState.imageScale = "0.96\\linewidth";
@@ -1456,6 +1506,11 @@ const resetAdminQuestion = () => {
   if (adminQuestionLayoutFields) adminQuestionLayoutFields.classList.add("is-hidden");
   if (adminImageSplit) adminImageSplit.value = "50";
   if (adminImageScaleRange) adminImageScaleRange.value = "96";
+  if (adminImageLayoutMode) {
+    const radio = adminImageLayoutMode.querySelector('input[value="side"]');
+    if (radio) radio.checked = true;
+    updateImageLayoutModePills();
+  }
   updateImageLayoutState();
   updateImageFieldState();
   updateImagePickButton();
@@ -2103,6 +2158,12 @@ const loadQuestionForEdit = async (questionId) => {
   updateQuestionTypePills();
   if (adminQuestionText) adminQuestionText.value = q.text;
   if (adminQuestionImageLayout) adminQuestionImageLayout.checked = Boolean(q.imageLayoutEnabled);
+  if (adminImageLayoutMode) {
+    const mode = q.imageLayoutMode || "side";
+    const radio = adminImageLayoutMode.querySelector(`input[value="${mode}"]`);
+    if (radio) radio.checked = true;
+    updateImageLayoutModePills();
+  }
   updateImageFieldState();
   if (adminQuestionLayoutFields) {
     adminQuestionLayoutFields.classList.toggle("is-hidden", !q.imageLayoutEnabled);
@@ -2123,6 +2184,7 @@ const loadQuestionForEdit = async (questionId) => {
   adminQuestionState.note = q.note || "";
   adminQuestionState.image = q.imagePath || "";
   adminQuestionState.imageLayoutEnabled = Boolean(q.imageLayoutEnabled);
+  adminQuestionState.imageLayoutMode = q.imageLayoutMode || "side";
   adminQuestionState.imageLeft = q.imageLeftWidth || "0.5\\linewidth";
   adminQuestionState.imageRight = q.imageRightWidth || "0.5\\linewidth";
   adminQuestionState.imageScale = q.imageScale || "0.96\\linewidth";
@@ -2176,6 +2238,7 @@ const saveAdminQuestion = async () => {
       type: adminQuestionState.type,
       imagePath: String(adminQuestionState.image || "").trim(),
       imageLayoutEnabled: Boolean(adminQuestionImageLayout?.checked),
+      imageLayoutMode: adminQuestionState.imageLayoutMode || "side",
       imageLeftWidth: String(adminQuestionState.imageLeft || "").trim(),
       imageRightWidth: String(adminQuestionState.imageRight || "").trim(),
       imageScale: String(adminQuestionState.imageScale || "").trim(),
@@ -2374,6 +2437,18 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       updateImageLayoutState();
       updateAdminPreviews();
     });
+  }
+  if (adminImageLayoutMode) {
+    adminImageLayoutMode.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!target || target.name !== "adminImageLayoutMode") return;
+      adminQuestionState.imageLayoutMode = target.value || "side";
+      updateImageLayoutModePills();
+      updateImageFieldState();
+      updateImageLayoutState();
+      updateAdminPreviews();
+    });
+    updateImageLayoutModePills();
   }
   if (adminImageScalePresets) {
     adminImageScalePresets.addEventListener("click", (event) => {
