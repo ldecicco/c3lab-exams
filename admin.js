@@ -939,6 +939,10 @@ const renderImagePickerList = (images) => {
     }
     const details = createEl("div", "image-details");
     const title = createEl("div", "list-title", image.name);
+    if (image.is_locked) {
+      const badge = createEl("span", "chip is-warning", "In uso (chiusa)");
+      title.appendChild(badge);
+    }
     const desc = createEl("div", "list-meta", image.description || "Nessuna descrizione");
     const actions = createEl("div", "list-actions");
     const selectBtn = createEl("button", "btn btn-outline-primary btn-sm", "Usa immagine");
@@ -1992,6 +1996,7 @@ const renderAdminImageList = (images) => {
       <img src="${image.file_path}" alt="${image.name}" />
       <div class="image-bank-info">
         <strong>${image.name}</strong>
+        ${image.is_locked ? `<span class="chip is-warning">In uso (chiusa)</span>` : ""}
         ${image.description ? `<span>${image.description}</span>` : ""}
       </div>
       <div class="image-bank-actions">
