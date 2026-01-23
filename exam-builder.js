@@ -1757,9 +1757,16 @@ const generateTraces = async () => {
       ? `${baseHref}socket.io`
       : `${baseHref}/socket.io`;
     const socket = window.io({ path: socketPath });
+    const resolveApiUrl = (url) => {
+      if (!url) return url;
+      if (!url.startsWith("/")) return url;
+      const baseTag = document.querySelector("base");
+      const baseHref = baseTag ? baseTag.getAttribute("href") || "/" : "/";
+      return baseHref.endsWith("/") ? `${baseHref}${url.slice(1)}` : `${baseHref}${url}`;
+    };
     const downloadFromUrl = (url, name) => {
       const link = document.createElement("a");
-      link.href = url;
+      link.href = resolveApiUrl(url);
       link.download = name;
       link.click();
     };
