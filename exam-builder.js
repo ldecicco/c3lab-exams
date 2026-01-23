@@ -1726,24 +1726,43 @@ const generateTraces = async () => {
       return;
     }
     const payload = await response.json();
-    const combinedBlob = new Blob([Uint8Array.from(atob(payload.combinedPdfBase64), (c) => c.charCodeAt(0))], {
-      type: "application/pdf",
-    });
-    const answersBlob = new Blob([Uint8Array.from(atob(payload.answersPdfBase64), (c) => c.charCodeAt(0))], {
-      type: "application/pdf",
-    });
-    const download = (blob, name) => {
+    const jobId = payload.jobId;
+    if (!jobId || typeof window.io !== "function") {
+      hideLoadingToast();
+      showToast("Socket non disponibile per aggiornamenti", "error");
+      if (pdfStatus) pdfStatus.textContent = "Errore generazione tracce";
+      return;
+    }
+    const baseTag = document.querySelector("base");
+    const baseHref = baseTag ? baseTag.getAttribute("href") || "/" : "/";
+    const socketPath = baseHref.endsWith("/")
+      ? `${baseHref}socket.io`
+      : `${baseHref}/socket.io`;
+    const socket = window.io({ path: socketPath });
+    const downloadFromUrl = (url, name) => {
       const link = document.createElement("a");
-      link.href = URL.createObjectURL(blob);
+      link.href = url;
       link.download = name;
       link.click();
-      URL.revokeObjectURL(link.href);
     };
-    download(combinedBlob, payload.combinedName || "tracce.pdf");
-    download(answersBlob, payload.answersName || "tracce-answers.pdf");
-    hideLoadingToast();
-    showToast("Tracce generate con successo", "success");
-    if (pdfStatus) pdfStatus.textContent = "Tracce generate.";
+    socket.emit("job:join", jobId);
+    socket.on("job:progress", (info) => {
+      if (pdfStatus && info?.message) pdfStatus.textContent = info.message;
+    });
+    socket.on("job:done", (info) => {
+      if (info?.combinedUrl) downloadFromUrl(info.combinedUrl, info.combinedName || "tracce.pdf");
+      if (info?.answersUrl) downloadFromUrl(info.answersUrl, info.answersName || "tracce-answers.pdf");
+      hideLoadingToast();
+      showToast("Tracce generate con successo", "success");
+      if (pdfStatus) pdfStatus.textContent = "Tracce generate.";
+      socket.disconnect();
+    });
+    socket.on("job:error", (info) => {
+      hideLoadingToast();
+      showToast(info?.error || "Errore generazione tracce", "error");
+      if (pdfStatus) pdfStatus.textContent = info?.error || "Errore generazione tracce";
+      socket.disconnect();
+    });
   } catch {
     hideLoadingToast();
     showToast("Errore generazione tracce", "error");

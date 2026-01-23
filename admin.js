@@ -51,6 +51,7 @@ const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
 const toggleShortcutsBtn = document.getElementById("toggleShortcuts");
+const toggleImagesBtn = document.getElementById("toggleImages");
 const toggleUsersBtn = document.getElementById("toggleUsers");
 const toggleDbBtn = document.getElementById("toggleDb");
 const adminActionButtons = [
@@ -58,11 +59,13 @@ const adminActionButtons = [
   toggleCoursesBtn,
   toggleTopicsBtn,
   toggleShortcutsBtn,
+  toggleImagesBtn,
   toggleDbBtn,
 ].filter(Boolean);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
 const adminShortcutsSection = document.getElementById("adminShortcutsSection");
+const adminImagesSection = document.getElementById("adminImagesSection");
 const adminUsersSection = document.getElementById("adminUsersSection");
 const adminDbSection = document.getElementById("adminDbSection");
 const adminEmptyState = document.getElementById("adminEmptyState");
@@ -99,6 +102,14 @@ const adminUpdateShortcutBtn = document.getElementById("adminUpdateShortcut");
 const adminCancelShortcutBtn = document.getElementById("adminCancelShortcut");
 const adminShortcutStatus = document.getElementById("adminShortcutStatus");
 const adminShortcutList = document.getElementById("adminShortcutList");
+const adminImageCourse = document.getElementById("adminImageCourse");
+const adminImageName = document.getElementById("adminImageName");
+const adminImageDescription = document.getElementById("adminImageDescription");
+const adminImageFile = document.getElementById("adminImageFile");
+const adminImageSourceFile = document.getElementById("adminImageSourceFile");
+const adminUploadImageBtn = document.getElementById("adminUploadImage");
+const adminImageStatus = document.getElementById("adminImageStatus");
+const adminImageList = document.getElementById("adminImageList");
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
@@ -874,6 +885,7 @@ const showAdminSection = (section) => {
     adminCoursesSection,
     adminTopicsSection,
     adminShortcutsSection,
+    adminImagesSection,
     adminDbSection,
   ];
   sections.forEach((item) => {
@@ -889,6 +901,8 @@ const showAdminSection = (section) => {
   if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
   if (section === adminShortcutsSection && toggleShortcutsBtn)
     toggleShortcutsBtn.classList.add("is-active");
+  if (section === adminImagesSection && toggleImagesBtn)
+    toggleImagesBtn.classList.add("is-active");
   if (section === adminDbSection && toggleDbBtn) toggleDbBtn.classList.add("is-active");
 };
 
@@ -1851,6 +1865,7 @@ const loadCourses = async () => {
   renderSelectOptions(adminTopicCourseSelect, courses, "Seleziona corso");
   renderSelectOptions(adminCoursePicker, courses, "Seleziona corso");
   renderSelectOptions(adminShortcutCourse, courses, "Seleziona corso");
+  renderSelectOptions(adminImageCourse, courses, "Seleziona corso");
   renderSelectOptions(bankCourseSelect, courses, "Tutti i corsi");
   renderCourseList(courses);
   const storedCourseId = getStoredAdminCourseId();
@@ -1889,6 +1904,58 @@ const loadImages = async (courseId) => {
   }
   const payload = await apiFetch(`/api/images?courseId=${courseId}`);
   imageCache = payload.images || [];
+};
+
+const loadImageCourses = () => {
+  if (adminCoursePicker?.value && adminImageCourse) {
+    adminImageCourse.value = adminCoursePicker.value;
+  }
+};
+
+const renderAdminImageList = (images) => {
+  if (!adminImageList) return;
+  adminImageList.innerHTML = "";
+  if (!images.length) {
+    adminImageList.textContent = "Nessuna immagine disponibile per il corso selezionato.";
+    return;
+  }
+  images.forEach((image) => {
+    const item = document.createElement("div");
+    item.className = "image-bank-item";
+    item.innerHTML = `
+      <img src="data/images/${image.file_path}" alt="${image.name}" />
+      <div class="image-bank-info">
+        <strong>${image.name}</strong>
+        ${image.description ? `<span>${image.description}</span>` : ""}
+      </div>
+      <button class="btn btn-outline-danger btn-sm" data-id="${image.id}">Elimina</button>
+    `;
+    const deleteBtn = item.querySelector("button");
+    deleteBtn?.addEventListener("click", async () => {
+      if (!confirm(`Eliminare l'immagine "${image.name}"?`)) return;
+      try {
+        await apiFetch(`/api/images/${image.id}`, { method: "DELETE" });
+        loadImagesForAdmin();
+      } catch (err) {
+        if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore eliminazione.";
+      }
+    });
+    adminImageList.appendChild(item);
+  });
+};
+
+const loadImagesForAdmin = async () => {
+  const courseId = Number(adminImageCourse?.value || "");
+  if (!Number.isFinite(courseId) || courseId <= 0) {
+    if (adminImageList) adminImageList.innerHTML = "";
+    return;
+  }
+  try {
+    const payload = await apiFetch(`/api/images?courseId=${courseId}`);
+    renderAdminImageList(payload.images || []);
+  } catch (err) {
+    if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore caricamento.";
+  }
 };
 
 const formatUserDate = (isoString) => {
@@ -2549,6 +2616,50 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       if (willOpen) {
         loadDbTables();
         loadDbRows();
+      }
+    });
+  }
+  if (toggleImagesBtn && adminImagesSection) {
+    toggleImagesBtn.addEventListener("click", () => {
+      const willOpen = adminImagesSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminImagesSection : null);
+      if (willOpen) {
+        loadImageCourses();
+        loadImagesForAdmin();
+      }
+    });
+  }
+  if (adminImageCourse) {
+    adminImageCourse.addEventListener("change", loadImagesForAdmin);
+  }
+  if (adminUploadImageBtn) {
+    adminUploadImageBtn.addEventListener("click", async () => {
+      const courseId = Number(adminImageCourse?.value || "");
+      const name = adminImageName?.value?.trim();
+      const description = adminImageDescription?.value?.trim() || "";
+      const file = adminImageFile?.files?.[0];
+      const sourceFile = adminImageSourceFile?.files?.[0];
+      if (!courseId || !name || !file) {
+        if (adminImageStatus) adminImageStatus.textContent = "Seleziona corso, nome e file.";
+        return;
+      }
+      const formData = new FormData();
+      formData.append("courseId", String(courseId));
+      formData.append("name", name);
+      formData.append("description", description);
+      formData.append("file", file);
+      if (sourceFile) formData.append("sourceFile", sourceFile);
+      try {
+        if (adminImageStatus) adminImageStatus.textContent = "Caricamento...";
+        await fetch("api/images", { method: "POST", body: formData });
+        if (adminImageName) adminImageName.value = "";
+        if (adminImageDescription) adminImageDescription.value = "";
+        if (adminImageFile) adminImageFile.value = "";
+        if (adminImageSourceFile) adminImageSourceFile.value = "";
+        if (adminImageStatus) adminImageStatus.textContent = "Immagine caricata.";
+        loadImagesForAdmin();
+      } catch (err) {
+        if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore caricamento.";
       }
     });
   }

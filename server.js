@@ -2,6 +2,8 @@
 "use strict";
 
 const express = require("express");
+const http = require("http");
+const { Server } = require("socket.io");
 const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
@@ -58,9 +60,14 @@ try {
   qrcode = null;
 }
 
-const app = express();
 const PORT = process.env.PORT || 3000;
-const BASE_PATH = process.env.BASE_PATH || '';
+const BASE_PATH = process.env.BASE_PATH || "";
+const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  path: BASE_PATH ? `${BASE_PATH}/socket.io` : "/socket.io",
+  cors: { origin: true, credentials: true },
+});
 
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
@@ -2352,6 +2359,30 @@ const runPdflatex = (outputDir, jobName, texArg, cwd = outputDir) =>
     });
   });
 
+const TRACE_JOB_TTL_MS = 60 * 60 * 1000;
+const traceJobs = new Map();
+
+const emitTraceJob = (jobId, event, payload) => {
+  io.to(jobId).emit(event, payload);
+};
+
+const cleanupTraceJob = (jobId) => {
+  const job = traceJobs.get(jobId);
+  if (!job) return;
+  if (job.tmpDir && fs.existsSync(job.tmpDir)) {
+    try {
+      fs.rmSync(job.tmpDir, { recursive: true, force: true });
+    } catch {}
+  }
+  traceJobs.delete(jobId);
+};
+
+io.on("connection", (socket) => {
+  socket.on("job:join", (jobId) => {
+    if (jobId) socket.join(jobId);
+  });
+});
+
 const mergePdfs = async (outputPath, inputPaths) => {
   if (!inputPaths.length) return { ok: false, error: "Nessun PDF da unire" };
   const tryPdfunite = () =>
@@ -4634,100 +4665,130 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
   }
 });
 
-router.post("/api/generate-traces", requireRole("admin", "creator"), async (req, res) => {
-  try {
-    const payload = req.body || {};
-    const latex = typeof payload.latex === "string" ? payload.latex : "";
-    const versions = Number(payload.versions);
-    if (!latex.trim()) {
-      res.status(400).json({ error: "LaTeX mancante" });
-      return;
-    }
-    if (!Number.isFinite(versions) || versions < 1) {
-      res.status(400).json({ error: "Numero versioni non valido" });
-      return;
-    }
-
-    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "c3lab-exam-"));
-    const texPath = path.join(tmpDir, "exam.tex");
-    fs.writeFileSync(texPath, latex, "utf8");
-    copyLatexAssets(collectLatexAssets(latex), tmpDir);
-    const texInput = texPath.replace(/\\/g, "/");
-
-    const pdfPaths = [];
-    for (let i = 1; i <= versions; i += 1) {
-      const jobName = `exam-${i}`;
-      const texArg = `\\def\\myversion{${i}}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
-      const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
-      if (!first.ok) {
-        res.status(400).json({
-          error: "Errore compilazione LaTeX",
-          log: first.log || first.stderr || first.stdout,
-        });
-        return;
-      }
-      const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
-      if (!second.ok) {
-        res.status(400).json({
-          error: "Errore compilazione LaTeX",
-          log: second.log || second.stderr || second.stdout,
-        });
-        return;
-      }
-      const pdfPath = path.join(tmpDir, `${jobName}.pdf`);
-      if (!fs.existsSync(pdfPath)) {
-        res.status(500).json({ error: "PDF versione non generato" });
-        return;
-      }
-      pdfPaths.push(pdfPath);
-    }
-
-    const combinedPath = path.join(tmpDir, "exam-all.pdf");
-    const merged = await mergePdfs(combinedPath, pdfPaths);
-    if (!merged.ok || !fs.existsSync(combinedPath)) {
-      res.status(500).json({ error: merged.error || "Unione PDF fallita" });
-      return;
-    }
-
-    const answersJob = "exam-answers";
-    const answersArg = `\\def\\mynumversions{${versions}}\\def\\myoutput{answers}\\input{${texInput}}`;
-    const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
-    if (!answersFirst.ok) {
-      res.status(400).json({
-        error: "Errore compilazione LaTeX (answers)",
-        log: answersFirst.log || answersFirst.stderr || answersFirst.stdout,
-      });
-      return;
-    }
-    const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
-    if (!answersSecond.ok) {
-      res.status(400).json({
-        error: "Errore compilazione LaTeX (answers)",
-        log: answersSecond.log || answersSecond.stderr || answersSecond.stdout,
-      });
-      return;
-    }
-    const answersPath = path.join(tmpDir, `${answersJob}.pdf`);
-    if (!fs.existsSync(answersPath)) {
-      res.status(500).json({ error: "PDF answers non generato" });
-      return;
-    }
-
-    const combinedPdf = fs.readFileSync(combinedPath).toString("base64");
-    const answersPdf = fs.readFileSync(answersPath).toString("base64");
-    res.json({
-      combinedPdfBase64: combinedPdf,
-      answersPdfBase64: answersPdf,
-      combinedName: "tracce.pdf",
-      answersName: "tracce-answers.pdf",
-    });
-  } catch (err) {
-    console.error("[generate-traces]", err);
-    res.status(500).json({
-      error: err.message || "Errore generazione tracce",
-      details: err.stack || "",
-    });
+router.post("/api/generate-traces", requireRole("admin", "creator"), (req, res) => {
+  const payload = req.body || {};
+  const latex = typeof payload.latex === "string" ? payload.latex : "";
+  const versions = Number(payload.versions);
+  if (!latex.trim()) {
+    res.status(400).json({ error: "LaTeX mancante" });
+    return;
   }
+  if (!Number.isFinite(versions) || versions < 1) {
+    res.status(400).json({ error: "Numero versioni non valido" });
+    return;
+  }
+
+  const jobId = crypto.randomUUID();
+  traceJobs.set(jobId, {
+    status: "queued",
+    createdAt: Date.now(),
+    tmpDir: null,
+    error: null,
+    combinedPath: null,
+    answersPath: null,
+  });
+
+  res.json({ jobId });
+
+  setImmediate(async () => {
+    const job = traceJobs.get(jobId);
+    if (!job) return;
+    try {
+      job.status = "running";
+      emitTraceJob(jobId, "job:progress", { step: "setup", message: "Preparazione..." });
+      const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "c3lab-exam-"));
+      job.tmpDir = tmpDir;
+      const texPath = path.join(tmpDir, "exam.tex");
+      fs.writeFileSync(texPath, latex, "utf8");
+      copyLatexAssets(collectLatexAssets(latex), tmpDir);
+      const texInput = texPath.replace(/\\/g, "/");
+
+      const pdfPaths = [];
+      for (let i = 1; i <= versions; i += 1) {
+        emitTraceJob(jobId, "job:progress", {
+          step: "compile",
+          message: `Compilazione versione ${i}/${versions}`,
+          version: i,
+          total: versions,
+        });
+        const jobName = `exam-${i}`;
+        const texArg = `\\def\\myversion{${i}}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
+        const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+        if (!first.ok) {
+          throw new Error(first.log || first.stderr || first.stdout || "Errore compilazione LaTeX");
+        }
+        const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+        if (!second.ok) {
+          throw new Error(second.log || second.stderr || second.stdout || "Errore compilazione LaTeX");
+        }
+        const pdfPath = path.join(tmpDir, `${jobName}.pdf`);
+        if (!fs.existsSync(pdfPath)) {
+          throw new Error("PDF versione non generato");
+        }
+        pdfPaths.push(pdfPath);
+      }
+
+      emitTraceJob(jobId, "job:progress", { step: "merge", message: "Unione PDF..." });
+      const combinedPath = path.join(tmpDir, "exam-all.pdf");
+      const merged = await mergePdfs(combinedPath, pdfPaths);
+      if (!merged.ok || !fs.existsSync(combinedPath)) {
+        throw new Error(merged.error || "Unione PDF fallita");
+      }
+
+      emitTraceJob(jobId, "job:progress", { step: "answers", message: "Compilazione soluzioni..." });
+      const answersJob = "exam-answers";
+      const answersArg = `\\def\\mynumversions{${versions}}\\def\\myoutput{answers}\\input{${texInput}}`;
+      const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
+      if (!answersFirst.ok) {
+        throw new Error(answersFirst.log || answersFirst.stderr || answersFirst.stdout || "Errore LaTeX (answers)");
+      }
+      const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
+      if (!answersSecond.ok) {
+        throw new Error(answersSecond.log || answersSecond.stderr || answersSecond.stdout || "Errore LaTeX (answers)");
+      }
+      const answersPath = path.join(tmpDir, `${answersJob}.pdf`);
+      if (!fs.existsSync(answersPath)) {
+        throw new Error("PDF answers non generato");
+      }
+
+      job.status = "done";
+      job.combinedPath = combinedPath;
+      job.answersPath = answersPath;
+      emitTraceJob(jobId, "job:done", {
+        combinedUrl: `/api/generate-traces/${jobId}/combined`,
+        answersUrl: `/api/generate-traces/${jobId}/answers`,
+        combinedName: "tracce.pdf",
+        answersName: "tracce-answers.pdf",
+      });
+      setTimeout(() => cleanupTraceJob(jobId), TRACE_JOB_TTL_MS);
+    } catch (err) {
+      job.status = "error";
+      job.error = err.message || "Errore generazione tracce";
+      emitTraceJob(jobId, "job:error", { error: job.error });
+      setTimeout(() => cleanupTraceJob(jobId), TRACE_JOB_TTL_MS);
+    }
+  });
+});
+
+router.get("/api/generate-traces/:jobId/:kind", requireRole("admin", "creator"), (req, res) => {
+  const { jobId, kind } = req.params;
+  const job = traceJobs.get(jobId);
+  if (!job || job.status !== "done") {
+    res.status(404).json({ error: "Job non trovato o non completato" });
+    return;
+  }
+  const pathMap = {
+    combined: { path: job.combinedPath, name: "tracce.pdf" },
+    answers: { path: job.answersPath, name: "tracce-answers.pdf" },
+  };
+  const target = pathMap[kind];
+  if (!target || !target.path || !fs.existsSync(target.path)) {
+    res.status(404).json({ error: "File non disponibile" });
+    return;
+  }
+  res.setHeader("Content-Type", "application/pdf");
+  res.setHeader("Content-Disposition", `attachment; filename=${target.name}`);
+  fs.createReadStream(target.path).pipe(res);
 });
 
 if (BASE_PATH) {
@@ -4750,6 +4811,6 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-app.listen(PORT, () => {
+server.listen(PORT, () => {
   console.log(`Server running at http://localhost:${PORT}`);
 });
