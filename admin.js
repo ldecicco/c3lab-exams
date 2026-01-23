@@ -131,7 +131,6 @@ const imageUploadStatus = document.getElementById("imageUploadStatus");
 const imageUploadTitle = document.getElementById("imageUploadTitle");
 let imagePickerEditId = null;
 let imagePickerEditImage = null;
-const imageUploadTitle = document.getElementById("imageUploadTitle");
 const imagePreviewBackdrop = document.getElementById("imagePreviewBackdrop");
 const imagePreviewModal = document.getElementById("imagePreviewModal");
 const imagePreviewCloseBtn = document.getElementById("imagePreviewClose");
