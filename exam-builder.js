@@ -135,6 +135,7 @@ const createQuestion = () => ({
   imageWidthRight: "0.5\\linewidth",
   imageScale: "0.96\\linewidth",
   imageLayoutEnabled: false,
+  imageLayoutMode: "side",
   imagePreset: "50-50",
   topics: [],
   answers: [
@@ -775,6 +776,7 @@ const renderBankList = (questions) => {
         imagePath: question.image_path || question.imagePath || "",
         imageThumbnailPath: question.image_thumbnail_path || question.imageThumbnailPath || "",
         imageLayoutEnabled: Boolean(question.image_layout_enabled ?? question.imageLayoutEnabled),
+        imageLayoutMode: question.image_layout_mode || question.imageLayoutMode || "side",
         imageLeftWidth: question.image_left_width || question.imageLeftWidth || "",
         imageRightWidth: question.image_right_width || question.imageRightWidth || "",
         imageScale: question.image_scale || question.imageScale || "",
@@ -923,7 +925,11 @@ const importQuestionFromBank = async (questionId) => {
     newQuestion.sourceId = q.id;
     newQuestion.image = q.imagePath || "";
     newQuestion.imageThumbnail = q.imageThumbnailPath || "";
-    newQuestion.imageLayoutEnabled = Boolean(q.imageLayoutEnabled);
+    newQuestion.imageLayoutEnabled = Boolean(
+      q.imageLayoutEnabled ?? q.image_layout_enabled
+    );
+    newQuestion.imageLayoutMode =
+      q.imageLayoutMode || q.image_layout_mode || "side";
     newQuestion.imageWidthLeft = q.imageLeftWidth || newQuestion.imageWidthLeft;
     newQuestion.imageWidthRight = q.imageRightWidth || newQuestion.imageWidthRight;
     newQuestion.imageScale = q.imageScale || newQuestion.imageScale;
@@ -980,6 +986,7 @@ const collectExamPayload = () => ({
       type: question.type,
       imagePath: question.image,
       imageLayoutEnabled: question.imageLayoutEnabled,
+      imageLayoutMode: question.imageLayoutMode || "side",
       imageLeftWidth: question.imageWidthLeft,
       imageRightWidth: question.imageWidthRight,
       imageScale: question.imageScale,
@@ -1200,7 +1207,11 @@ const loadExam = async (examId) => {
       item.sourceId = question.id || null;
       item.image = question.imagePath || "";
       item.imageThumbnail = question.imageThumbnailPath || "";
-      item.imageLayoutEnabled = Boolean(question.imageLayoutEnabled);
+      item.imageLayoutEnabled = Boolean(
+        question.imageLayoutEnabled ?? question.image_layout_enabled
+      );
+      item.imageLayoutMode =
+        question.imageLayoutMode || question.image_layout_mode || "side";
       item.imageWidthLeft = question.imageLeftWidth || item.imageWidthLeft;
       item.imageWidthRight = question.imageRightWidth || item.imageWidthRight;
       item.imageScale = question.imageScale || item.imageScale;
@@ -1458,31 +1469,48 @@ const buildQuestionBlock = (question, index) => {
   lines.push(`\\question ${typeCmd} ${question.text}`.trim());
   const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
   if (question.image && question.imageLayoutEnabled) {
-    const leftWidth = question.imageWidthLeft || "0.5\\linewidth";
-    const rightWidth = question.imageWidthRight || "0.5\\linewidth";
     const imageScale = question.imageScale || "0.96\\linewidth";
-    lines.push("\\begin{mcanswers}");
-    lines.push("  % Figura");
-    lines.push(`  \\begin{minipage}{${leftWidth}}`);
-    lines.push(`    \\includegraphics[width=${imageScale}]{${question.image}}`);
-    lines.push("  \\end{minipage}");
-    lines.push("  % Risposte");
-    lines.push(`    \\begin{minipage}{${rightWidth}}`);
-    lines.push("        \\begin{enumerate}[label=]");
-    if (answers.length === 0) {
-      lines.push("            % TODO: aggiungi risposte");
+    const layoutMode = question.imageLayoutMode || question.image_layout_mode || "side";
+    if (layoutMode === "below") {
+      lines.push("\\begin{center}");
+      lines.push(`  \\includegraphics[width=${imageScale}]{${question.image}}`);
+      lines.push("\\end{center}");
+      lines.push("\\begin{mcanswerslist}");
+      if (answers.length === 0) {
+        lines.push("% TODO: aggiungi risposte");
+      } else {
+        answers.forEach((answer) => {
+          const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
+          lines.push(`${prefix} ${answer.text}`.trim());
+        });
+      }
+      lines.push("\\end{mcanswerslist}");
     } else {
-      answers.forEach((answer, idx) => {
-        const number = idx + 1;
-        const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-        lines.push(
-          `            \\item\\answernum{${number}} ${prefix}{${number}}{${answer.text}}`.trim()
-        );
-      });
+      const leftWidth = question.imageWidthLeft || "0.5\\linewidth";
+      const rightWidth = question.imageWidthRight || "0.5\\linewidth";
+      lines.push("\\begin{mcanswers}");
+      lines.push("  % Figura");
+      lines.push(`  \\begin{minipage}{${leftWidth}}`);
+      lines.push(`    \\includegraphics[width=${imageScale}]{${question.image}}`);
+      lines.push("  \\end{minipage}");
+      lines.push("  % Risposte");
+      lines.push(`    \\begin{minipage}{${rightWidth}}`);
+      lines.push("        \\begin{enumerate}[label=]");
+      if (answers.length === 0) {
+        lines.push("            % TODO: aggiungi risposte");
+      } else {
+        answers.forEach((answer, idx) => {
+          const number = idx + 1;
+          const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
+          lines.push(
+            `            \\item\\answernum{${number}} ${prefix}{${number}}{${answer.text}}`.trim()
+          );
+        });
+      }
+      lines.push("        \\end{enumerate}");
+      lines.push("    \\end{minipage}");
+      lines.push("\\end{mcanswers}");
     }
-    lines.push("        \\end{enumerate}");
-    lines.push("    \\end{minipage}");
-    lines.push("\\end{mcanswers}");
   } else {
     lines.push("\\begin{mcanswerslist}");
     if (answers.length === 0) {
