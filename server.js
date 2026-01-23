@@ -2947,21 +2947,18 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
       res.status(400).json({ error: "Estensione file non valida" });
       return;
     }
-    const oldAbsPath = path.join(__dirname, existing.file_path);
-    if (fs.existsSync(oldAbsPath)) fs.unlinkSync(oldAbsPath);
-    if (existing.thumbnail_path) {
-      const oldThumbPath = path.join(__dirname, existing.thumbnail_path);
-      if (fs.existsSync(oldThumbPath)) fs.unlinkSync(oldThumbPath);
+    const currentExt = path.extname(existing.file_path || "").toLowerCase();
+    if (currentExt && currentExt !== ext.toLowerCase()) {
+      res.status(400).json({ error: "Estensione diversa dal file originale" });
+      return;
     }
-    const base = sanitizeFileBase(name || originalName || "immagine");
-    const fileName = `${Date.now()}-${base || "immagine"}${ext}`;
     const destDir = path.join(IMAGE_DIR, String(existing.course_id));
     fs.mkdirSync(destDir, { recursive: true });
-    const filePath = path.join(destDir, fileName);
+    const filePath = path.join(__dirname, existing.file_path);
     const buffer = Buffer.from(stripDataUrl(dataBase64), "base64");
     fs.writeFileSync(filePath, buffer);
-    relPath = path.relative(__dirname, filePath).replace(/\\/g, "/");
-    const baseName = path.parse(fileName).name;
+    relPath = existing.file_path;
+    const baseName = path.parse(existing.file_path).name;
     const thumbnailAbs = canThumbnailExtension(ext)
       ? generateThumbnail(filePath, destDir, baseName, ext)
       : null;
@@ -2971,15 +2968,21 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   }
 
   if (sourceBase64) {
-    if (existing.source_path) {
-      const oldSourcePath = path.join(__dirname, existing.source_path);
-      if (fs.existsSync(oldSourcePath)) fs.unlinkSync(oldSourcePath);
-    }
-    const base = sanitizeFileBase(name || originalName || "immagine");
-    const sourceExt = detectExtension(sourceOriginalName, sourceBase64) || ".bin";
-    const sourceName = `${Date.now()}-${base || "immagine"}-source${sourceExt}`;
     const destDir = path.join(IMAGE_DIR, String(existing.course_id));
-    const sourcePath = path.join(destDir, sourceName);
+    const sourceExt = detectExtension(sourceOriginalName, sourceBase64) || ".bin";
+    let sourcePath;
+    if (existing.source_path) {
+      const currentSourceExt = path.extname(existing.source_path || "").toLowerCase();
+      if (currentSourceExt && currentSourceExt !== sourceExt.toLowerCase()) {
+        res.status(400).json({ error: "Estensione sorgente diversa dal file originale" });
+        return;
+      }
+      sourcePath = path.join(__dirname, existing.source_path);
+    } else {
+      const baseName = path.parse(existing.file_path).name;
+      const sourceName = `${baseName}-source${sourceExt}`;
+      sourcePath = path.join(destDir, sourceName);
+    }
     const sourceBuffer = Buffer.from(stripDataUrl(sourceBase64), "base64");
     fs.writeFileSync(sourcePath, sourceBuffer);
     sourceRelPath = path.relative(__dirname, sourcePath).replace(/\\/g, "/");
