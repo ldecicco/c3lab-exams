@@ -2791,6 +2791,16 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       loadDbRows();
     });
   }
+
+  const params = new URLSearchParams(window.location.search);
+  const editQuestionId = Number(params.get("editQuestion"));
+  if (Number.isFinite(editQuestionId)) {
+    try {
+      await loadQuestionForEdit(editQuestionId);
+    } catch (err) {
+      setQuestionStatus(err.message || "Errore caricamento domanda", "error");
+    }
+  }
 };
 
 init();

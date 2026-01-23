@@ -863,6 +863,15 @@ const renderSelectedQuestions = () => {
       body.appendChild(list);
     }
     const actions = createEl("div", "selected-question-actions");
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.dataset.action = "edit-selected";
+    if (question.sourceId) {
+      editBtn.dataset.questionId = question.sourceId;
+    } else {
+      editBtn.disabled = true;
+    }
+    actions.appendChild(editBtn);
     const removeBtn = createEl("button", "btn btn-outline-danger btn-sm", "Rimuovi");
     removeBtn.type = "button";
     removeBtn.dataset.action = "remove-selected";
@@ -1386,13 +1395,23 @@ const handleBankClick = async (event) => {
 const handleSelectedClick = (event) => {
   const target = event.target;
   const action = target.dataset.action;
-  if (action !== "remove-selected") return;
-  const questionId = target.dataset.questionId;
-  if (!questionId) return;
-  state.questions = state.questions.filter((q) => q.id !== questionId);
-  renderSelectedQuestions();
-  renderLatex();
-  scheduleAutosave(true);
+  if (action === "remove-selected") {
+    const questionId = target.dataset.questionId;
+    if (!questionId) return;
+    state.questions = state.questions.filter((q) => q.id !== questionId);
+    renderSelectedQuestions();
+    renderLatex();
+    scheduleAutosave(true);
+    return;
+  }
+  if (action === "edit-selected") {
+    const questionId = target.dataset.questionId;
+    if (!questionId) return;
+    const baseTag = document.querySelector("base");
+    const baseHref = baseTag ? baseTag.getAttribute("href") || "/" : "/";
+    const prefix = baseHref.endsWith("/") ? baseHref : `${baseHref}/`;
+    window.location.href = `${prefix}questions?editQuestion=${questionId}`;
+  }
 };
 
 const buildHeader = (meta) => {
