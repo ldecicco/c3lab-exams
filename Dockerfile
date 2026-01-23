@@ -25,6 +25,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     texlive-extra-utils \
     poppler-utils \
     ghostscript \
+    texlive-font-utils \
     && rm -rf /var/lib/apt/lists/*
 
 # Copy node_modules from builder stage
