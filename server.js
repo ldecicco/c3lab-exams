@@ -2773,7 +2773,16 @@ router.get("/api/images", requireRole("admin", "creator"), (req, res) => {
     .prepare(
       `SELECT id, name, description, original_name, file_path, mime_type,
               thumbnail_path,
-              source_name, source_path, source_mime_type
+              source_name, source_path, source_mime_type,
+              EXISTS (
+                SELECT 1
+                  FROM questions q
+                  JOIN exam_questions eq ON eq.question_id = q.id
+                  JOIN exams e ON e.id = eq.exam_id
+                 WHERE q.image_path = images.file_path
+                   AND e.is_draft = 0
+                 LIMIT 1
+              ) AS is_locked
          FROM images
         WHERE course_id = ?
         ORDER BY created_at DESC`
@@ -2897,10 +2906,27 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
     return;
   }
   const existing = db
-    .prepare("SELECT * FROM images WHERE id = ?")
+    .prepare(
+      `SELECT images.*,
+              EXISTS (
+                SELECT 1
+                  FROM questions q
+                  JOIN exam_questions eq ON eq.question_id = q.id
+                  JOIN exams e ON e.id = eq.exam_id
+                 WHERE q.image_path = images.file_path
+                   AND e.is_draft = 0
+                 LIMIT 1
+              ) AS is_locked
+         FROM images
+        WHERE id = ?`
+    )
     .get(id);
   if (!existing) {
     res.status(404).json({ error: "Immagine non trovata" });
+    return;
+  }
+  if (existing.is_locked) {
+    res.status(400).json({ error: "Immagine usata in una traccia chiusa" });
     return;
   }
   const payload = req.body || {};

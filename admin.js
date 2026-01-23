@@ -952,6 +952,10 @@ const renderImagePickerList = (images) => {
     });
     const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
     editBtn.type = "button";
+    if (image.is_locked) {
+      editBtn.disabled = true;
+      editBtn.title = "Immagine usata in una traccia chiusa";
+    }
     editBtn.addEventListener("click", () => {
       openImageEditModal(image);
     });
@@ -1996,7 +2000,13 @@ const renderAdminImageList = (images) => {
       </div>
     `;
     const editBtn = item.querySelector(".edit-btn");
-    editBtn?.addEventListener("click", () => setImageEditState(image));
+    if (editBtn) {
+      if (image.is_locked) {
+        editBtn.disabled = true;
+        editBtn.title = "Immagine usata in una traccia chiusa";
+      }
+      editBtn.addEventListener("click", () => setImageEditState(image));
+    }
     const deleteBtn = item.querySelector(".delete-btn");
     deleteBtn?.addEventListener("click", async () => {
       if (!confirm(`Eliminare l'immagine "${image.name}"?`)) return;
