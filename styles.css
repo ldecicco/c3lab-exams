@@ -698,7 +698,7 @@ h1 {
   top: calc(100% + 8px);
   min-width: 220px;
   background: #ffffff;
-  border: 1px solid var(--line);
+  border: 1px solid rgba(47, 95, 167, 0.2);
   border-radius: 12px;
   box-shadow: 0 16px 28px rgba(13, 31, 48, 0.18);
   padding: 8px;
@@ -737,6 +737,12 @@ h1 {
   padding: 8px 10px;
   font-size: 0.85rem;
   color: var(--muted);
+}
+
+.top-nav .nav-chip-item:focus-visible,
+.top-nav .nav-chip-button:focus-visible {
+  outline: 2px solid rgba(242, 194, 48, 0.9);
+  outline-offset: 2px;
 }
 
 .top-nav .nav-chip-link {
@@ -971,7 +977,7 @@ h1 {
 
 .top-nav .nav-user {
   align-self: center;
-  color: var(--muted);
+  color: var(--brand-primary);
   font-size: 0.85rem;
   font-weight: 600;
 }
