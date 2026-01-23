@@ -17,6 +17,9 @@ const JS_FILES = [
   "course-cards.js",
   "question-cards.js",
   "user-cards.js",
+  "nav.js",
+  "login.js",
+  "twofa.js",
 ];
 
 const exists = (p) => fs.existsSync(path.join(ROOT, p));

@@ -1,6 +1,14 @@
 const STORAGE_KEY = "c3lab-exam-registry";
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
-const appUser = window.APP_USER || null;
+const appUserMeta = document.querySelector('meta[name="app-user"]');
+let appUser = null;
+if (appUserMeta && appUserMeta.content) {
+  try {
+    appUser = JSON.parse(atob(appUserMeta.content));
+  } catch (error) {
+    console.warn('[app] Invalid app-user meta payload', error);
+  }
+}
 
 const answersGrid = document.getElementById("answersGrid");
 const mappingStatus = document.getElementById("mappingStatus");

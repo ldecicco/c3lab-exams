@@ -4,6 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <% if (csrfToken) { %><meta name="csrf-token" content="<%= csrfToken %>"><% } %>
+    <meta name="app-user" content="<%= Buffer.from(JSON.stringify(user || null)).toString('base64') %>">
     <base href="<%= basePath %>/" />
     <title>Registro Esami - Fondamenti di Automatica</title>
     <link
@@ -21,9 +22,6 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
-    <script>
-      window.APP_USER = <%- JSON.stringify(user || null) %>;
-    </script>
     <%- include('partials/nav', { active: 'valutazione' }) %>
     <div class="bg-orbit"></div>
     <div class="bg-grid"></div>
