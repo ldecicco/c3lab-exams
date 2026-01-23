@@ -2773,16 +2773,7 @@ router.get("/api/images", requireRole("admin", "creator"), (req, res) => {
     .prepare(
       `SELECT id, name, description, original_name, file_path, mime_type,
               thumbnail_path,
-              source_name, source_path, source_mime_type,
-              EXISTS (
-                SELECT 1
-                  FROM questions q
-                  JOIN exam_questions eq ON eq.question_id = q.id
-                  JOIN exams e ON e.id = eq.exam_id
-                 WHERE q.image_path = images.file_path
-                   AND e.is_draft = 0
-                 LIMIT 1
-              ) AS is_locked
+              source_name, source_path, source_mime_type
          FROM images
         WHERE course_id = ?
         ORDER BY created_at DESC`
@@ -2906,27 +2897,10 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
     return;
   }
   const existing = db
-    .prepare(
-      `SELECT images.*,
-              EXISTS (
-                SELECT 1
-                  FROM questions q
-                  JOIN exam_questions eq ON eq.question_id = q.id
-                  JOIN exams e ON e.id = eq.exam_id
-                 WHERE q.image_path = images.file_path
-                   AND e.is_draft = 0
-                 LIMIT 1
-              ) AS is_locked
-         FROM images
-        WHERE id = ?`
-    )
+    .prepare("SELECT * FROM images WHERE id = ?")
     .get(id);
   if (!existing) {
     res.status(404).json({ error: "Immagine non trovata" });
-    return;
-  }
-  if (existing.is_locked) {
-    res.status(400).json({ error: "Immagine usata in una traccia chiusa" });
     return;
   }
   const payload = req.body || {};
@@ -2947,18 +2921,21 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
       res.status(400).json({ error: "Estensione file non valida" });
       return;
     }
-    const currentExt = path.extname(existing.file_path || "").toLowerCase();
-    if (currentExt && currentExt !== ext.toLowerCase()) {
-      res.status(400).json({ error: "Estensione diversa dal file originale" });
-      return;
+    const oldAbsPath = path.join(__dirname, existing.file_path);
+    if (fs.existsSync(oldAbsPath)) fs.unlinkSync(oldAbsPath);
+    if (existing.thumbnail_path) {
+      const oldThumbPath = path.join(__dirname, existing.thumbnail_path);
+      if (fs.existsSync(oldThumbPath)) fs.unlinkSync(oldThumbPath);
     }
+    const base = sanitizeFileBase(name || originalName || "immagine");
+    const fileName = `${Date.now()}-${base || "immagine"}${ext}`;
     const destDir = path.join(IMAGE_DIR, String(existing.course_id));
     fs.mkdirSync(destDir, { recursive: true });
-    const filePath = path.join(__dirname, existing.file_path);
+    const filePath = path.join(destDir, fileName);
     const buffer = Buffer.from(stripDataUrl(dataBase64), "base64");
     fs.writeFileSync(filePath, buffer);
-    relPath = existing.file_path;
-    const baseName = path.parse(existing.file_path).name;
+    relPath = path.relative(__dirname, filePath).replace(/\\/g, "/");
+    const baseName = path.parse(fileName).name;
     const thumbnailAbs = canThumbnailExtension(ext)
       ? generateThumbnail(filePath, destDir, baseName, ext)
       : null;
@@ -2968,21 +2945,15 @@ router.put("/api/images/:id", requireRole("admin", "creator"), (req, res) => {
   }
 
   if (sourceBase64) {
-    const destDir = path.join(IMAGE_DIR, String(existing.course_id));
-    const sourceExt = detectExtension(sourceOriginalName, sourceBase64) || ".bin";
-    let sourcePath;
     if (existing.source_path) {
-      const currentSourceExt = path.extname(existing.source_path || "").toLowerCase();
-      if (currentSourceExt && currentSourceExt !== sourceExt.toLowerCase()) {
-        res.status(400).json({ error: "Estensione sorgente diversa dal file originale" });
-        return;
-      }
-      sourcePath = path.join(__dirname, existing.source_path);
-    } else {
-      const baseName = path.parse(existing.file_path).name;
-      const sourceName = `${baseName}-source${sourceExt}`;
-      sourcePath = path.join(destDir, sourceName);
+      const oldSourcePath = path.join(__dirname, existing.source_path);
+      if (fs.existsSync(oldSourcePath)) fs.unlinkSync(oldSourcePath);
     }
+    const base = sanitizeFileBase(name || originalName || "immagine");
+    const sourceExt = detectExtension(sourceOriginalName, sourceBase64) || ".bin";
+    const sourceName = `${Date.now()}-${base || "immagine"}-source${sourceExt}`;
+    const destDir = path.join(IMAGE_DIR, String(existing.course_id));
+    const sourcePath = path.join(destDir, sourceName);
     const sourceBuffer = Buffer.from(stripDataUrl(sourceBase64), "base64");
     fs.writeFileSync(sourcePath, sourceBuffer);
     sourceRelPath = path.relative(__dirname, sourcePath).replace(/\\/g, "/");
