@@ -128,6 +128,10 @@ const imageUploadFileInput = document.getElementById("imageUploadFile");
 const imageUploadSourceFileInput = document.getElementById("imageUploadSourceFile");
 const imageUploadSaveBtn = document.getElementById("imageUploadSave");
 const imageUploadStatus = document.getElementById("imageUploadStatus");
+const imageUploadTitle = document.getElementById("imageUploadTitle");
+let imagePickerEditId = null;
+let imagePickerEditImage = null;
+const imageUploadTitle = document.getElementById("imageUploadTitle");
 const imagePreviewBackdrop = document.getElementById("imagePreviewBackdrop");
 const imagePreviewModal = document.getElementById("imagePreviewModal");
 const imagePreviewCloseBtn = document.getElementById("imagePreviewClose");
@@ -947,7 +951,13 @@ const renderImagePickerList = (images) => {
       if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine selezionata.";
       closeImagePicker();
     });
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => {
+      openImageEditModal(image);
+    });
     actions.appendChild(selectBtn);
+    actions.appendChild(editBtn);
     details.appendChild(title);
     details.appendChild(desc);
     details.appendChild(actions);
@@ -1159,9 +1169,34 @@ const closeImagePicker = () => {
   if (imagePickerModal) imagePickerModal.classList.add("is-hidden");
 };
 
+const setImageUploadMode = (mode, image = null) => {
+  const isEdit = mode === "edit";
+  imagePickerEditId = isEdit ? image?.id || null : null;
+  imagePickerEditImage = isEdit ? image : null;
+  if (imageUploadTitle) {
+    imageUploadTitle.textContent = isEdit ? "Modifica immagine" : "Nuova immagine";
+  }
+  if (imageUploadSaveBtn) {
+    imageUploadSaveBtn.textContent = isEdit ? "Salva modifiche" : "Carica immagine";
+  }
+  if (imageUploadStatus) imageUploadStatus.textContent = "";
+  if (imageUploadNameInput) imageUploadNameInput.value = image?.name || "";
+  if (imageUploadDescriptionInput)
+    imageUploadDescriptionInput.value = image?.description || "";
+  if (imageUploadFileInput) imageUploadFileInput.value = "";
+  if (imageUploadSourceFileInput) imageUploadSourceFileInput.value = "";
+};
+
 const openImageUploadModal = () => {
   closeImagePicker();
-  if (imageUploadStatus) imageUploadStatus.textContent = "";
+  setImageUploadMode("new");
+  if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
+  if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+};
+
+const openImageEditModal = (image) => {
+  closeImagePicker();
+  setImageUploadMode("edit", image);
   if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
   if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
 };
@@ -1169,6 +1204,8 @@ const openImageUploadModal = () => {
 const closeImageUploadModal = () => {
   if (imageUploadBackdrop) imageUploadBackdrop.classList.add("is-hidden");
   if (imageUploadModal) imageUploadModal.classList.add("is-hidden");
+  imagePickerEditId = null;
+  imagePickerEditImage = null;
 };
 
 const uploadImageFromModal = async () => {
@@ -1177,39 +1214,62 @@ const uploadImageFromModal = async () => {
     if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un corso.";
     return;
   }
-  const file = imageUploadFileInput?.files?.[0];
-  if (!file) {
-    if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un file.";
-    return;
-  }
   const name = String(imageUploadNameInput?.value || "").trim();
   const description = String(imageUploadDescriptionInput?.value || "").trim();
+  const file = imageUploadFileInput?.files?.[0];
   const sourceFile = imageUploadSourceFileInput?.files?.[0];
   try {
-    const dataBase64 = await readFileAsDataUrl(file);
+    const dataBase64 = file ? await readFileAsDataUrl(file) : "";
     const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
-    await apiFetch("/api/images", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        courseId,
-        name: name || file.name,
-        description,
-        originalName: file.name,
-        dataBase64,
-        mimeType: file.type,
-        sourceOriginalName: sourceFile?.name || "",
-        sourceBase64,
-        sourceMimeType: sourceFile?.type || "",
-      }),
-    });
+    if (imagePickerEditId) {
+      await apiFetch(`/api/images/${imagePickerEditId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          name: name || imagePickerEditImage?.name || "",
+          description,
+          originalName: file?.name || "",
+          dataBase64,
+          mimeType: file?.type || "",
+          sourceOriginalName: sourceFile?.name || "",
+          sourceBase64,
+          sourceMimeType: sourceFile?.type || "",
+        }),
+      });
+    } else {
+      if (!file) {
+        if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un file.";
+        return;
+      }
+      await apiFetch("/api/images", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          courseId,
+          name: name || file.name,
+          description,
+          originalName: file.name,
+          dataBase64,
+          mimeType: file.type,
+          sourceOriginalName: sourceFile?.name || "",
+          sourceBase64,
+          sourceMimeType: sourceFile?.type || "",
+        }),
+      });
+    }
     if (imageUploadNameInput) imageUploadNameInput.value = "";
     if (imageUploadDescriptionInput) imageUploadDescriptionInput.value = "";
     if (imageUploadFileInput) imageUploadFileInput.value = "";
     if (imageUploadSourceFileInput) imageUploadSourceFileInput.value = "";
-    if (imageUploadStatus) imageUploadStatus.textContent = "Immagine caricata.";
+    if (imageUploadStatus) {
+      imageUploadStatus.textContent = imagePickerEditId
+        ? "Immagine aggiornata."
+        : "Immagine caricata.";
+    }
     await loadImages(courseId);
     closeImageUploadModal();
+    imagePickerEditId = null;
+    imagePickerEditImage = null;
   } catch (err) {
     if (imageUploadStatus) {
       imageUploadStatus.textContent = err.message || "Errore upload immagine.";
