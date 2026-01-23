@@ -124,6 +124,9 @@ const builderImagePreviewImg = document.getElementById("builderImagePreviewImg")
 const builderImagePreviewMeta = document.getElementById("builderImagePreviewMeta");
 const courseEmptyState = document.getElementById("courseEmptyState");
 const mainLayout = document.getElementById("mainLayout");
+const traceProgress = document.getElementById("traceProgress");
+const traceProgressText = document.getElementById("traceProgressText");
+const traceProgressFill = document.getElementById("traceProgressFill");
 
 const createQuestion = () => ({
   id: String(nextQuestionId++),
@@ -1683,6 +1686,19 @@ const downloadPdf = async () => {
   downloadPdfBtn.disabled = false;
 };
 
+const setTraceProgress = (percent, message) => {
+  if (!traceProgress || !traceProgressFill) return;
+  traceProgress.classList.remove("is-hidden");
+  if (traceProgressText && message) traceProgressText.textContent = message;
+  const safePercent = Math.min(Math.max(Number(percent) || 0, 0), 100);
+  traceProgressFill.style.width = `${safePercent}%`;
+};
+
+const hideTraceProgress = () => {
+  if (traceProgress) traceProgress.classList.add("is-hidden");
+  if (traceProgressFill) traceProgressFill.style.width = "0%";
+};
+
 const generateTraces = async () => {
   if (!generateTracesBtn) return;
   if (!currentExamLocked) {
@@ -1698,6 +1714,7 @@ const generateTraces = async () => {
   generateTracesBtn.disabled = true;
   showLoadingToast("Generazione tracce in corso...");
   if (pdfStatus) pdfStatus.textContent = "Generazione tracce in corso...";
+  setTraceProgress(5, "Preparazione...");
   if (latexLogWrap) latexLogWrap.open = false;
   if (latexLogWrap) latexLogWrap.classList.add("is-hidden");
   if (latexLog) latexLog.textContent = "";
@@ -1731,6 +1748,7 @@ const generateTraces = async () => {
       hideLoadingToast();
       showToast("Socket non disponibile per aggiornamenti", "error");
       if (pdfStatus) pdfStatus.textContent = "Errore generazione tracce";
+      hideTraceProgress();
       return;
     }
     const baseTag = document.querySelector("base");
@@ -1748,25 +1766,39 @@ const generateTraces = async () => {
     socket.emit("job:join", jobId);
     socket.on("job:progress", (info) => {
       if (pdfStatus && info?.message) pdfStatus.textContent = info.message;
+      const step = info?.step || "";
+      let percent = 10;
+      if (step === "compile" && Number.isFinite(info?.version) && Number.isFinite(info?.total)) {
+        percent = Math.round((info.version / info.total) * 70);
+      } else if (step === "merge") {
+        percent = 85;
+      } else if (step === "answers") {
+        percent = 95;
+      }
+      setTraceProgress(percent, info?.message || "Generazione tracce...");
     });
     socket.on("job:done", (info) => {
+      setTraceProgress(100, "Tracce pronte.");
       if (info?.combinedUrl) downloadFromUrl(info.combinedUrl, info.combinedName || "tracce.pdf");
       if (info?.answersUrl) downloadFromUrl(info.answersUrl, info.answersName || "tracce-answers.pdf");
       hideLoadingToast();
       showToast("Tracce generate con successo", "success");
       if (pdfStatus) pdfStatus.textContent = "Tracce generate.";
+      setTimeout(() => hideTraceProgress(), 1500);
       socket.disconnect();
     });
     socket.on("job:error", (info) => {
       hideLoadingToast();
       showToast(info?.error || "Errore generazione tracce", "error");
       if (pdfStatus) pdfStatus.textContent = info?.error || "Errore generazione tracce";
+      hideTraceProgress();
       socket.disconnect();
     });
   } catch {
     hideLoadingToast();
     showToast("Errore generazione tracce", "error");
     if (pdfStatus) pdfStatus.textContent = "Errore generazione tracce";
+    hideTraceProgress();
   } finally {
     generateTracesBtn.disabled = false;
   }
