@@ -183,10 +183,6 @@ const bankModalBackdrop = document.getElementById("bankModalBackdrop");
 const bankModal = document.getElementById("bankModal");
 const bankModalClose = document.getElementById("bankModalClose");
 const adminImageAccordion = document.getElementById("adminImageAccordion");
-const questionPreviewBackdrop = document.getElementById("questionPreviewBackdrop");
-const questionPreviewModal = document.getElementById("questionPreviewModal");
-const questionPreviewCloseBtn = document.getElementById("questionPreviewClose");
-const questionPreviewBody = document.getElementById("questionPreviewBody");
 const adminQuestionNoteBtn = document.getElementById("adminQuestionNoteBtn");
 const questionNoteBackdrop = document.getElementById("questionNoteBackdrop");
 const questionNoteModal = document.getElementById("questionNoteModal");
@@ -334,13 +330,6 @@ const bankModalApi = bindModal
       modal: bankModal,
       backdrop: bankModalBackdrop,
       closers: [bankModalClose],
-    })
-  : null;
-const questionPreviewModalApi = bindModal
-  ? bindModal({
-      modal: questionPreviewModal,
-      backdrop: questionPreviewBackdrop,
-      closers: [questionPreviewCloseBtn],
     })
   : null;
 const questionNoteModalApi = bindModal
@@ -858,29 +847,6 @@ const closeBankModal = () => {
   }
 };
 
-const openQuestionPreviewModal = () => {
-  if (questionPreviewModalApi) {
-    questionPreviewModalApi.open();
-  } else if (typeof window.openModal === "function") {
-    window.openModal(questionPreviewModal, questionPreviewBackdrop);
-  } else {
-    if (questionPreviewBackdrop) questionPreviewBackdrop.classList.remove("is-hidden");
-    if (questionPreviewModal) questionPreviewModal.classList.remove("is-hidden");
-  }
-};
-
-const closeQuestionPreviewModal = () => {
-  if (questionPreviewModalApi) {
-    questionPreviewModalApi.close();
-  } else if (typeof window.closeModal === "function") {
-    window.closeModal(questionPreviewModal, questionPreviewBackdrop);
-  } else {
-    if (questionPreviewBackdrop) questionPreviewBackdrop.classList.add("is-hidden");
-    if (questionPreviewModal) questionPreviewModal.classList.add("is-hidden");
-  }
-  if (questionPreviewBody) questionPreviewBody.innerHTML = "";
-};
-
 const openQuestionNoteModal = () => {
   if (!questionNoteModal || !questionNoteBackdrop) return;
   if (questionNoteText) questionNoteText.value = adminQuestionState.note || "";
@@ -1022,64 +988,6 @@ const updateSaveStateFromSnapshot = () => {
     return;
   }
   setSaveState(snapshot === lastSavedSnapshot ? "saved" : "dirty");
-};
-
-const renderQuestionPreview = (question) => {
-  if (!questionPreviewBody) return;
-  questionPreviewBody.innerHTML = "";
-  const header = createEl("div", "preview-card-header");
-  const title = createEl("div");
-  const label = createEl(
-    "div",
-    "text-secondary small",
-    question.type === "multipla" ? "Risposta multipla" : "Risposta singola"
-  );
-  title.appendChild(label);
-  header.appendChild(title);
-  questionPreviewBody.appendChild(header);
-
-  const textBlock = createEl("div", "latex-preview-block");
-  renderMathPreview(question.text, textBlock, null);
-  questionPreviewBody.appendChild(textBlock);
-
-  const answersWrap = createEl("div", "preview-answer-list");
-  question.answers.forEach((answer, idx) => {
-    const row = createEl("div", "preview-answer-row");
-    const label = createEl("div", "preview-answer-label", String.fromCharCode(65 + idx));
-    const text = createEl("div", "preview-answer-text");
-    renderMathDisplay(answer.text, text);
-    row.appendChild(label);
-    row.appendChild(text);
-    if (answer.isCorrect) {
-      const tick = createEl("span", "answer-tick");
-      tick.innerHTML =
-        '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
-      row.appendChild(tick);
-    }
-    answersWrap.appendChild(row);
-  });
-  if (question.imageLayoutEnabled && question.imagePath) {
-    const imageWrap = createEl("div", "preview-image");
-    const img = document.createElement("img");
-    const thumb = question.imageThumbnailPath || question.imagePath;
-    img.src = thumb;
-    img.alt = "Anteprima immagine";
-    const meta = createEl("div", "preview-image-meta", question.imagePath.split("/").pop());
-    imageWrap.appendChild(img);
-    imageWrap.appendChild(meta);
-    const mode = question.imageLayoutMode || "side";
-    if (mode === "side") {
-      const split = createEl("div", "preview-image-split");
-      split.appendChild(imageWrap);
-      split.appendChild(answersWrap);
-      questionPreviewBody.appendChild(split);
-    } else {
-      questionPreviewBody.appendChild(imageWrap);
-      questionPreviewBody.appendChild(answersWrap);
-    }
-  } else {
-    questionPreviewBody.appendChild(answersWrap);
-  }
 };
 
 const showAdminSection = (section) => {

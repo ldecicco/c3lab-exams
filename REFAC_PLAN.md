@@ -49,9 +49,9 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - [x] Test: modali principali (image picker, override, 2FA, password).
 
 ### Step 6 — Cleanup finale
-- [ ] Rimuovere funzioni inutilizzate.
-- [ ] Verificare build minify.
-- [ ] Test completo end‑to‑end.
+- [x] Rimuovere funzioni inutilizzate (admin.js: preview domanda legacy).
+- [x] Verificare build minify.
+- [x] Test completo end‑to‑end.
 
 ---
 
@@ -61,4 +61,4 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - Step 3: _pending_
 - Step 4: _pending_
 - Step 5: _pending_
-- Step 6: _pending_
+- Step 6: _ok (smoke test /questions + modali)_
