@@ -732,7 +732,7 @@ h1 {
   border: 1px solid rgba(47, 95, 167, 0.25);
   color: #2f5fa7;
   padding: 6px 12px;
-  border-radius: 999px;
+  border-radius: 6px;
   font-size: 0.82rem;
   font-weight: 600;
 }
@@ -765,7 +765,7 @@ h1 {
   min-width: 220px;
   background: #ffffff;
   border: 1px solid rgba(47, 95, 167, 0.2);
-  border-radius: 12px;
+  border-radius: 8px;
   box-shadow: 0 16px 28px rgba(13, 31, 48, 0.18);
   padding: 8px;
   z-index: 1000;
@@ -782,7 +782,7 @@ h1 {
   background: transparent;
   text-align: left;
   padding: 8px 10px;
-  border-radius: 10px;
+  border-radius: 6px;
   font-size: 0.85rem;
   color: var(--ink);
   cursor: pointer;
