@@ -1850,6 +1850,43 @@ const renderBankList = (questions) => {
     bankList.textContent = "Nessuna domanda trovata.";
     return;
   }
+  if (window.QuestionCards && typeof window.QuestionCards.renderBankCard === "function") {
+    questions.forEach((question) => {
+      const item = window.QuestionCards.renderBankCard(question, {
+        renderMath: renderMathDisplay,
+        formatDate: formatDateDisplay,
+        answersMode: "accordion",
+        actions: (q, meta) => {
+          const actions = [];
+          actions.push({
+            label: "Duplica",
+            className: "btn btn-outline-secondary btn-sm",
+            onClick: () => duplicateQuestion(q.id),
+          });
+          if (!meta.isLocked) {
+            actions.push({
+              label: "Modifica",
+              className: "btn btn-outline-primary btn-sm",
+              onClick: () => {
+                closeBankModal();
+                loadQuestionForEdit(q.id);
+              },
+            });
+            actions.push({
+              label: "Elimina",
+              className: "btn btn-outline-danger btn-sm",
+              disabled: meta.isUsed,
+              title: meta.isUsed ? "Domanda usata in una traccia" : "",
+              onClick: meta.isUsed ? null : () => deleteQuestion(q.id),
+            });
+          }
+          return actions;
+        },
+      });
+      bankList.appendChild(item);
+    });
+    return;
+  }
   questions.forEach((question) => {
     const item = createEl("div", "list-item question-bank-card");
     const band = createEl("div", "question-card-band");

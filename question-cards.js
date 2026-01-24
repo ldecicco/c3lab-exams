@@ -123,5 +123,96 @@
     container.appendChild(answersNode);
   };
 
-  window.QuestionCards = { renderPreview };
+  const renderBankCard = (question, options = {}) => {
+    const createButton = (action) => {
+      const btn = createEl("button", action.className || "btn btn-outline-secondary btn-sm", action.label);
+      btn.type = "button";
+      if (action.title) btn.title = action.title;
+      if (action.disabled) btn.disabled = true;
+      if (typeof action.onClick === "function") {
+        btn.addEventListener("click", action.onClick);
+      }
+      return btn;
+    };
+
+    const normalized = normalizeQuestion(question);
+    const formatDate =
+      typeof options.formatDate === "function"
+        ? options.formatDate
+        : typeof window.formatDateDisplay === "function"
+          ? window.formatDateDisplay
+          : (value) => value;
+    const renderMath =
+      typeof options.renderMath === "function"
+        ? options.renderMath
+        : (text, target) => {
+            if (target) target.textContent = text;
+          };
+    const actionsBuilder = typeof options.actions === "function" ? options.actions : () => [];
+    const answersMode = options.answersMode || "accordion";
+
+    const item = createEl("div", "list-item question-bank-card");
+    const band = createEl("div", "question-card-band");
+    const badgeRow = createEl("div", "chip-row");
+    const typeChip = createEl(
+      "span",
+      "chip chip-action",
+      question.type === "multipla" ? "Multipla" : "Singola"
+    );
+    badgeRow.appendChild(typeChip);
+
+    const isLocked = Boolean(question.is_locked);
+    const isUsed = Boolean(question.is_used);
+    if (isLocked) {
+      badgeRow.appendChild(createEl("span", "chip is-warning", "In uso (chiusa)"));
+    }
+    if (normalized.image) {
+      badgeRow.appendChild(createEl("span", "chip chip-action", "Immagine"));
+    }
+    if (question.last_exam_title || question.last_exam_date) {
+      const dateLabel = question.last_exam_date
+        ? formatDate(question.last_exam_date)
+        : "";
+      const titleLabel = question.last_exam_title || "Esame";
+      const label = dateLabel ? `${titleLabel} · ${dateLabel}` : titleLabel;
+      badgeRow.appendChild(createEl("span", "chip chip-action", `Usata: ${label}`));
+    }
+    band.appendChild(badgeRow);
+
+    const content = createEl("div", "question-card-content");
+    const preview = createEl("div", "bank-question-preview");
+    renderPreview(
+      preview,
+      {
+        ...question,
+        ...normalized,
+        imageLayoutEnabled: Boolean(question.image_layout_enabled ?? question.imageLayoutEnabled),
+        imageLayoutMode: question.image_layout_mode || question.imageLayoutMode || normalized.imageLayoutMode,
+      },
+      { renderMath, answersMode }
+    );
+
+    const meta = createEl("div", "list-meta");
+    if (question.topics && question.topics.length) {
+      question.topics.forEach((topic) => {
+        meta.appendChild(createEl("span", "chip chip-action", topic));
+      });
+    } else {
+      meta.textContent = "Nessun argomento";
+    }
+
+    const actions = createEl("div", "list-actions");
+    actionsBuilder(question, { isLocked, isUsed }).forEach((action) => {
+      actions.appendChild(createButton(action));
+    });
+
+    content.appendChild(preview);
+    content.appendChild(meta);
+    content.appendChild(actions);
+    item.appendChild(band);
+    item.appendChild(content);
+    return item;
+  };
+
+  window.QuestionCards = { renderPreview, renderBankCard };
 })();

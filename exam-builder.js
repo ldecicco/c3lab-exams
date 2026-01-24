@@ -719,6 +719,25 @@ const renderBankList = (questions) => {
       chip.classList.toggle("active", chip.dataset.topicId === active);
     });
   }
+  if (window.QuestionCards && typeof window.QuestionCards.renderBankCard === "function") {
+    questions.forEach((question) => {
+      const item = window.QuestionCards.renderBankCard(question, {
+        renderMath: renderMathDisplay,
+        formatDate: formatDateDisplay,
+        answersMode: "accordion",
+        actions: (q) => [
+          {
+            label: "Importa",
+            className: "btn btn-outline-primary btn-sm",
+            onClick: () => importQuestionFromBank(q.id),
+          },
+        ],
+      });
+      bankList.appendChild(item);
+    });
+    renderTopicChips();
+    return;
+  }
   questions.forEach((question) => {
     const item = createEl("div", "list-item");
     const band = createEl("div", "question-card-band");

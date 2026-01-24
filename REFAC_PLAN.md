@@ -35,9 +35,9 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - [x] Test: visualizzazione coerente in moduli.
 
 ### Step 4 — Componenti lista/cards
-- [ ] Standardizzare cards: `exam-cards.js`, `course-cards.js`, `question-cards.js`, `user-cards.js`.
-- [ ] Rimuovere markup duplicato.
-- [ ] Test: liste in Admin / Tracce / Domande / Esame completo.
+- [x] Standardizzare cards: `exam-cards.js`, `course-cards.js`, `question-cards.js`, `user-cards.js`.
+- [x] Rimuovere markup duplicato.
+- [x] Test: liste in Admin / Tracce / Domande / Esame completo.
 
 ### Step 5 — Modali condivisi
 - [ ] Unificare comportamento modali (ESC, backdrop, focus).
