@@ -29,12 +29,18 @@ const overrideModule2Select = document.getElementById("overrideModule2Select");
 const multiModuleOverrideSave = document.getElementById("multiModuleOverrideSave");
 const multiModuleOverrideClear = document.getElementById("multiModuleOverrideClear");
 const multiModuleOverrideStatus = document.getElementById("multiModuleOverrideStatus");
+const module1ExamFilter = document.getElementById("module1ExamFilter");
+const module2ExamFilter = document.getElementById("module2ExamFilter");
+const module1FilterLabel = document.getElementById("module1FilterLabel");
+const module2FilterLabel = document.getElementById("module2FilterLabel");
 
 let activeCourseId = null;
 let selectedMultiModule = null;
 let selectedResults = [];
 let activeFilter = "all";
 let activeOverrideStudent = null;
+let module1ExamFilterValue = "";
+let module2ExamFilterValue = "";
 
 const notify = (message, tone = "info") => {
   if (typeof window.showToast === "function") {
@@ -119,12 +125,21 @@ const isNotPassedStatus = (status) => status === "not_passed";
 const isIncompleteStatus = (status) => status === "incomplete";
 
 const getFilteredResults = () => {
-  if (activeFilter === "passed") return selectedResults.filter((row) => isPassingStatus(row.status));
-  if (activeFilter === "not_passed")
-    return selectedResults.filter((row) => isNotPassedStatus(row.status));
-  if (activeFilter === "incomplete")
-    return selectedResults.filter((row) => isIncompleteStatus(row.status));
-  return selectedResults;
+  let rows = selectedResults;
+  if (activeFilter === "passed") rows = rows.filter((row) => isPassingStatus(row.status));
+  if (activeFilter === "not_passed") rows = rows.filter((row) => isNotPassedStatus(row.status));
+  if (activeFilter === "incomplete") rows = rows.filter((row) => isIncompleteStatus(row.status));
+  if (module1ExamFilterValue) {
+    rows = rows.filter((row) =>
+      row.module1.attempts?.some((attempt) => String(attempt.examId) === module1ExamFilterValue)
+    );
+  }
+  if (module2ExamFilterValue) {
+    rows = rows.filter((row) =>
+      row.module2.attempts?.some((attempt) => String(attempt.examId) === module2ExamFilterValue)
+    );
+  }
+  return rows;
 };
 
 const openOverrideModal = (row) => {
@@ -243,7 +258,10 @@ const renderResults = (payload) => {
   }
   if (module1Header) module1Header.textContent = selectedMultiModule.module1.name;
   if (module2Header) module2Header.textContent = selectedMultiModule.module2.name;
+  if (module1FilterLabel) module1FilterLabel.textContent = selectedMultiModule.module1.name;
+  if (module2FilterLabel) module2FilterLabel.textContent = selectedMultiModule.module2.name;
   renderBadges(selectedMultiModule);
+  updateExamFilters();
   renderTable();
   updateVisibility();
 };
@@ -287,6 +305,39 @@ const renderMultiModuleList = (groups) => {
     item.appendChild(content);
     multiModuleList.appendChild(item);
   });
+};
+
+const updateExamFilters = () => {
+  if (!module1ExamFilter || !module2ExamFilter) return;
+  const examMap1 = new Map();
+  const examMap2 = new Map();
+  selectedResults.forEach((row) => {
+    (row.module1.attempts || []).forEach((attempt) => {
+      if (attempt.examId) examMap1.set(String(attempt.examId), attempt.examTitle || `Esame ${attempt.examId}`);
+    });
+    (row.module2.attempts || []).forEach((attempt) => {
+      if (attempt.examId) examMap2.set(String(attempt.examId), attempt.examTitle || `Esame ${attempt.examId}`);
+    });
+  });
+  const buildOptions = (select, map, currentValue) => {
+    const prev = currentValue || "";
+    select.innerHTML = "";
+    const base = document.createElement("option");
+    base.value = "";
+    base.textContent = "Tutti gli esami";
+    select.appendChild(base);
+    Array.from(map.entries())
+      .sort((a, b) => a[1].localeCompare(b[1]))
+      .forEach(([id, title]) => {
+        const opt = document.createElement("option");
+        opt.value = id;
+        opt.textContent = title;
+        select.appendChild(opt);
+      });
+    select.value = prev;
+  };
+  buildOptions(module1ExamFilter, examMap1, module1ExamFilterValue);
+  buildOptions(module2ExamFilter, examMap2, module2ExamFilterValue);
 };
 
 const loadMultiModules = async () => {
@@ -401,5 +452,18 @@ filterButtons.forEach((btn) => {
     renderTable();
   });
 });
+
+if (module1ExamFilter) {
+  module1ExamFilter.addEventListener("change", () => {
+    module1ExamFilterValue = module1ExamFilter.value;
+    renderTable();
+  });
+}
+if (module2ExamFilter) {
+  module2ExamFilter.addEventListener("change", () => {
+    module2ExamFilterValue = module2ExamFilter.value;
+    renderTable();
+  });
+}
 
 init();

@@ -2938,6 +2938,23 @@ input {
   gap: 8px;
 }
 
+.inline-field {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.inline-field .field-label {
+  font-size: 0.85rem;
+  color: var(--muted);
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.inline-field .form-select {
+  min-width: 220px;
+}
+
 .list-actions {
   display: flex;
   gap: 8px;

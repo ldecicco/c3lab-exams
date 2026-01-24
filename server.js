@@ -3714,6 +3714,8 @@ router.get(
                 ess.cognome,
                 ess.normalized_score,
                 ess.session_id,
+                e.id AS exam_id,
+                e.title AS exam_title,
                 ess.updated_at AS result_updated_at,
                 es.result_date,
                 es.updated_at AS session_updated_at
@@ -3735,6 +3737,8 @@ router.get(
                 ess.cognome,
                 ess.normalized_score,
                 ess.session_id,
+                e.id AS exam_id,
+                e.title AS exam_title,
                 ess.updated_at AS result_updated_at,
                 es.result_date,
                 es.updated_at AS session_updated_at
@@ -3848,6 +3852,8 @@ router.get(
           attempts: attempts1.map((row) => ({
             resultId: row.result_id,
             sessionId: row.session_id,
+            examId: row.exam_id,
+            examTitle: row.exam_title,
             score: row.normalized_score,
             resultDate: row.result_date,
             updatedAt: row.result_updated_at,
@@ -3863,6 +3869,8 @@ router.get(
           attempts: attempts2.map((row) => ({
             resultId: row.result_id,
             sessionId: row.session_id,
+            examId: row.exam_id,
+            examTitle: row.exam_title,
             score: row.normalized_score,
             resultDate: row.result_date,
             updatedAt: row.result_updated_at,
