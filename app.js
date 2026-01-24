@@ -366,60 +366,36 @@ const updatePublicAccessHeader = (step) => {
 };
 
 const renderPublicCourses = () => {
-  if (!publicCourseGrid) return;
-  publicCourseGrid.innerHTML = "";
+  if (!publicCourseGrid || !window.ExamCards) return;
   const courses = Array.from(
     publicExamsCache.reduce((acc, exam) => {
       if (!acc.has(exam.course_id)) acc.set(exam.course_id, exam.course_name);
       return acc;
     }, new Map())
-  ).map(([id, name]) => ({ id, name }));
+  ).map(([id, name]) => ({
+    id,
+    name,
+    examCount: publicExamsCache.filter((exam) => exam.course_id === id).length,
+  }));
 
-  if (!courses.length) {
-    publicCourseGrid.textContent = "Nessun corso disponibile.";
-    return;
-  }
-
-  courses.forEach((course) => {
-    const card = document.createElement("div");
-    card.className = "exam-card";
-    const band = document.createElement("div");
-    band.className = "exam-card-band";
-    const badges = document.createElement("div");
-    badges.className = "exam-card-badges";
-    const count = publicExamsCache.filter((exam) => exam.course_id === course.id).length;
-    if (count) {
-      const badge = document.createElement("span");
-      badge.className = "exam-card-badge";
-      badge.textContent = `Tracce: ${count}`;
-      badges.appendChild(badge);
-    }
-    if (badges.childNodes.length) band.appendChild(badges);
-    const body = document.createElement("div");
-    body.className = "exam-card-body";
-    const title = document.createElement("div");
-    title.className = "exam-card-title";
-    title.textContent = course.name || "Corso";
-    const meta = document.createElement("div");
-    meta.className = "exam-card-meta";
-    meta.textContent = "Seleziona per vedere le tracce disponibili";
-    body.appendChild(title);
-    body.appendChild(meta);
-    card.appendChild(band);
-    card.appendChild(body);
-    card.addEventListener("click", () => {
+  ExamCards.render(publicCourseGrid, courses, {
+    emptyText: "Nessun corso disponibile.",
+    showStatus: false,
+    titleBuilder: (course) => course.name || "Corso",
+    metaBuilder: () => "Seleziona per vedere le tracce disponibili",
+    bandBadgesBuilder: (course) =>
+      course.examCount ? [{ label: `Tracce: ${course.examCount}` }] : [],
+    onCardClick: (course) => {
       renderPublicExams(course.id);
       publicCourseGrid.classList.add("is-hidden");
       if (publicExamSection) publicExamSection.classList.remove("is-hidden");
       updatePublicAccessHeader("exams");
-    });
-    publicCourseGrid.appendChild(card);
+    },
   });
 };
 
 const renderPublicExams = (courseId) => {
-  if (!publicExamGrid) return;
-  publicExamGrid.innerHTML = "";
+  if (!publicExamGrid || !window.ExamCards) return;
   const exams = publicExamsCache
     .filter((exam) => Number(exam.course_id) === Number(courseId))
     .sort((a, b) => {
@@ -431,42 +407,17 @@ const renderPublicExams = (courseId) => {
       return db - da;
     });
 
-  if (!exams.length) {
-    publicExamGrid.textContent = "Nessuna traccia disponibile.";
-    return;
-  }
-
-  exams.forEach((exam) => {
-    const card = document.createElement("div");
-    card.className = "exam-card";
-    const band = document.createElement("div");
-    band.className = "exam-card-band";
-    const badges = document.createElement("div");
-    badges.className = "exam-card-badges";
-    if (exam.date) {
-      const badge = document.createElement("span");
-      badge.className = "exam-card-badge";
-      badge.textContent = exam.date;
-      badges.appendChild(badge);
-    }
-    if (badges.childNodes.length) band.appendChild(badges);
-    const body = document.createElement("div");
-    body.className = "exam-card-body";
-    const title = document.createElement("div");
-    title.className = "exam-card-title";
-    title.textContent = exam.title || "Traccia";
-    const meta = document.createElement("div");
-    meta.className = "exam-card-meta";
-    meta.textContent = "Apri accesso valutazione";
-    body.appendChild(title);
-    body.appendChild(meta);
-    card.appendChild(band);
-    card.appendChild(body);
-    card.addEventListener("click", () => {
+  ExamCards.render(publicExamGrid, exams, {
+    emptyText: "Nessuna traccia disponibile.",
+    showStatus: false,
+    titleBuilder: (exam) => exam.title || "Traccia",
+    metaBuilder: () => "Apri accesso valutazione",
+    bandBadgesBuilder: (exam) =>
+      exam.date ? [{ label: formatDateLabel(exam.date) }] : [],
+    onCardClick: (exam) => {
       publicSelectedExam = exam;
       openPublicAccessModal(exam);
-    });
-    publicExamGrid.appendChild(card);
+    },
   });
 };
 

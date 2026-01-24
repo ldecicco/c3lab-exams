@@ -26,6 +26,10 @@
       showStatus = true,
       statusLabel,
       actions,
+      titleBuilder,
+      metaBuilder,
+      bandBadgesBuilder,
+      onCardClick,
     } = options;
 
     const items = (exams || []).filter((exam) => (filter ? filter(exam) : true));
@@ -67,17 +71,34 @@
         badges.appendChild(badge);
         if (!band.contains(badges)) band.appendChild(badges);
       }
-      const body = createEl("div", "exam-card-body");
-      const title = createEl("div", "exam-card-title", exam.title || "Traccia");
+      if (typeof bandBadgesBuilder === "function") {
+        const customBadges = bandBadgesBuilder(exam) || [];
+        if (customBadges.length) {
+          const badges =
+            band.querySelector(".exam-card-badges") ||
+            createEl("div", "exam-card-badges");
+          customBadges.forEach((badge) => {
+            if (!badge) return;
+            const el = createEl("span", badge.className || "exam-card-badge", badge.label);
+            badges.appendChild(el);
+          });
+          if (!band.contains(badges)) band.appendChild(badges);
+        }
+      }
 
-      const dateLabel = exam.date
+      const body = createEl("div", "exam-card-body");
+      const titleText =
+        typeof titleBuilder === "function" ? titleBuilder(exam) : exam.title || "Traccia";
+      const title = createEl("div", "exam-card-title", titleText);
+
+      const defaultDate = exam.date
         ? (typeof dateFormatter === "function" ? dateFormatter(exam.date) : exam.date)
         : "data n/d";
-      const meta = createEl(
-        "div",
-        "exam-card-meta",
-        `${exam.course_name || "Corso"} • ${dateLabel} • ${exam.question_count || 0} domande`
-      );
+      const defaultMeta = `${exam.course_name || "Corso"} • ${defaultDate} • ${
+        exam.question_count || 0
+      } domande`;
+      const metaText = typeof metaBuilder === "function" ? metaBuilder(exam) : defaultMeta;
+      const meta = createEl("div", "exam-card-meta", metaText);
 
       if (showStatus) {
         const label =
@@ -119,6 +140,9 @@
       card.appendChild(band);
       card.appendChild(body);
       if (actionsWrap.childNodes.length) card.appendChild(actionsWrap);
+      if (typeof onCardClick === "function") {
+        card.addEventListener("click", () => onCardClick(exam));
+      }
       container.appendChild(card);
     });
   };
