@@ -25,9 +25,9 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - [x] Test: toast e modali in Domande / Tracce / Valutazione / Dashboard.
 
 ### Step 2 — API helper
-- [ ] Creare `utils/api.js` con `apiFetch` + gestione CSRF.
-- [ ] Sostituire fetch duplicati nei moduli principali.
-- [ ] Test: CRUD base + error handling.
+- [x] Creare `utils/api.js` con `apiFetch` + gestione CSRF.
+- [x] Sostituire fetch duplicati nei moduli principali.
+- [x] Test: CRUD base + error handling.
 
 ### Step 3 — Formatting & helpers
 - [ ] Creare `utils/format.js` (date, score, badge label).

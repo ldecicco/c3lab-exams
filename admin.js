@@ -312,16 +312,7 @@ const updateImageLayoutState = () => {
   }
 };
 
-const apiFetch = async (url, options = {}) => {
-  const relativeUrl = url.startsWith("/") ? url.slice(1) : url;
-  const response = await fetch(relativeUrl, options);
-  if (!response.ok) {
-    const info = await response.json().catch(() => ({}));
-    const message = info.error || `Errore ${response.status}`;
-    throw new Error(message);
-  }
-  return response.json();
-};
+const apiFetch = typeof window.apiFetch === "function" ? window.apiFetch : fetch;
 
 const fetchActiveCourse = async () => {
   try {
