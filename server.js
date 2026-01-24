@@ -242,6 +242,37 @@ db.exec(`
     updated_at TEXT NOT NULL DEFAULT (datetime('now')),
     FOREIGN KEY(exam_id) REFERENCES exams(id)
   );
+  CREATE TABLE IF NOT EXISTS exam_multi_modules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    exam_id_module1 INTEGER NOT NULL,
+    exam_id_module2 INTEGER NOT NULL,
+    module1_min_grade REAL NOT NULL,
+    module2_min_grade REAL NOT NULL,
+    weight_module1 REAL NOT NULL DEFAULT 0.5,
+    weight_module2 REAL NOT NULL DEFAULT 0.5,
+    final_min_grade REAL NOT NULL DEFAULT 18,
+    rounding TEXT NOT NULL DEFAULT 'ceil',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(exam_id_module1) REFERENCES exams(id),
+    FOREIGN KEY(exam_id_module2) REFERENCES exams(id)
+  );
+  CREATE TABLE IF NOT EXISTS exam_multi_module_selections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    multi_module_id INTEGER NOT NULL,
+    matricola TEXT NOT NULL,
+    chosen_result_id_module1 INTEGER,
+    chosen_result_id_module2 INTEGER,
+    updated_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(multi_module_id, matricola),
+    FOREIGN KEY(multi_module_id) REFERENCES exam_multi_modules(id),
+    FOREIGN KEY(chosen_result_id_module1) REFERENCES exam_session_students(id),
+    FOREIGN KEY(chosen_result_id_module2) REFERENCES exam_session_students(id),
+    FOREIGN KEY(updated_by) REFERENCES users(id)
+  );
   CREATE TABLE IF NOT EXISTS exam_session_students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id INTEGER NOT NULL,
@@ -263,6 +294,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_questions_updated ON questions(updated_at);
   CREATE INDEX IF NOT EXISTS idx_exam_sessions_exam ON exam_sessions(exam_id);
   CREATE INDEX IF NOT EXISTS idx_exam_session_students_session ON exam_session_students(session_id);
+  CREATE INDEX IF NOT EXISTS idx_exam_multi_modules_m1 ON exam_multi_modules(exam_id_module1);
+  CREATE INDEX IF NOT EXISTS idx_exam_multi_modules_m2 ON exam_multi_modules(exam_id_module2);
+  CREATE INDEX IF NOT EXISTS idx_exam_multi_module_selections_mm ON exam_multi_module_selections(multi_module_id);
+  CREATE INDEX IF NOT EXISTS idx_exam_multi_module_selections_matricola ON exam_multi_module_selections(matricola);
   CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token);
   CREATE INDEX IF NOT EXISTS idx_course_shortcuts_course ON course_shortcuts(course_id);
 `);
@@ -297,6 +332,9 @@ ensureColumn("questions", "note", "TEXT");
 ensureColumn("answers", "note", "TEXT");
 ensureColumn("exam_sessions", "target_top_grade", "REAL DEFAULT 30");
 ensureColumn("exam_session_students", "normalized_score", "REAL");
+ensureColumn("exam_multi_module_selections", "chosen_result_id_module1", "INTEGER");
+ensureColumn("exam_multi_module_selections", "chosen_result_id_module2", "INTEGER");
+ensureColumn("exam_multi_module_selections", "updated_by", "INTEGER");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 const isQuestionLocked = (questionId) =>
@@ -363,6 +401,28 @@ const getExamQuestions = (examId) => {
     };
   });
 };
+
+const getExamResults = (examId) =>
+  db
+    .prepare(
+      `SELECT ess.id AS result_id,
+              ess.matricola,
+              ess.nome,
+              ess.cognome,
+              ess.normalized_score,
+              ess.session_id,
+              ess.updated_at AS result_updated_at,
+              es.result_date,
+              es.updated_at AS session_updated_at
+         FROM exam_session_students ess
+         JOIN exam_sessions es ON es.id = ess.session_id
+        WHERE es.exam_id = ?`
+    )
+    .all(examId)
+    .map((row) => ({
+      ...row,
+      normalized_score: row.normalized_score === null ? null : Number(row.normalized_score),
+    }));
 
 const getExamSnapshotQuestions = (examId) => {
   const rows = db
@@ -3347,6 +3407,423 @@ router.get("/api/exams", requireRole("admin", "creator", "evaluator"), (req, res
     .all();
   res.json({ exams: rows });
 });
+
+router.get("/api/multi-modules", requireRole("admin", "creator", "evaluator"), (req, res) => {
+  const courseId = Number(req.query.courseId);
+  const rows = db
+    .prepare(
+      `SELECT mm.*,
+              e1.title AS module1_title,
+              e1.date AS module1_date,
+              e1.course_id AS course_id,
+              e2.title AS module2_title,
+              e2.date AS module2_date,
+              c.name AS course_name
+         FROM exam_multi_modules mm
+         JOIN exams e1 ON e1.id = mm.exam_id_module1
+         JOIN exams e2 ON e2.id = mm.exam_id_module2
+         JOIN courses c ON c.id = e1.course_id
+        WHERE (? IS NULL OR e1.course_id = ?)
+        ORDER BY mm.updated_at DESC`
+    )
+    .all(Number.isFinite(courseId) ? courseId : null, Number.isFinite(courseId) ? courseId : null);
+  res.json({ multiModules: rows });
+});
+
+router.get("/api/multi-modules/:id", requireRole("admin", "creator", "evaluator"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const row = db
+    .prepare(
+      `SELECT mm.*,
+              e1.title AS module1_title,
+              e1.date AS module1_date,
+              e1.course_id AS course_id,
+              e2.title AS module2_title,
+              e2.date AS module2_date,
+              c.name AS course_name
+         FROM exam_multi_modules mm
+         JOIN exams e1 ON e1.id = mm.exam_id_module1
+         JOIN exams e2 ON e2.id = mm.exam_id_module2
+         JOIN courses c ON c.id = e1.course_id
+        WHERE mm.id = ?`
+    )
+    .get(id);
+  if (!row) {
+    res.status(404).json({ error: "Gruppo non trovato" });
+    return;
+  }
+  res.json({ multiModule: row });
+});
+
+router.post("/api/multi-modules", requireRole("admin", "creator"), (req, res) => {
+  const payload = req.body || {};
+  const name = String(payload.name || "").trim();
+  const examIdModule1 = Number(payload.examIdModule1);
+  const examIdModule2 = Number(payload.examIdModule2);
+  const module1MinGrade = Number(payload.module1MinGrade);
+  const module2MinGrade = Number(payload.module2MinGrade);
+  const weightModule1 = Number.isFinite(Number(payload.weightModule1))
+    ? Number(payload.weightModule1)
+    : 0.5;
+  const weightModule2 = Number.isFinite(Number(payload.weightModule2))
+    ? Number(payload.weightModule2)
+    : 0.5;
+
+  if (!name || !Number.isFinite(examIdModule1) || !Number.isFinite(examIdModule2)) {
+    res.status(400).json({ error: "Dati non validi" });
+    return;
+  }
+  if (!Number.isFinite(module1MinGrade) || !Number.isFinite(module2MinGrade)) {
+    res.status(400).json({ error: "Soglie non valide" });
+    return;
+  }
+  if (examIdModule1 === examIdModule2) {
+    res.status(400).json({ error: "I due moduli devono essere diversi" });
+    return;
+  }
+  const exams = db
+    .prepare("SELECT id, course_id FROM exams WHERE id IN (?, ?)")
+    .all(examIdModule1, examIdModule2);
+  if (exams.length !== 2) {
+    res.status(400).json({ error: "Moduli non trovati" });
+    return;
+  }
+  const courseId = exams[0].course_id;
+  if (!exams.every((row) => row.course_id === courseId)) {
+    res.status(400).json({ error: "I moduli devono appartenere allo stesso corso" });
+    return;
+  }
+  const info = db
+    .prepare(
+      `INSERT INTO exam_multi_modules
+        (name, exam_id_module1, exam_id_module2, module1_min_grade, module2_min_grade,
+         weight_module1, weight_module2, final_min_grade, rounding)
+       VALUES (?, ?, ?, ?, ?, ?, ?, 18, 'ceil')`
+    )
+    .run(
+      name,
+      examIdModule1,
+      examIdModule2,
+      module1MinGrade,
+      module2MinGrade,
+      weightModule1,
+      weightModule2
+    );
+  res.json({ id: info.lastInsertRowid });
+});
+
+router.patch("/api/multi-modules/:id", requireRole("admin", "creator"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const payload = req.body || {};
+  const current = db
+    .prepare("SELECT * FROM exam_multi_modules WHERE id = ?")
+    .get(id);
+  if (!current) {
+    res.status(404).json({ error: "Gruppo non trovato" });
+    return;
+  }
+  const name = String(payload.name || current.name).trim();
+  const module1MinGrade = Number.isFinite(Number(payload.module1MinGrade))
+    ? Number(payload.module1MinGrade)
+    : current.module1_min_grade;
+  const module2MinGrade = Number.isFinite(Number(payload.module2MinGrade))
+    ? Number(payload.module2MinGrade)
+    : current.module2_min_grade;
+  const weightModule1 = Number.isFinite(Number(payload.weightModule1))
+    ? Number(payload.weightModule1)
+    : current.weight_module1;
+  const weightModule2 = Number.isFinite(Number(payload.weightModule2))
+    ? Number(payload.weightModule2)
+    : current.weight_module2;
+
+  db.prepare(
+    `UPDATE exam_multi_modules
+        SET name = ?,
+            module1_min_grade = ?,
+            module2_min_grade = ?,
+            weight_module1 = ?,
+            weight_module2 = ?,
+            updated_at = datetime('now')
+      WHERE id = ?`
+  ).run(name, module1MinGrade, module2MinGrade, weightModule1, weightModule2, id);
+  res.json({ ok: true });
+});
+
+router.delete("/api/multi-modules/:id", requireRole("admin", "creator"), (req, res) => {
+  const id = Number(req.params.id);
+  if (!Number.isFinite(id)) {
+    res.status(400).json({ error: "Id non valido" });
+    return;
+  }
+  const tx = db.transaction(() => {
+    db.prepare("DELETE FROM exam_multi_module_selections WHERE multi_module_id = ?").run(id);
+    db.prepare("DELETE FROM exam_multi_modules WHERE id = ?").run(id);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+router.post(
+  "/api/multi-modules/:id/selection",
+  requireRole("admin", "creator", "evaluator"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Id non valido" });
+      return;
+    }
+    const payload = req.body || {};
+    const matricola = String(payload.matricola || "").trim();
+    const chosen1 = Number(payload.chosenResultIdModule1);
+    const chosen2 = Number(payload.chosenResultIdModule2);
+    if (!matricola) {
+      res.status(400).json({ error: "Matricola non valida" });
+      return;
+    }
+    const group = db
+      .prepare(
+        "SELECT exam_id_module1, exam_id_module2 FROM exam_multi_modules WHERE id = ?"
+      )
+      .get(id);
+    if (!group) {
+      res.status(404).json({ error: "Gruppo non trovato" });
+      return;
+    }
+    const validateChoice = (resultId, examId) => {
+      if (!Number.isFinite(resultId)) return null;
+      const row = db
+        .prepare(
+          `SELECT ess.id
+             FROM exam_session_students ess
+             JOIN exam_sessions es ON es.id = ess.session_id
+            WHERE ess.id = ? AND es.exam_id = ?`
+        )
+        .get(resultId, examId);
+      return row ? resultId : null;
+    };
+    const safeChosen1 = validateChoice(chosen1, group.exam_id_module1);
+    const safeChosen2 = validateChoice(chosen2, group.exam_id_module2);
+    if (Number.isFinite(chosen1) && !safeChosen1) {
+      res.status(400).json({ error: "Scelta modulo 1 non valida" });
+      return;
+    }
+    if (Number.isFinite(chosen2) && !safeChosen2) {
+      res.status(400).json({ error: "Scelta modulo 2 non valida" });
+      return;
+    }
+    db.prepare(
+      `INSERT INTO exam_multi_module_selections
+        (multi_module_id, matricola, chosen_result_id_module1, chosen_result_id_module2, updated_by, updated_at)
+       VALUES (?, ?, ?, ?, ?, datetime('now'))
+       ON CONFLICT(multi_module_id, matricola)
+       DO UPDATE SET
+         chosen_result_id_module1 = excluded.chosen_result_id_module1,
+         chosen_result_id_module2 = excluded.chosen_result_id_module2,
+         updated_by = excluded.updated_by,
+         updated_at = datetime('now')`
+    ).run(
+      id,
+      matricola,
+      safeChosen1 || null,
+      safeChosen2 || null,
+      req.user?.id || null
+    );
+    res.json({ ok: true });
+  }
+);
+
+router.get(
+  "/api/multi-modules/:id/results",
+  requireRole("admin", "creator", "evaluator"),
+  (req, res) => {
+    const id = Number(req.params.id);
+    if (!Number.isFinite(id)) {
+      res.status(400).json({ error: "Id non valido" });
+      return;
+    }
+    const multi = db
+      .prepare(
+        `SELECT mm.*,
+                e1.title AS module1_title,
+                e1.date AS module1_date,
+                e1.course_id AS course_id,
+                e2.title AS module2_title,
+                e2.date AS module2_date,
+                c.name AS course_name
+           FROM exam_multi_modules mm
+           JOIN exams e1 ON e1.id = mm.exam_id_module1
+           JOIN exams e2 ON e2.id = mm.exam_id_module2
+           JOIN courses c ON c.id = e1.course_id
+          WHERE mm.id = ?`
+      )
+      .get(id);
+    if (!multi) {
+      res.status(404).json({ error: "Gruppo non trovato" });
+      return;
+    }
+    const results1 = getExamResults(multi.exam_id_module1);
+    const results2 = getExamResults(multi.exam_id_module2);
+    const selections = db
+      .prepare(
+        `SELECT matricola, chosen_result_id_module1, chosen_result_id_module2
+           FROM exam_multi_module_selections
+          WHERE multi_module_id = ?`
+      )
+      .all(id);
+
+    const selectionMap = new Map();
+    selections.forEach((row) => {
+      selectionMap.set(row.matricola, {
+        chosen1: row.chosen_result_id_module1,
+        chosen2: row.chosen_result_id_module2,
+      });
+    });
+
+    const toTimestamp = (val) => (val ? new Date(val).getTime() : 0);
+    const pickLatest = (items) =>
+      [...items].sort((a, b) => {
+        const tA = Math.max(
+          toTimestamp(a.result_updated_at),
+          toTimestamp(a.session_updated_at),
+          toTimestamp(a.result_date)
+        );
+        const tB = Math.max(
+          toTimestamp(b.result_updated_at),
+          toTimestamp(b.session_updated_at),
+          toTimestamp(b.result_date)
+        );
+        return tB - tA;
+      })[0];
+
+    const buildMap = (rows) => {
+      const map = new Map();
+      rows.forEach((row) => {
+        if (!map.has(row.matricola)) map.set(row.matricola, []);
+        map.get(row.matricola).push(row);
+      });
+      return map;
+    };
+
+    const map1 = buildMap(results1);
+    const map2 = buildMap(results2);
+    const matricole = new Set([
+      ...map1.keys(),
+      ...map2.keys(),
+      ...selectionMap.keys(),
+    ]);
+
+    const students = Array.from(matricole).map((matricola) => {
+      const attempts1 = map1.get(matricola) || [];
+      const attempts2 = map2.get(matricola) || [];
+      const selection = selectionMap.get(matricola) || {};
+      const chosen1 =
+        attempts1.find((row) => row.result_id === selection.chosen1) || null;
+      const chosen2 =
+        attempts2.find((row) => row.result_id === selection.chosen2) || null;
+      const latest1 = attempts1.length ? pickLatest(attempts1) : null;
+      const latest2 = attempts2.length ? pickLatest(attempts2) : null;
+      const active1 = chosen1 || latest1 || null;
+      const active2 = chosen2 || latest2 || null;
+
+      const score1 = active1 ? active1.normalized_score : null;
+      const score2 = active2 ? active2.normalized_score : null;
+      const passed1 =
+        Number.isFinite(score1) && score1 >= Number(multi.module1_min_grade);
+      const passed2 =
+        Number.isFinite(score2) && score2 >= Number(multi.module2_min_grade);
+      let finalScore = null;
+      let finalPassed = false;
+      let status = "incomplete";
+      if (Number.isFinite(score1) && Number.isFinite(score2)) {
+        if (passed1 && passed2) {
+          finalScore = Math.ceil(
+            score1 * Number(multi.weight_module1) +
+              score2 * Number(multi.weight_module2)
+          );
+          finalPassed = finalScore >= Number(multi.final_min_grade);
+          status = finalPassed ? "passed" : "not_passed";
+        } else {
+          status = "not_passed";
+        }
+      }
+
+      const nome = active1?.nome || active2?.nome || "";
+      const cognome = active1?.cognome || active2?.cognome || "";
+      return {
+        matricola,
+        nome,
+        cognome,
+        module1: {
+          score: score1,
+          passed: passed1,
+          resultId: active1?.result_id || null,
+          sessionId: active1?.session_id || null,
+          resultDate: active1?.result_date || null,
+          isManual: Boolean(chosen1),
+          attempts: attempts1.map((row) => ({
+            resultId: row.result_id,
+            sessionId: row.session_id,
+            score: row.normalized_score,
+            resultDate: row.result_date,
+            updatedAt: row.result_updated_at,
+          })),
+        },
+        module2: {
+          score: score2,
+          passed: passed2,
+          resultId: active2?.result_id || null,
+          sessionId: active2?.session_id || null,
+          resultDate: active2?.result_date || null,
+          isManual: Boolean(chosen2),
+          attempts: attempts2.map((row) => ({
+            resultId: row.result_id,
+            sessionId: row.session_id,
+            score: row.normalized_score,
+            resultDate: row.result_date,
+            updatedAt: row.result_updated_at,
+          })),
+        },
+        finalScore,
+        finalPassed,
+        status,
+      };
+    });
+
+    res.json({
+      multiModule: {
+        id: multi.id,
+        name: multi.name,
+        module1MinGrade: multi.module1_min_grade,
+        module2MinGrade: multi.module2_min_grade,
+        weightModule1: multi.weight_module1,
+        weightModule2: multi.weight_module2,
+        finalMinGrade: multi.final_min_grade,
+        rounding: multi.rounding,
+        module1: {
+          id: multi.exam_id_module1,
+          title: multi.module1_title,
+          date: multi.module1_date,
+        },
+        module2: {
+          id: multi.exam_id_module2,
+          title: multi.module2_title,
+          date: multi.module2_date,
+        },
+        courseId: multi.course_id,
+        courseName: multi.course_name,
+      },
+      students,
+    });
+  }
+);
 
 const ANSWER_OPTIONS = ["A", "B", "C", "D", "E", "F"];
 
