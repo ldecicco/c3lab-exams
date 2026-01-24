@@ -103,10 +103,12 @@ const renderBadges = (data) => {
   });
 };
 
-const formatScore = (value) => {
-  if (!Number.isFinite(value)) return "-";
-  return Number(value).toFixed(1).replace(/\.0$/, "");
-};
+const formatScore =
+  typeof window.formatScore === "function"
+    ? window.formatScore
+    : (value) => value;
+const formatName =
+  typeof window.formatName === "function" ? window.formatName : (value) => value;
 
 const isPassingStatus = (status) => status === "passed";
 const isNotPassedStatus = (status) => status === "not_passed";
@@ -205,8 +207,8 @@ const renderTable = () => {
       : "";
     tr.innerHTML = `
         <td>${row.matricola}</td>
-        <td>${row.cognome || ""}</td>
-        <td>${row.nome || ""}</td>
+        <td>${formatName(row.cognome || "")}</td>
+        <td>${formatName(row.nome || "")}</td>
         <td>
           <div class="result-score">
             <span>${formatScore(row.module1.score)}</span>

@@ -203,12 +203,10 @@ const initApp = async () => {
   }
 };
 
-const formatDateLabel = (isoDate) => {
-  if (!isoDate) return "";
-  const parts = isoDate.split("-");
-  if (parts.length !== 3) return isoDate;
-  return `${parts[2]}-${parts[1]}-${parts[0]}`;
-};
+const formatDateLabel =
+  typeof window.formatDateDisplay === "function"
+    ? window.formatDateDisplay
+    : (isoDate) => isoDate;
 
 const getDefaultAccessExpiry = () => {
   const d = new Date();
@@ -961,25 +959,8 @@ const renderLatexHtml = (source, target) => {
   }
 };
 
-const formatName = (value) => {
-  const cleaned = String(value || "").trim().toLowerCase();
-  if (!cleaned) return "";
-  const cap = (word) => {
-    return word
-      .split("'")
-      .map((part) => (part ? part[0].toUpperCase() + part.slice(1) : ""))
-      .join("'");
-  };
-  return cleaned
-    .split(/\s+/)
-    .map((word) =>
-      word
-        .split("-")
-        .map((part) => cap(part))
-        .join("-")
-    )
-    .join(" ");
-};
+const formatName =
+  typeof window.formatName === "function" ? window.formatName : (value) => value;
 
 const buildDisplayedAnswers = (question, originalIndex, version) => {
   const rawAnswers = Array.isArray(question.answers) ? question.answers : [];

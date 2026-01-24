@@ -30,9 +30,9 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - [x] Test: CRUD base + error handling.
 
 ### Step 3 — Formatting & helpers
-- [ ] Creare `utils/format.js` (date, score, badge label).
-- [ ] Sostituire logiche ripetute nei rendering.
-- [ ] Test: visualizzazione coerente in moduli.
+- [x] Creare `utils/format.js` (date, score, badge label).
+- [x] Sostituire logiche ripetute nei rendering.
+- [x] Test: visualizzazione coerente in moduli.
 
 ### Step 4 — Componenti lista/cards
 - [ ] Standardizzare cards: `exam-cards.js`, `course-cards.js`, `question-cards.js`, `user-cards.js`.
