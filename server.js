@@ -14,33 +14,14 @@ const PDFDocument = require("pdfkit");
 const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
 const cookieParser = require("cookie-parser");
-let helmet;
-try {
-  helmet = require("helmet");
-} catch (err) {
-  console.warn(
-    "[security] helmet non installato, headers di sicurezza disattivati. Esegui: npm install helmet"
-  );
-  helmet = null;
-}
-let rateLimit;
-try {
-  rateLimit = require("express-rate-limit");
-} catch (err) {
-  console.warn(
-    "[security] express-rate-limit non installato, rate limiting disattivato. Esegui: npm install express-rate-limit"
-  );
-  rateLimit = null;
-}
-let csrf;
-try {
-  csrf = require("csurf");
-} catch (err) {
-  console.warn(
-    "[security] csurf non installato, protezione CSRF disattivata. Esegui: npm install csurf"
-  );
-  csrf = null;
-}
+const { requireAuth, requireRole, createRequirePageRole } = require("./middlewares/auth");
+const {
+  initHelmet,
+  createRateLimiter,
+  createCsrfProtection,
+  applyCsrfToken,
+  ensureCsrfLocals,
+} = require("./middlewares/security");
 let speakeasy;
 try {
   speakeasy = require("speakeasy");
@@ -72,14 +53,7 @@ const io = new Server(server, {
 app.set("view engine", "ejs");
 app.set("views", path.join(__dirname, "views"));
 
-if (helmet) {
-  app.use(
-    helmet({
-      contentSecurityPolicy: false,
-      crossOriginEmbedderPolicy: false,
-    })
-  );
-}
+initHelmet(app);
 
 const DATA_DIR = path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
@@ -541,16 +515,7 @@ const logSecurityEvent = (req, type, details = "", userId = null) => {
   }
 };
 
-const csrfProtection = csrf
-  ? csrf({
-      cookie: {
-        key: "csrf_token",
-        httpOnly: true,
-        sameSite: "strict",
-        secure: USE_SECURE_COOKIES,
-      },
-    })
-  : null;
+const csrfProtection = createCsrfProtection({ useSecureCookies: USE_SECURE_COOKIES });
 
 const createSession = (userId) => {
   const token = crypto.randomBytes(32).toString("hex");
@@ -668,58 +633,10 @@ app.use((req, res, next) => {
   res.redirect(BASE_PATH + "/2fa-setup");
 });
 
-app.use((req, res, next) => {
-  if (!csrfProtection || !req.user) return next();
-  csrfProtection(req, res, (err) => {
-    if (err) return next(err);
-    try {
-      res.locals.csrfToken = req.csrfToken();
-    } catch {
-      res.locals.csrfToken = null;
-    }
-    next();
-  });
-});
+app.use(applyCsrfToken(csrfProtection));
+app.use(ensureCsrfLocals(BASE_PATH));
 
-app.use((req, res, next) => {
-  if (typeof res.locals.csrfToken === "undefined") {
-    res.locals.csrfToken = null;
-  }
-  res.locals.basePath = BASE_PATH;
-  next();
-});
-
-const requireAuth = (req, res, next) => {
-  if (!req.user) {
-    res.status(401).json({ error: "Autenticazione richiesta" });
-    return;
-  }
-  next();
-};
-
-const requireRole = (...roles) => (req, res, next) => {
-  if (!req.user) {
-    res.status(401).json({ error: "Autenticazione richiesta" });
-    return;
-  }
-  if (!roles.includes(req.user.role)) {
-    res.status(403).json({ error: "Permessi insufficienti" });
-    return;
-  }
-  next();
-};
-
-const requirePageRole = (...roles) => (req, res, next) => {
-  if (!req.user) {
-    res.redirect(BASE_PATH + "/login");
-    return;
-  }
-  if (!roles.includes(req.user.role)) {
-    res.status(403).send("Permessi insufficienti");
-    return;
-  }
-  next();
-};
+const requirePageRole = createRequirePageRole(BASE_PATH);
 
 const ensureAdminUser = () => {
   const count = db.prepare("SELECT COUNT(*) AS total FROM users").get();
@@ -736,17 +653,6 @@ const ensureAdminUser = () => {
 ensureAdminUser();
 
 const router = express.Router();
-
-const createRateLimiter = (options) => {
-  if (!rateLimit) {
-    return (req, res, next) => next();
-  }
-  return rateLimit({
-    standardHeaders: true,
-    legacyHeaders: false,
-    ...options,
-  });
-};
 
 const loginLimiter = createRateLimiter({
   windowMs: 60 * 1000,
