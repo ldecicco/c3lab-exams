@@ -39,6 +39,7 @@ Checklist test minimi (da usare dopo ogni step):
 
 ### Step 7.4 — Routes split
 - [ ] Dividere per dominio (`auth`, `courses`, `questions`, `images`, `exams`, `grading`, `public`, `admin`, `multi-modules`).
+  - [x] Auth routes (login/logout/2FA).
 - [ ] Test: pagine principali + API core.
 
 ### Step 7.5 — Services
