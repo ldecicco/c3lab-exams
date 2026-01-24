@@ -249,7 +249,7 @@ const renderResults = (payload) => {
 };
 
 const loadResults = async (multiModuleId) => {
-  const payload = await apiFetch(`/api/multi-modules/${multiModuleId}/results`);
+  const payload = await apiFetch(`api/multi-modules/${multiModuleId}/results`);
   renderResults(payload);
 };
 
@@ -292,7 +292,7 @@ const renderMultiModuleList = (groups) => {
 const loadMultiModules = async () => {
   const params = new URLSearchParams();
   if (Number.isFinite(activeCourseId)) params.set("courseId", String(activeCourseId));
-  const payload = await apiFetch(`/api/multi-modules?${params.toString()}`);
+  const payload = await apiFetch(`api/multi-modules?${params.toString()}`);
   renderMultiModuleList(payload.multiModules || []);
 };
 
@@ -347,7 +347,7 @@ const saveOverride = async (reset = false) => {
   if (overrideModule1Select?.disabled) body.chosenResultIdModule1 = null;
   if (overrideModule2Select?.disabled) body.chosenResultIdModule2 = null;
   try {
-    await apiFetch(`/api/multi-modules/${selectedMultiModule.id}/selection`, {
+    await apiFetch(`api/multi-modules/${selectedMultiModule.id}/selection`, {
       method: "POST",
       body: JSON.stringify(body),
     });
