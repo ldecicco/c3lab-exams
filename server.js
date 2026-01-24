@@ -337,6 +337,15 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_course_shortcuts_course ON course_shortcuts(course_id);
 `);
 
+db.exec(`
+  DROP INDEX IF EXISTS idx_exam_multi_modules_m1;
+  DROP INDEX IF EXISTS idx_exam_multi_modules_m2;
+  DROP INDEX IF EXISTS idx_exam_multi_module_selections_mm;
+  DROP INDEX IF EXISTS idx_exam_multi_module_selections_matricola;
+  DROP TABLE IF EXISTS exam_multi_module_selections;
+  DROP TABLE IF EXISTS exam_multi_modules;
+`);
+
 const ensureColumn = (table, column, definition) => {
   const rows = db.prepare(`PRAGMA table_info(${table})`).all();
   const exists = rows.some((row) => row.name === column);
@@ -783,6 +792,12 @@ router.get("/dashboard", requirePageRole("admin", "creator"), (req, res) =>
 );
 router.get("/dashboard.html", requirePageRole("admin", "creator"), (req, res) =>
   res.render("dashboard")
+);
+router.get("/esame-completo", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
+  res.render("esame-completo")
+);
+router.get("/esame-completo.html", requirePageRole("admin", "creator", "evaluator"), (req, res) =>
+  res.render("esame-completo")
 );
 router.get("/admin", requirePageRole("admin"), (req, res) => res.render("admin"));
 router.get("/admin.html", requirePageRole("admin"), (req, res) =>

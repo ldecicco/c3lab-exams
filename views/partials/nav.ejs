@@ -39,10 +39,14 @@
     Valutazione
   </a>
   <% if (canAnalyze) { %>
-    <a href="dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">
-      <i class="fa-solid fa-chart-line"></i>
-      Analisi
-    </a>
+  <a href="dashboard" class="nav-link <%= active === 'dashboard' ? 'active' : '' %>">
+    <i class="fa-solid fa-chart-line"></i>
+    Analisi
+  </a>
+  <a href="esame-completo" class="nav-link <%= active === 'esame-completo' ? 'active' : '' %>">
+    <i class="fa-solid fa-link"></i>
+    Esame completo
+  </a>
   <% } %>
   <div class="nav-spacer"></div>
   <% if (activeExamTitle || activeCourseName) { %>
