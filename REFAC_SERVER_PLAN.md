@@ -41,6 +41,7 @@ Checklist test minimi (da usare dopo ogni step):
 - [ ] Dividere per dominio (`auth`, `courses`, `questions`, `images`, `exams`, `grading`, `public`, `admin`, `multi-modules`).
   - [x] Auth routes (login/logout/2FA).
   - [x] Pages routes (home, valutazione, questions, exam-builder, dashboard, admin, guida).
+  - [x] Session routes (active course/exam).
 - [ ] Test: pagine principali + API core.
 
 ### Step 7.5 — Services
