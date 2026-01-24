@@ -525,7 +525,7 @@ const updateKeyboardShortcutsHint = () => {
   mathShortcut.className = "keyboard-shortcut-item";
   mathShortcut.innerHTML = `
     <span class="keyboard-shortcut-key">CTRL + M</span>
-    <span class="keyboard-shortcut-label">Inserisci $$</span>
+    <span class="keyboard-shortcut-label">Formula LaTeX</span>
   `;
   keyboardShortcutsList.appendChild(mathShortcut);
 
@@ -533,7 +533,7 @@ const updateKeyboardShortcutsHint = () => {
   boldShortcut.className = "keyboard-shortcut-item";
   boldShortcut.innerHTML = `
     <span class="keyboard-shortcut-key">CTRL + B</span>
-    <span class="keyboard-shortcut-label">Inserisci \\textbf{}</span>
+    <span class="keyboard-shortcut-label">Grassetto</span>
   `;
   keyboardShortcutsList.appendChild(boldShortcut);
 
@@ -541,7 +541,7 @@ const updateKeyboardShortcutsHint = () => {
   italicShortcut.className = "keyboard-shortcut-item";
   italicShortcut.innerHTML = `
     <span class="keyboard-shortcut-key">CTRL + I</span>
-    <span class="keyboard-shortcut-label">Inserisci \\textit{}</span>
+    <span class="keyboard-shortcut-label">Corsivo</span>
   `;
   keyboardShortcutsList.appendChild(italicShortcut);
 

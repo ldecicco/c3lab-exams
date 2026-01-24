@@ -1,6 +1,8 @@
 # C3LAB Esami
 
-Applicazione web per creare tracce d’esame, gestire il banco domande, correggere elaborati e pubblicare i risultati.
+Applicazione web per creare tracce d’esame (con versioni randomizzate), gestire il banco domande,
+correggere elaborati e pubblicare i risultati agli studenti con accesso controllato. Include moduli
+per amministrazione, valutazione, analisi e gestione multi‑modulo.
 
 ## Requisiti
 - Node.js + npm
