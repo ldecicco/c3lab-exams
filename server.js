@@ -2,8 +2,6 @@
 "use strict";
 
 const express = require("express");
-const http = require("http");
-const { Server } = require("socket.io");
 const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
@@ -60,17 +58,8 @@ try {
   qrcode = null;
 }
 
-const PORT = process.env.PORT || 3000;
-const BASE_PATH = process.env.BASE_PATH || "";
-const app = express();
-const server = http.createServer(app);
-const io = new Server(server, {
-  path: BASE_PATH ? `${BASE_PATH}/socket.io` : "/socket.io",
-  cors: { origin: true, credentials: true },
-});
-
-app.set("view engine", "ejs");
-app.set("views", path.join(__dirname, "views"));
+const { app, server, io } = require("./bootstrap");
+const { PORT, BASE_PATH, DATA_DIR, IMAGE_DIR, AVATAR_DIR, DB_PATH } = require("./config");
 
 if (helmet) {
   app.use(
@@ -81,13 +70,10 @@ if (helmet) {
   );
 }
 
-const DATA_DIR = path.join(__dirname, "data");
 fs.mkdirSync(DATA_DIR, { recursive: true });
-const IMAGE_DIR = path.join(DATA_DIR, "images");
 fs.mkdirSync(IMAGE_DIR, { recursive: true });
-const AVATAR_DIR = path.join(DATA_DIR, "avatars");
 fs.mkdirSync(AVATAR_DIR, { recursive: true });
-const db = new Database(path.join(DATA_DIR, "exam-builder.db"));
+const db = new Database(DB_PATH);
 db.pragma("journal_mode = WAL");
 
 db.exec(`
