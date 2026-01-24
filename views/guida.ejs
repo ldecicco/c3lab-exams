@@ -178,9 +178,29 @@
         <p>Istruzioni complete per l'utilizzo della piattaforma di gestione esami</p>
       </div>
 
+      <div class="guide-section" id="introduzione">
+        <h2><i class="fa-solid fa-route"></i> Flusso di lavoro (panoramica)</h2>
+        <p>Di seguito il flusso tipico di lavoro per creare e correggere un esame.</p>
+        <ol>
+          <li><strong>Seleziona il corso</strong> dalla pagina Corsi.</li>
+          <li><strong>Crea le domande</strong> nel modulo Domande (con argomenti, risposte e immagini).</li>
+          <li><strong>Crea la traccia</strong> nel modulo Tracce, aggiungendo le domande dal banco.</li>
+          <li><strong>Chiudi la traccia</strong> e genera le versioni dell’esame.</li>
+          <li><strong>Correggi l’esame</strong> in Valutazione, inserendo le risposte degli studenti.</li>
+          <li><strong>Ricalcola e salva i voti normalizzati</strong> con il pulsante Ricalcola.</li>
+          <li><strong>Abilita l’accesso pubblico</strong> (opzionale) per la consultazione studenti.</li>
+        </ol>
+        <div class="tip-box">
+          <strong>🔗 Esami multi‑modulo</strong>
+          Se un esame è diviso in due moduli (due corsi), puoi usare la pagina
+          <strong>Esame Completo</strong> per calcolare il voto finale con soglie e pesi configurabili.
+        </div>
+      </div>
+
       <div class="toc">
         <h3>Indice</h3>
         <ul>
+          <li><a href="#introduzione">🧭 Flusso di lavoro</a></li>
           <li><a href="#creatori">👨‍🏫 Guida per Creatori</a></li>
           <li><a href="#valutatori">✅ Guida per Valutatori</a></li>
           <li><a href="#esame-completo">🔗 Esame Completo (Multi‑modulo)</a></li>
@@ -209,12 +229,17 @@
         </div>
 
         <h4>1.2 Gestione Argomenti</h4>
-        <p>Gli argomenti (topics) organizzano le domande per tematica. Per gestire gli argomenti:</p>
+        <p>Gli argomenti organizzano le domande per tematica e sono legati a un corso.</p>
         <ol>
           <li>Seleziona un corso dalla homepage</li>
-          <li>Gli argomenti del corso appariranno come chip/etichette</li>
-          <li>Se sei amministratore, puoi creare nuovi argomenti tramite la pagina Admin</li>
+          <li>Nell’editor domande vedrai gli argomenti come pill selezionabili</li>
+          <li>La gestione (crea/modifica/elimina) degli argomenti è disponibile in <strong>Admin → Argomenti</strong> (solo Admin)</li>
+          <li>In Admin puoi anche vedere quante domande sono associate a ciascun argomento</li>
         </ol>
+        <div class="tip-box">
+          <strong>👥 Permessi</strong>
+          I creator possono selezionare gli argomenti nelle domande, ma solo gli Admin possono crearli o modificarli.
+        </div>
 
         <div class="tip-box">
           <strong>💡 Suggerimento</strong>
@@ -306,7 +331,7 @@
           <li>Nella sezione <strong>"Immagine"</strong>, attiva il toggle per abilitare il layout con immagine</li>
           <li>Clicca su <strong>"Seleziona"</strong> per scegliere un'immagine dalla libreria</li>
           <li>Se non trovi l'immagine desiderata, clicca <strong>"Nuova immagine"</strong> per caricarla</li>
-          <li>Configura il layout: <strong>Laterale</strong> o <strong>Sotto</strong> la domanda</li>
+          <li>Configura il layout: <strong>Laterale (minipage sinistra)</strong> oppure <strong>Sotto la domanda</strong></li>
           <li>Regola la larghezza dell’immagine (slider + preset)</li>
         </ol>
 
