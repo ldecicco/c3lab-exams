@@ -2183,16 +2183,6 @@ const createMultiModule = async () => {
       adminMultiModuleStatus.textContent = "La somma dei pesi deve essere 1.0.";
     return;
   }
-  if (weightModule1 < 0 || weightModule2 < 0) {
-    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "I pesi devono essere positivi.";
-    return;
-  }
-  const weightSum = Number((weightModule1 + weightModule2).toFixed(4));
-  if (weightSum !== 1) {
-    if (adminMultiModuleStatus)
-      adminMultiModuleStatus.textContent = "La somma dei pesi deve essere 1.0.";
-    return;
-  }
   try {
     await apiFetch("/api/multi-modules", {
       method: "POST",
