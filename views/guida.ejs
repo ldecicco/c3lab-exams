@@ -183,6 +183,9 @@
         <ul>
           <li><a href="#creatori">👨‍🏫 Guida per Creatori</a></li>
           <li><a href="#valutatori">✅ Guida per Valutatori</a></li>
+          <li><a href="#esame-completo">🔗 Esame Completo (Multi‑modulo)</a></li>
+          <li><a href="#admin">⚙️ Admin</a></li>
+          <li><a href="#sicurezza">🔐 Sicurezza & Accessi</a></li>
         </ul>
       </div>
 
@@ -223,7 +226,7 @@
         <h4>2.1 Accesso all'Editor Domande</h4>
         <ol>
           <li>Clicca su <strong>"Domande"</strong> nella barra di navigazione</li>
-          <li>Seleziona il corso di riferimento dal menu a tendina in alto</li>
+          <li>Il corso attivo è mostrato nella navbar (chip "Corso")</li>
           <li>Clicca su <strong>"Nuova domanda"</strong> per iniziare</li>
         </ol>
 
@@ -259,8 +262,11 @@
         </ul>
 
         <div class="tip-box">
-          <strong>⌨️ Scorciatoia da tastiera</strong>
-          Premi <span class="shortcut-key">CTRL + M</span> per inserire automaticamente <code>$$</code> e posizionare il cursore al centro per scrivere la formula LaTeX.
+          <strong>⌨️ Scorciatoie da tastiera</strong>
+          <span class="shortcut-key">CTRL + M</span> inserisce <code>$$</code> ·
+          <span class="shortcut-key">CTRL + B</span> inserisce <code>\textbf{}</code> ·
+          <span class="shortcut-key">CTRL + I</span> inserisce <code>\textit{}</code> ·
+          <span class="shortcut-key">CTRL + S</span> salva la domanda.
         </div>
 
         <p><strong>Esempio di formula LaTeX:</strong></p>
@@ -300,8 +306,8 @@
           <li>Nella sezione <strong>"Immagine"</strong>, attiva il toggle per abilitare il layout con immagine</li>
           <li>Clicca su <strong>"Seleziona"</strong> per scegliere un'immagine dalla libreria</li>
           <li>Se non trovi l'immagine desiderata, clicca <strong>"Nuova immagine"</strong> per caricarla</li>
-          <li>Configura il layout delle colonne (es. 50% immagine - 50% risposte)</li>
-          <li>Regola la dimensione dell'immagine nella sua colonna (es. 96%)</li>
+          <li>Configura il layout: <strong>Laterale</strong> o <strong>Sotto</strong> la domanda</li>
+          <li>Regola la larghezza dell’immagine (slider + preset)</li>
         </ol>
 
         <div class="screenshot-placeholder">
@@ -311,7 +317,6 @@
         <h4>2.8 Anteprima e Salvataggio</h4>
         <ul>
           <li>L'<strong>anteprima</strong> sulla destra si aggiorna automaticamente mentre scrivi</li>
-          <li>Clicca <strong>"Aggiorna"</strong> nella sezione anteprima per un refresh manuale</li>
           <li>Clicca <strong>"Salva domanda"</strong> quando hai finito</li>
           <li>Lo stato di salvataggio è mostrato in alto a destra ("Salvato" / "Non salvato")</li>
         </ul>
@@ -356,7 +361,6 @@
         <h4>4.1 Accesso all'Exam Builder</h4>
         <ol>
           <li>Clicca su <strong>"Tracce"</strong> nella barra di navigazione</li>
-          <li>Seleziona un corso se richiesto</li>
           <li>Clicca <strong>"Nuova traccia"</strong> per iniziare</li>
         </ol>
 
@@ -421,7 +425,7 @@
         <ul>
           <li>Carica immagini in formato PNG, JPG, PDF o EPS</li>
           <li>Il sistema genera automaticamente thumbnail per un caricamento rapido</li>
-          <li>Puoi caricare anche il file sorgente (es. file .tex per diagrammi LaTeX)</li>
+          <li>Puoi caricare anche il file sorgente (es. SVG/XML/TeX)</li>
           <li>Distingui tra pagine pari e dispari per la stampa fronte-retro</li>
         </ul>
 
@@ -578,7 +582,15 @@
           <li><strong>Distribuzione voti</strong> (se disponibile nella sezione Analisi)</li>
         </ul>
 
-        <h4>5.2 Export Risultati</h4>
+        <h4>5.2 Ricalcolo Voti Normalizzati</h4>
+        <p>Il voto normalizzato viene salvato <strong>solo</strong> quando premi <strong>Ricalcola</strong>.</p>
+        <ul>
+          <li>Imposta il voto desiderato per il migliore.</li>
+          <li>Premi <strong>Ricalcola</strong> per aggiornare e salvare i voti.</li>
+          <li>I voti normalizzati sono usati anche nella sezione <strong>Esame Completo</strong>.</li>
+        </ul>
+
+        <h4>5.3 Export Risultati</h4>
         <p>Puoi esportare i risultati per:</p>
         <ul>
           <li>Importarli in ESSE3</li>
@@ -607,14 +619,15 @@
         <p>Gli studenti potranno:</p>
         <ol>
           <li>Visitare la pagina <strong>/valutazione</strong> (senza login)</li>
-          <li>Inserire matricola e password</li>
-          <li>Selezionare il corso e l'esame</li>
+          <li>Selezionare il <strong>corso</strong> da una griglia</li>
+          <li>Selezionare la <strong>traccia</strong> da una lista (ordinate per data)</li>
+          <li>Inserire <strong>matricola</strong> e <strong>password</strong> nel modale</li>
           <li>Visualizzare:
             <ul>
               <li>Il loro voto</li>
               <li>Le domande con le risposte corrette evidenziate in verde</li>
               <li>Le risposte errate evidenziate in rosso</li>
-              <li>Un pulsante per navigare tra le domande</li>
+              <li>Eventuali note (se abilitate)</li>
             </ul>
           </li>
         </ol>
@@ -623,36 +636,9 @@
           📸 Screenshot: Vista studente con correzione e voto
         </div>
 
-        <h3>7. Suggerimenti per lo Studio (AI-Powered)</h3>
+        <h3>7. Best Practices per Valutatori</h3>
 
-        <h4>7.1 Generazione Prompt per LLM</h4>
-        <p>Per ogni studente, puoi generare un prompt ottimizzato per ChatGPT/Claude che fornisce consigli di studio personalizzati:</p>
-        <ol>
-          <li>Nella lista studenti, clicca sull'icona <strong>🤖</strong> (robot)</li>
-          <li>Si aprirà un modale con un prompt pre-compilato contenente:
-            <ul>
-              <li>Tutte le domande dell'esame</li>
-              <li>Le risposte corrette</li>
-              <li>Le risposte date dallo studente</li>
-              <li>Gli argomenti trattati</li>
-            </ul>
-          </li>
-          <li>Copia il prompt e incollalo in un LLM (es. ChatGPT, Claude)</li>
-          <li>L'LLM genererà suggerimenti personalizzati sugli argomenti da ripassare</li>
-        </ol>
-
-        <div class="tip-box">
-          <strong>🤖 Utilizzo AI</strong>
-          Questa funzione è particolarmente utile per fornire feedback costruttivi agli studenti che hanno ottenuto risultati insufficienti, aiutandoli a identificare le lacune specifiche.
-        </div>
-
-        <div class="screenshot-placeholder">
-          📸 Screenshot: Modale con prompt AI e pulsante copia
-        </div>
-
-        <h3>8. Best Practices per Valutatori</h3>
-
-        <h4>8.1 Organizzazione del Lavoro</h4>
+        <h4>7.1 Organizzazione del Lavoro</h4>
         <ul>
           <li>Importa tutti gli studenti prima di iniziare le correzioni</li>
           <li>Correggi in sessioni concentrate per mantenere coerenza</li>
@@ -660,7 +646,7 @@
           <li>Verifica i totali prima di pubblicare i risultati</li>
         </ul>
 
-        <h4>8.2 Comunicazione con gli Studenti</h4>
+        <h4>7.2 Comunicazione con gli Studenti</h4>
         <ul>
           <li>Abilita l'accesso pubblico solo dopo aver verificato tutte le correzioni</li>
           <li>Comunica chiaramente la password di accesso</li>
@@ -668,7 +654,7 @@
           <li>Utilizza i prompt AI per fornire feedback costruttivi</li>
         </ul>
 
-        <h4>8.3 Controllo Qualità</h4>
+        <h4>7.3 Controllo Qualità</h4>
         <ul>
           <li>Ricontrolla i casi limite (voti molto alti o molto bassi)</li>
           <li>Verifica che tutte le domande siano state corrette</li>
@@ -679,6 +665,45 @@
           <strong>⚠️ Importante</strong>
           Una volta pubblicati i risultati agli studenti tramite accesso pubblico, assicurati che tutte le correzioni siano state verificate. Modifiche successive potrebbero creare confusione.
         </div>
+      </div>
+
+      <!-- ESAME COMPLETO -->
+      <div class="guide-section" id="esame-completo">
+        <h2><i class="fa-solid fa-link"></i> Esame Completo (Multi‑modulo)</h2>
+        <p>Questa sezione aggrega i risultati di due moduli (due corsi) per ottenere un voto finale.</p>
+        <ul>
+          <li>Creazione del gruppo in <strong>Admin → Multi‑modulo</strong> (due corsi, soglie e pesi).</li>
+          <li>Il calcolo usa i <strong>voti normalizzati</strong> dei moduli.</li>
+          <li>Se uno studente ha più tentativi, per default viene usato l’ultimo; puoi selezionare un tentativo manualmente.</li>
+          <li>Filtri disponibili per stato finale e per esame (modulo 1 / modulo 2).</li>
+        </ul>
+        <div class="tip-box">
+          <strong>💡 Nota</strong>
+          Se vedi “-” su un modulo, ricalcola i voti nella sezione Valutazione per quell’esame.
+        </div>
+      </div>
+
+      <!-- ADMIN -->
+      <div class="guide-section" id="admin">
+        <h2><i class="fa-solid fa-user-gear"></i> Admin</h2>
+        <p>La sezione Admin permette la gestione avanzata della piattaforma.</p>
+        <ul>
+          <li><strong>Utenti</strong>: creazione, ruoli e gestione accessi.</li>
+          <li><strong>Corsi</strong>: creazione/modifica; blocco eliminazione se associati a tracce.</li>
+          <li><strong>Argomenti</strong>: elenco con conteggio domande per argomento.</li>
+          <li><strong>Immagini</strong>: upload, sorgenti opzionali, thumbnail e rigenerazione.</li>
+          <li><strong>Multi‑modulo</strong>: gruppi di corsi con soglie/pesi.</li>
+        </ul>
+      </div>
+
+      <!-- SICUREZZA -->
+      <div class="guide-section" id="sicurezza">
+        <h2><i class="fa-solid fa-shield-halved"></i> Sicurezza & Accessi</h2>
+        <ul>
+          <li><strong>2FA</strong> obbligatoria in produzione (disabilitata in development).</li>
+          <li><strong>Accesso pubblico risultati</strong> solo con esame chiuso e password.</li>
+          <li><strong>Rate limiting</strong> e CSRF attivi per le operazioni sensibili.</li>
+        </ul>
       </div>
 
       <!-- FOOTER -->
