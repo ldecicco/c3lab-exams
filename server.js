@@ -273,6 +273,37 @@ db.exec(`
     FOREIGN KEY(chosen_result_id_module2) REFERENCES exam_session_students(id),
     FOREIGN KEY(updated_by) REFERENCES users(id)
   );
+  CREATE TABLE IF NOT EXISTS course_multi_modules (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    course_id_module1 INTEGER NOT NULL,
+    course_id_module2 INTEGER NOT NULL,
+    module1_min_grade REAL NOT NULL,
+    module2_min_grade REAL NOT NULL,
+    weight_module1 REAL NOT NULL DEFAULT 0.5,
+    weight_module2 REAL NOT NULL DEFAULT 0.5,
+    final_min_grade REAL NOT NULL DEFAULT 18,
+    rounding TEXT NOT NULL DEFAULT 'ceil',
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY(course_id_module1) REFERENCES courses(id),
+    FOREIGN KEY(course_id_module2) REFERENCES courses(id)
+  );
+  CREATE TABLE IF NOT EXISTS course_multi_module_selections (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    multi_module_id INTEGER NOT NULL,
+    matricola TEXT NOT NULL,
+    chosen_result_id_module1 INTEGER,
+    chosen_result_id_module2 INTEGER,
+    updated_by INTEGER,
+    created_at TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(multi_module_id, matricola),
+    FOREIGN KEY(multi_module_id) REFERENCES course_multi_modules(id),
+    FOREIGN KEY(chosen_result_id_module1) REFERENCES exam_session_students(id),
+    FOREIGN KEY(chosen_result_id_module2) REFERENCES exam_session_students(id),
+    FOREIGN KEY(updated_by) REFERENCES users(id)
+  );
   CREATE TABLE IF NOT EXISTS exam_session_students (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     session_id INTEGER NOT NULL,
@@ -298,6 +329,10 @@ db.exec(`
   CREATE INDEX IF NOT EXISTS idx_exam_multi_modules_m2 ON exam_multi_modules(exam_id_module2);
   CREATE INDEX IF NOT EXISTS idx_exam_multi_module_selections_mm ON exam_multi_module_selections(multi_module_id);
   CREATE INDEX IF NOT EXISTS idx_exam_multi_module_selections_matricola ON exam_multi_module_selections(matricola);
+  CREATE INDEX IF NOT EXISTS idx_course_multi_modules_m1 ON course_multi_modules(course_id_module1);
+  CREATE INDEX IF NOT EXISTS idx_course_multi_modules_m2 ON course_multi_modules(course_id_module2);
+  CREATE INDEX IF NOT EXISTS idx_course_multi_module_selections_mm ON course_multi_module_selections(multi_module_id);
+  CREATE INDEX IF NOT EXISTS idx_course_multi_module_selections_matricola ON course_multi_module_selections(matricola);
   CREATE INDEX IF NOT EXISTS idx_auth_sessions_token ON auth_sessions(token);
   CREATE INDEX IF NOT EXISTS idx_course_shortcuts_course ON course_shortcuts(course_id);
 `);
@@ -332,9 +367,6 @@ ensureColumn("questions", "note", "TEXT");
 ensureColumn("answers", "note", "TEXT");
 ensureColumn("exam_sessions", "target_top_grade", "REAL DEFAULT 30");
 ensureColumn("exam_session_students", "normalized_score", "REAL");
-ensureColumn("exam_multi_module_selections", "chosen_result_id_module1", "INTEGER");
-ensureColumn("exam_multi_module_selections", "chosen_result_id_module2", "INTEGER");
-ensureColumn("exam_multi_module_selections", "updated_by", "INTEGER");
 db.exec("DROP INDEX IF EXISTS idx_exams_draft_course;");
 
 const isQuestionLocked = (questionId) =>
@@ -3413,20 +3445,19 @@ router.get("/api/multi-modules", requireRole("admin", "creator", "evaluator"), (
   const rows = db
     .prepare(
       `SELECT mm.*,
-              e1.title AS module1_title,
-              e1.date AS module1_date,
-              e1.course_id AS course_id,
-              e2.title AS module2_title,
-              e2.date AS module2_date,
-              c.name AS course_name
-         FROM exam_multi_modules mm
-         JOIN exams e1 ON e1.id = mm.exam_id_module1
-         JOIN exams e2 ON e2.id = mm.exam_id_module2
-         JOIN courses c ON c.id = e1.course_id
-        WHERE (? IS NULL OR e1.course_id = ?)
+              c1.name AS module1_name,
+              c2.name AS module2_name
+         FROM course_multi_modules mm
+         JOIN courses c1 ON c1.id = mm.course_id_module1
+         JOIN courses c2 ON c2.id = mm.course_id_module2
+        WHERE (? IS NULL OR mm.course_id_module1 = ? OR mm.course_id_module2 = ?)
         ORDER BY mm.updated_at DESC`
     )
-    .all(Number.isFinite(courseId) ? courseId : null, Number.isFinite(courseId) ? courseId : null);
+    .all(
+      Number.isFinite(courseId) ? courseId : null,
+      Number.isFinite(courseId) ? courseId : null,
+      Number.isFinite(courseId) ? courseId : null
+    );
   res.json({ multiModules: rows });
 });
 
@@ -3439,16 +3470,11 @@ router.get("/api/multi-modules/:id", requireRole("admin", "creator", "evaluator"
   const row = db
     .prepare(
       `SELECT mm.*,
-              e1.title AS module1_title,
-              e1.date AS module1_date,
-              e1.course_id AS course_id,
-              e2.title AS module2_title,
-              e2.date AS module2_date,
-              c.name AS course_name
-         FROM exam_multi_modules mm
-         JOIN exams e1 ON e1.id = mm.exam_id_module1
-         JOIN exams e2 ON e2.id = mm.exam_id_module2
-         JOIN courses c ON c.id = e1.course_id
+              c1.name AS module1_name,
+              c2.name AS module2_name
+         FROM course_multi_modules mm
+         JOIN courses c1 ON c1.id = mm.course_id_module1
+         JOIN courses c2 ON c2.id = mm.course_id_module2
         WHERE mm.id = ?`
     )
     .get(id);
@@ -3462,8 +3488,8 @@ router.get("/api/multi-modules/:id", requireRole("admin", "creator", "evaluator"
 router.post("/api/multi-modules", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const name = String(payload.name || "").trim();
-  const examIdModule1 = Number(payload.examIdModule1);
-  const examIdModule2 = Number(payload.examIdModule2);
+  const courseIdModule1 = Number(payload.courseIdModule1);
+  const courseIdModule2 = Number(payload.courseIdModule2);
   const module1MinGrade = Number(payload.module1MinGrade);
   const module2MinGrade = Number(payload.module2MinGrade);
   const weightModule1 = Number.isFinite(Number(payload.weightModule1))
@@ -3473,7 +3499,7 @@ router.post("/api/multi-modules", requireRole("admin", "creator"), (req, res) =>
     ? Number(payload.weightModule2)
     : 0.5;
 
-  if (!name || !Number.isFinite(examIdModule1) || !Number.isFinite(examIdModule2)) {
+  if (!name || !Number.isFinite(courseIdModule1) || !Number.isFinite(courseIdModule2)) {
     res.status(400).json({ error: "Dati non validi" });
     return;
   }
@@ -3481,33 +3507,28 @@ router.post("/api/multi-modules", requireRole("admin", "creator"), (req, res) =>
     res.status(400).json({ error: "Soglie non valide" });
     return;
   }
-  if (examIdModule1 === examIdModule2) {
+  if (courseIdModule1 === courseIdModule2) {
     res.status(400).json({ error: "I due moduli devono essere diversi" });
     return;
   }
-  const exams = db
-    .prepare("SELECT id, course_id FROM exams WHERE id IN (?, ?)")
-    .all(examIdModule1, examIdModule2);
-  if (exams.length !== 2) {
-    res.status(400).json({ error: "Moduli non trovati" });
-    return;
-  }
-  const courseId = exams[0].course_id;
-  if (!exams.every((row) => row.course_id === courseId)) {
-    res.status(400).json({ error: "I moduli devono appartenere allo stesso corso" });
+  const courses = db
+    .prepare("SELECT id FROM courses WHERE id IN (?, ?)")
+    .all(courseIdModule1, courseIdModule2);
+  if (courses.length !== 2) {
+    res.status(400).json({ error: "Corsi non trovati" });
     return;
   }
   const info = db
     .prepare(
-      `INSERT INTO exam_multi_modules
-        (name, exam_id_module1, exam_id_module2, module1_min_grade, module2_min_grade,
+      `INSERT INTO course_multi_modules
+        (name, course_id_module1, course_id_module2, module1_min_grade, module2_min_grade,
          weight_module1, weight_module2, final_min_grade, rounding)
        VALUES (?, ?, ?, ?, ?, ?, ?, 18, 'ceil')`
     )
     .run(
       name,
-      examIdModule1,
-      examIdModule2,
+      courseIdModule1,
+      courseIdModule2,
       module1MinGrade,
       module2MinGrade,
       weightModule1,
@@ -3524,7 +3545,7 @@ router.patch("/api/multi-modules/:id", requireRole("admin", "creator"), (req, re
   }
   const payload = req.body || {};
   const current = db
-    .prepare("SELECT * FROM exam_multi_modules WHERE id = ?")
+    .prepare("SELECT * FROM course_multi_modules WHERE id = ?")
     .get(id);
   if (!current) {
     res.status(404).json({ error: "Gruppo non trovato" });
@@ -3545,7 +3566,7 @@ router.patch("/api/multi-modules/:id", requireRole("admin", "creator"), (req, re
     : current.weight_module2;
 
   db.prepare(
-    `UPDATE exam_multi_modules
+    `UPDATE course_multi_modules
         SET name = ?,
             module1_min_grade = ?,
             module2_min_grade = ?,
@@ -3564,8 +3585,8 @@ router.delete("/api/multi-modules/:id", requireRole("admin", "creator"), (req, r
     return;
   }
   const tx = db.transaction(() => {
-    db.prepare("DELETE FROM exam_multi_module_selections WHERE multi_module_id = ?").run(id);
-    db.prepare("DELETE FROM exam_multi_modules WHERE id = ?").run(id);
+    db.prepare("DELETE FROM course_multi_module_selections WHERE multi_module_id = ?").run(id);
+    db.prepare("DELETE FROM course_multi_modules WHERE id = ?").run(id);
   });
   tx();
   res.json({ ok: true });
@@ -3590,27 +3611,28 @@ router.post(
     }
     const group = db
       .prepare(
-        "SELECT exam_id_module1, exam_id_module2 FROM exam_multi_modules WHERE id = ?"
+        "SELECT course_id_module1, course_id_module2 FROM course_multi_modules WHERE id = ?"
       )
       .get(id);
     if (!group) {
       res.status(404).json({ error: "Gruppo non trovato" });
       return;
     }
-    const validateChoice = (resultId, examId) => {
+    const validateChoice = (resultId, courseId) => {
       if (!Number.isFinite(resultId)) return null;
       const row = db
         .prepare(
           `SELECT ess.id
              FROM exam_session_students ess
              JOIN exam_sessions es ON es.id = ess.session_id
-            WHERE ess.id = ? AND es.exam_id = ?`
+             JOIN exams e ON e.id = es.exam_id
+            WHERE ess.id = ? AND e.course_id = ?`
         )
-        .get(resultId, examId);
+        .get(resultId, courseId);
       return row ? resultId : null;
     };
-    const safeChosen1 = validateChoice(chosen1, group.exam_id_module1);
-    const safeChosen2 = validateChoice(chosen2, group.exam_id_module2);
+    const safeChosen1 = validateChoice(chosen1, group.course_id_module1);
+    const safeChosen2 = validateChoice(chosen2, group.course_id_module2);
     if (Number.isFinite(chosen1) && !safeChosen1) {
       res.status(400).json({ error: "Scelta modulo 1 non valida" });
       return;
@@ -3620,7 +3642,7 @@ router.post(
       return;
     }
     db.prepare(
-      `INSERT INTO exam_multi_module_selections
+      `INSERT INTO course_multi_module_selections
         (multi_module_id, matricola, chosen_result_id_module1, chosen_result_id_module2, updated_by, updated_at)
        VALUES (?, ?, ?, ?, ?, datetime('now'))
        ON CONFLICT(multi_module_id, matricola)
@@ -3652,16 +3674,11 @@ router.get(
     const multi = db
       .prepare(
         `SELECT mm.*,
-                e1.title AS module1_title,
-                e1.date AS module1_date,
-                e1.course_id AS course_id,
-                e2.title AS module2_title,
-                e2.date AS module2_date,
-                c.name AS course_name
-           FROM exam_multi_modules mm
-           JOIN exams e1 ON e1.id = mm.exam_id_module1
-           JOIN exams e2 ON e2.id = mm.exam_id_module2
-           JOIN courses c ON c.id = e1.course_id
+                c1.name AS module1_name,
+                c2.name AS module2_name
+           FROM course_multi_modules mm
+           JOIN courses c1 ON c1.id = mm.course_id_module1
+           JOIN courses c2 ON c2.id = mm.course_id_module2
           WHERE mm.id = ?`
       )
       .get(id);
@@ -3669,12 +3686,52 @@ router.get(
       res.status(404).json({ error: "Gruppo non trovato" });
       return;
     }
-    const results1 = getExamResults(multi.exam_id_module1);
-    const results2 = getExamResults(multi.exam_id_module2);
+    const results1 = db
+      .prepare(
+        `SELECT ess.id AS result_id,
+                ess.matricola,
+                ess.nome,
+                ess.cognome,
+                ess.normalized_score,
+                ess.session_id,
+                ess.updated_at AS result_updated_at,
+                es.result_date,
+                es.updated_at AS session_updated_at
+           FROM exam_session_students ess
+           JOIN exam_sessions es ON es.id = ess.session_id
+           JOIN exams e ON e.id = es.exam_id
+          WHERE e.course_id = ?`
+      )
+      .all(multi.course_id_module1)
+      .map((row) => ({
+        ...row,
+        normalized_score: row.normalized_score === null ? null : Number(row.normalized_score),
+      }));
+    const results2 = db
+      .prepare(
+        `SELECT ess.id AS result_id,
+                ess.matricola,
+                ess.nome,
+                ess.cognome,
+                ess.normalized_score,
+                ess.session_id,
+                ess.updated_at AS result_updated_at,
+                es.result_date,
+                es.updated_at AS session_updated_at
+           FROM exam_session_students ess
+           JOIN exam_sessions es ON es.id = ess.session_id
+           JOIN exams e ON e.id = es.exam_id
+          WHERE e.course_id = ?`
+      )
+      .all(multi.course_id_module2)
+      .map((row) => ({
+        ...row,
+        normalized_score: row.normalized_score === null ? null : Number(row.normalized_score),
+      }));
     const selections = db
       .prepare(
         `SELECT matricola, chosen_result_id_module1, chosen_result_id_module2
-           FROM exam_multi_module_selections
+           FROM course_multi_module_selections
           WHERE multi_module_id = ?`
       )
       .all(id);
@@ -3808,17 +3865,13 @@ router.get(
         finalMinGrade: multi.final_min_grade,
         rounding: multi.rounding,
         module1: {
-          id: multi.exam_id_module1,
-          title: multi.module1_title,
-          date: multi.module1_date,
+          id: multi.course_id_module1,
+          name: multi.module1_name,
         },
         module2: {
-          id: multi.exam_id_module2,
-          title: multi.module2_title,
-          date: multi.module2_date,
+          id: multi.course_id_module2,
+          name: multi.module2_name,
         },
-        courseId: multi.course_id,
-        courseName: multi.course_name,
       },
       students,
     });

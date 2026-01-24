@@ -2001,8 +2001,8 @@ const setActiveCourse = async (
   await loadQuestionTopics(courseId);
   await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
   await loadShortcutsForEditor(courseId);
-  await loadMultiModuleExams(courseId);
-  await loadMultiModules(courseId);
+  await loadMultiModuleCourses();
+  await loadMultiModules();
   if (syncBank) {
     await refreshQuestionBank();
   }
@@ -2040,8 +2040,8 @@ const loadCourses = async () => {
 const setMultiModuleEditState = (group) => {
   editingMultiModuleId = group ? group.id : null;
   if (adminMultiModuleName) adminMultiModuleName.value = group ? group.name : "";
-  if (adminMultiModuleExam1) adminMultiModuleExam1.value = group ? String(group.exam_id_module1) : "";
-  if (adminMultiModuleExam2) adminMultiModuleExam2.value = group ? String(group.exam_id_module2) : "";
+  if (adminMultiModuleExam1) adminMultiModuleExam1.value = group ? String(group.course_id_module1) : "";
+  if (adminMultiModuleExam2) adminMultiModuleExam2.value = group ? String(group.course_id_module2) : "";
   if (adminMultiModuleMin1) adminMultiModuleMin1.value = group ? String(group.module1_min_grade) : "16";
   if (adminMultiModuleMin2) adminMultiModuleMin2.value = group ? String(group.module2_min_grade) : "16";
   if (adminMultiModuleWeight1) adminMultiModuleWeight1.value = group ? String(group.weight_module1) : "0.5";
@@ -2075,9 +2075,7 @@ const renderMultiModuleList = (groups) => {
     const meta = createEl(
       "div",
       "list-item-meta",
-      `Modulo 1: ${group.module1_title || "—"} (${group.module1_date || "n.d."}) · Modulo 2: ${
-        group.module2_title || "—"
-      } (${group.module2_date || "n.d."})`
+      `Corso Modulo 1: ${group.module1_name || "—"} · Corso Modulo 2: ${group.module2_name || "—"}`
     );
     const chips = createEl("div", "chip-row");
     const min1 = createEl("span", "chip", `Soglia M1: ${group.module1_min_grade}`);
@@ -2112,44 +2110,32 @@ const renderMultiModuleList = (groups) => {
   });
 };
 
-const loadMultiModuleExams = async (courseId) => {
-  if (!Number.isFinite(courseId)) {
-    renderSelectOptions(adminMultiModuleExam1, [], "Seleziona modulo 1");
-    renderSelectOptions(adminMultiModuleExam2, [], "Seleziona modulo 2");
-    multiModuleExamCache = [];
-    return [];
-  }
-  const payload = await apiFetch("/api/exams");
-  const exams = (payload.exams || [])
-    .filter((exam) => exam.course_id === courseId)
-    .sort((a, b) => {
-      const ta = a.date ? new Date(a.date).getTime() : 0;
-      const tb = b.date ? new Date(b.date).getTime() : 0;
-      if (tb !== ta) return tb - ta;
-      return String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
-    });
-  multiModuleExamCache = exams;
-  const examOptions = exams.map((exam) => ({
-    id: exam.id,
-    name: `${exam.title}${exam.date ? ` • ${exam.date}` : ""}`,
+const loadMultiModuleCourses = async () => {
+  const payload = await apiFetch("/api/courses");
+  const courses = payload.courses || [];
+  multiModuleExamCache = courses;
+  const courseOptions = courses.map((course) => ({
+    id: course.id,
+    name: course.name,
   }));
-  renderSelectOptions(adminMultiModuleExam1, examOptions, "Seleziona modulo 1");
-  renderSelectOptions(adminMultiModuleExam2, examOptions, "Seleziona modulo 2");
-  return exams;
+  renderSelectOptions(adminMultiModuleExam1, courseOptions, "Seleziona modulo 1");
+  renderSelectOptions(adminMultiModuleExam2, courseOptions, "Seleziona modulo 2");
+  return courses;
 };
 
 const loadMultiModules = async (courseId) => {
-  if (!Number.isFinite(courseId)) {
-    renderMultiModuleList([]);
+  if (Number.isFinite(courseId)) {
+    const payload = await apiFetch(`/api/multi-modules?courseId=${courseId}`);
+    multiModuleCache = payload.multiModules || [];
+    renderMultiModuleList(multiModuleCache);
     return;
   }
-  const payload = await apiFetch(`/api/multi-modules?courseId=${courseId}`);
+  const payload = await apiFetch("/api/multi-modules");
   multiModuleCache = payload.multiModules || [];
   renderMultiModuleList(multiModuleCache);
 };
 
 const createMultiModule = async () => {
-  const courseId = Number(activeCourseId);
   const name = String(adminMultiModuleName?.value || "").trim();
   const examIdModule1 = readSelectNumber(adminMultiModuleExam1);
   const examIdModule2 = readSelectNumber(adminMultiModuleExam2);
@@ -2157,10 +2143,6 @@ const createMultiModule = async () => {
   const module2MinGrade = Number(adminMultiModuleMin2?.value || "");
   const weightModule1 = Number(adminMultiModuleWeight1?.value || "");
   const weightModule2 = Number(adminMultiModuleWeight2?.value || "");
-  if (!Number.isFinite(courseId)) {
-    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Seleziona un corso.";
-    return;
-  }
   if (!name || !Number.isFinite(examIdModule1) || !Number.isFinite(examIdModule2)) {
     if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Compila nome e moduli.";
     return;
@@ -2189,8 +2171,8 @@ const createMultiModule = async () => {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         name,
-        examIdModule1,
-        examIdModule2,
+        courseIdModule1: examIdModule1,
+        courseIdModule2: examIdModule2,
         module1MinGrade,
         module2MinGrade,
         weightModule1,
@@ -2199,7 +2181,7 @@ const createMultiModule = async () => {
     });
     setMultiModuleEditState(null);
     if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Gruppo creato.";
-    await loadMultiModules(courseId);
+    await loadMultiModules();
   } catch (err) {
     if (adminMultiModuleStatus) {
       adminMultiModuleStatus.textContent = err.message || "Errore creazione gruppo.";
@@ -2209,13 +2191,12 @@ const createMultiModule = async () => {
 
 const updateMultiModule = async () => {
   if (!editingMultiModuleId) return;
-  const courseId = Number(activeCourseId);
   const name = String(adminMultiModuleName?.value || "").trim();
   const module1MinGrade = Number(adminMultiModuleMin1?.value || "");
   const module2MinGrade = Number(adminMultiModuleMin2?.value || "");
   const weightModule1 = Number(adminMultiModuleWeight1?.value || "");
   const weightModule2 = Number(adminMultiModuleWeight2?.value || "");
-  if (!Number.isFinite(courseId) || !name) {
+  if (!name) {
     if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Compila il nome.";
     return;
   }
@@ -2233,7 +2214,7 @@ const updateMultiModule = async () => {
     });
     setMultiModuleEditState(null);
     if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Gruppo aggiornato.";
-    await loadMultiModules(courseId);
+    await loadMultiModules();
   } catch (err) {
     if (adminMultiModuleStatus) {
       adminMultiModuleStatus.textContent = err.message || "Errore aggiornamento gruppo.";
@@ -2248,9 +2229,7 @@ const cancelMultiModuleEdit = () => {
 const deleteMultiModule = async (id) => {
   if (!confirm("Vuoi eliminare il gruppo multi-modulo?")) return;
   await apiFetch(`/api/multi-modules/${id}`, { method: "DELETE" });
-  if (Number.isFinite(activeCourseId)) {
-    await loadMultiModules(activeCourseId);
-  }
+  await loadMultiModules();
 };
 
 const loadTopics = async (courseId, select, placeholder) => {
@@ -2990,9 +2969,9 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
     toggleMultiModulesBtn.addEventListener("click", () => {
       const willOpen = adminMultiModulesSection.classList.contains("is-hidden");
       showAdminSection(willOpen ? adminMultiModulesSection : null);
-      if (willOpen && Number.isFinite(activeCourseId)) {
-        loadMultiModuleExams(activeCourseId);
-        loadMultiModules(activeCourseId);
+      if (willOpen) {
+        loadMultiModuleCourses();
+        loadMultiModules();
       }
     });
   }
