@@ -1235,7 +1235,7 @@ input {
 }
 
 .template-status {
-  color: var(--accent-dark);
+  color: var(--brand-primary);
   font-weight: 600;
 }
 
@@ -1276,13 +1276,13 @@ input {
 }
 
 .answer-row.is-active {
-  border-color: rgba(13, 74, 124, 0.6);
-  box-shadow: 0 0 0 2px rgba(13, 74, 124, 0.12);
+  border-color: rgba(47, 95, 167, 0.6);
+  box-shadow: 0 0 0 2px rgba(47, 95, 167, 0.12);
 }
 
 .answer-label {
   font-weight: 700;
-  color: var(--teal);
+  color: var(--brand-primary);
 }
 
 .answer-label.is-clickable {
@@ -1336,15 +1336,15 @@ input {
 }
 
 .question-score-badge.is-correct {
-  background: rgba(11, 107, 58, 0.12);
-  border-color: rgba(11, 107, 58, 0.35);
-  color: #0b6b3a;
+  background: rgba(43, 111, 58, 0.12);
+  border-color: rgba(43, 111, 58, 0.35);
+  color: #2b6f3a;
 }
 
 .question-score-badge.is-override {
-  background: rgba(15, 76, 129, 0.12);
-  border-color: rgba(15, 76, 129, 0.35);
-  color: #0f4c81;
+  background: rgba(47, 95, 167, 0.12);
+  border-color: rgba(47, 95, 167, 0.35);
+  color: #2f5fa7;
 }
 
 .public-question-meta {
@@ -1424,34 +1424,34 @@ input {
 }
 
 .toggle.active {
-  background: #b02a37;
+  background: var(--brand-accent);
   color: #ffffff;
-  border: 3px double #8f1e29;
+  border: 3px double #b12d24;
   font-weight: 700;
   transform: translateY(-1px);
 }
 
 .toggle.correct-hint:not(.active) {
-  background: #e4f6ea;
-  color: #0b3b24;
+  background: rgba(43, 111, 58, 0.1);
+  color: #215032;
 }
 
 .toggle.active.correct-hint {
-  background: #0b6b3a;
+  background: #2b6f3a;
   color: #ffffff;
-  border: 3px double #07542c;
+  border: 3px double #20572e;
   font-weight: 700;
 }
 
 .toggle.is-focused {
-  outline: 2px solid rgba(13, 74, 124, 0.45);
+  outline: 2px solid rgba(47, 95, 167, 0.45);
   outline-offset: 2px;
 }
 
 .admin-topbar .btn.is-active {
-  background: rgba(13, 74, 124, 0.12);
-  border-color: rgba(13, 74, 124, 0.4);
-  color: #0d4a7c;
+  background: rgba(47, 95, 167, 0.12);
+  border-color: rgba(47, 95, 167, 0.4);
+  color: #2f5fa7;
 }
 
 .actions,
@@ -1464,7 +1464,7 @@ input {
 
 .grading-status {
   font-weight: 600;
-  color: var(--accent-dark);
+  color: var(--brand-primary);
   margin-bottom: 10px;
 }
 
@@ -1516,8 +1516,8 @@ input {
 }
 
 .public-access-toggle-btn.is-active {
-  background: #0d4a7c;
-  border-color: #0d4a7c;
+  background: var(--brand-primary);
+  border-color: var(--brand-primary);
   color: #ffffff;
 }
 
@@ -1965,8 +1965,8 @@ input {
 }
 
 .answer-builder-admin .form-check-input:checked {
-  border-color: #0b6b3a;
-  background-color: #0b6b3a;
+  border-color: #2b6f3a;
+  background-color: #2b6f3a;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5l3 3 7-7' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
@@ -2027,21 +2027,21 @@ input {
 }
 
 .admin-question-status.is-error {
-  background: rgba(176, 42, 55, 0.12);
-  border-color: rgba(176, 42, 55, 0.35);
-  color: #9b111e;
+  background: rgba(214, 58, 44, 0.12);
+  border-color: rgba(214, 58, 44, 0.35);
+  color: var(--brand-accent);
 }
 
 .admin-question-status.is-success {
-  background: rgba(11, 107, 58, 0.12);
-  border-color: rgba(11, 107, 58, 0.35);
-  color: #0b6b3a;
+  background: rgba(43, 111, 58, 0.12);
+  border-color: rgba(43, 111, 58, 0.35);
+  color: #2b6f3a;
 }
 
 .admin-question-status.is-info {
-  background: rgba(13, 74, 124, 0.08);
-  border-color: rgba(13, 74, 124, 0.2);
-  color: #0d4a7c;
+  background: rgba(47, 95, 167, 0.08);
+  border-color: rgba(47, 95, 167, 0.2);
+  color: #2f5fa7;
 }
 
 .admin-question-header {
@@ -2403,8 +2403,8 @@ input {
 }
 
 .admin-accordion summary .accordion-toggle .form-check-input:checked {
-  border-color: #0b6b3a;
-  background-color: #0b6b3a;
+  border-color: #2b6f3a;
+  background-color: #2b6f3a;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 12 10'%3E%3Cpath d='M1 5l3 3 7-7' fill='none' stroke='%23fff' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: center;
