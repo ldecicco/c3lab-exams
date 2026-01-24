@@ -64,6 +64,10 @@
             <i class="fa-solid fa-list"></i>
             Argomenti
           </button>
+          <button class="btn btn-outline-secondary" type="button" id="toggleMultiModules">
+            <i class="fa-solid fa-link"></i>
+            Multi-modulo
+          </button>
           <button class="btn btn-outline-secondary" type="button" id="toggleShortcuts">
             <i class="fa-solid fa-bolt"></i>
             Scorciatoie
@@ -153,6 +157,56 @@
           <div class="text-secondary small" id="adminShortcutStatus"></div>
         </div>
         <div id="adminShortcutList" class="list-panel"></div>
+      </section>
+
+      <section class="card shadow-sm is-hidden" id="adminMultiModulesSection">
+        <div class="card-header">
+          <h2 class="h5 mb-1">Esami multi-modulo</h2>
+          <p class="text-secondary mb-0">Collega due moduli e definisci la regola di valutazione.</p>
+        </div>
+        <div class="grid">
+          <label class="field">
+            <span>Nome</span>
+            <input id="adminMultiModuleName" class="form-control" type="text" placeholder="Fondamenti di Automatica (completo)" />
+          </label>
+          <label class="field">
+            <span>Modulo 1</span>
+            <select id="adminMultiModuleExam1" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Modulo 2</span>
+            <select id="adminMultiModuleExam2" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span>Soglia Modulo 1</span>
+            <input id="adminMultiModuleMin1" class="form-control" type="number" min="0" max="30" step="0.1" value="16" />
+          </label>
+          <label class="field">
+            <span>Soglia Modulo 2</span>
+            <input id="adminMultiModuleMin2" class="form-control" type="number" min="0" max="30" step="0.1" value="16" />
+          </label>
+          <label class="field">
+            <span>Peso Modulo 1</span>
+            <div class="inline-actions">
+              <input id="adminMultiModuleWeight1" class="form-control" type="range" min="0" max="1" step="0.05" value="0.5" />
+              <span class="pill-badge" id="adminMultiModuleWeight1Label">0.5</span>
+            </div>
+          </label>
+          <label class="field">
+            <span>Peso Modulo 2</span>
+            <div class="inline-actions">
+              <input id="adminMultiModuleWeight2" class="form-control" type="range" min="0" max="1" step="0.05" value="0.5" />
+              <span class="pill-badge" id="adminMultiModuleWeight2Label">0.5</span>
+            </div>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-primary" id="adminCreateMultiModule" type="button">Crea</button>
+          <button class="btn btn-outline-primary is-hidden" id="adminUpdateMultiModule" type="button">Aggiorna</button>
+          <button class="btn btn-outline-secondary is-hidden" id="adminCancelMultiModule" type="button">Annulla</button>
+          <div class="text-secondary small" id="adminMultiModuleStatus"></div>
+        </div>
+        <div id="adminMultiModuleList" class="list-panel"></div>
       </section>
 
       <section class="card shadow-sm is-hidden" id="adminImagesSection">

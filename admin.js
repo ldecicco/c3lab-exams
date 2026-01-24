@@ -50,6 +50,7 @@ const adminQuestionError = document.getElementById("adminQuestionError");
 const adminAnswersError = document.getElementById("adminAnswersError");
 const toggleCoursesBtn = document.getElementById("toggleCourses");
 const toggleTopicsBtn = document.getElementById("toggleTopics");
+const toggleMultiModulesBtn = document.getElementById("toggleMultiModules");
 const toggleShortcutsBtn = document.getElementById("toggleShortcuts");
 const toggleImagesBtn = document.getElementById("toggleImages");
 const toggleUsersBtn = document.getElementById("toggleUsers");
@@ -58,12 +59,14 @@ const adminActionButtons = [
   toggleUsersBtn,
   toggleCoursesBtn,
   toggleTopicsBtn,
+  toggleMultiModulesBtn,
   toggleShortcutsBtn,
   toggleImagesBtn,
   toggleDbBtn,
 ].filter(Boolean);
 const adminCoursesSection = document.getElementById("adminCoursesSection");
 const adminTopicsSection = document.getElementById("adminTopicsSection");
+const adminMultiModulesSection = document.getElementById("adminMultiModulesSection");
 const adminShortcutsSection = document.getElementById("adminShortcutsSection");
 const adminImagesSection = document.getElementById("adminImagesSection");
 const adminUsersSection = document.getElementById("adminUsersSection");
@@ -80,6 +83,9 @@ const courseEmptyState = document.getElementById("courseEmptyState");
 const mainLayout = document.getElementById("mainLayout");
 
 let activeCourseId = null;
+let editingMultiModuleId = null;
+let multiModuleCache = [];
+let multiModuleExamCache = [];
 const adminUserList = document.getElementById("adminUserList");
 const adminToast = document.getElementById("adminToast");
 const keyboardShortcutsHint = document.getElementById("keyboardShortcutsHint");
@@ -113,6 +119,20 @@ const adminCancelImageBtn = document.getElementById("adminCancelImage");
 const adminImageStatus = document.getElementById("adminImageStatus");
 const adminImageList = document.getElementById("adminImageList");
 let editingImageId = null;
+const adminMultiModuleName = document.getElementById("adminMultiModuleName");
+const adminMultiModuleExam1 = document.getElementById("adminMultiModuleExam1");
+const adminMultiModuleExam2 = document.getElementById("adminMultiModuleExam2");
+const adminMultiModuleMin1 = document.getElementById("adminMultiModuleMin1");
+const adminMultiModuleMin2 = document.getElementById("adminMultiModuleMin2");
+const adminMultiModuleWeight1 = document.getElementById("adminMultiModuleWeight1");
+const adminMultiModuleWeight2 = document.getElementById("adminMultiModuleWeight2");
+const adminMultiModuleWeight1Label = document.getElementById("adminMultiModuleWeight1Label");
+const adminMultiModuleWeight2Label = document.getElementById("adminMultiModuleWeight2Label");
+const adminCreateMultiModuleBtn = document.getElementById("adminCreateMultiModule");
+const adminUpdateMultiModuleBtn = document.getElementById("adminUpdateMultiModule");
+const adminCancelMultiModuleBtn = document.getElementById("adminCancelMultiModule");
+const adminMultiModuleStatus = document.getElementById("adminMultiModuleStatus");
+const adminMultiModuleList = document.getElementById("adminMultiModuleList");
 const imagePickerBackdrop = document.getElementById("imagePickerBackdrop");
 const imagePickerModal = document.getElementById("imagePickerModal");
 const imagePickerCloseBtn = document.getElementById("imagePickerClose");
@@ -946,6 +966,7 @@ const showAdminSection = (section) => {
     adminUsersSection,
     adminCoursesSection,
     adminTopicsSection,
+    adminMultiModulesSection,
     adminShortcutsSection,
     adminImagesSection,
     adminDbSection,
@@ -961,6 +982,8 @@ const showAdminSection = (section) => {
   if (section === adminUsersSection && toggleUsersBtn) toggleUsersBtn.classList.add("is-active");
   if (section === adminCoursesSection && toggleCoursesBtn) toggleCoursesBtn.classList.add("is-active");
   if (section === adminTopicsSection && toggleTopicsBtn) toggleTopicsBtn.classList.add("is-active");
+  if (section === adminMultiModulesSection && toggleMultiModulesBtn)
+    toggleMultiModulesBtn.classList.add("is-active");
   if (section === adminShortcutsSection && toggleShortcutsBtn)
     toggleShortcutsBtn.classList.add("is-active");
   if (section === adminImagesSection && toggleImagesBtn)
@@ -1978,6 +2001,8 @@ const setActiveCourse = async (
   await loadQuestionTopics(courseId);
   await loadTopics(courseId, bankTopicSelect, "Tutti gli argomenti");
   await loadShortcutsForEditor(courseId);
+  await loadMultiModuleExams(courseId);
+  await loadMultiModules(courseId);
   if (syncBank) {
     await refreshQuestionBank();
   }
@@ -2010,6 +2035,232 @@ const loadCourses = async () => {
     await setActiveCourse(Number.NaN, { persist: false });
   }
   return courses;
+};
+
+const setMultiModuleEditState = (group) => {
+  editingMultiModuleId = group ? group.id : null;
+  if (adminMultiModuleName) adminMultiModuleName.value = group ? group.name : "";
+  if (adminMultiModuleExam1) adminMultiModuleExam1.value = group ? String(group.exam_id_module1) : "";
+  if (adminMultiModuleExam2) adminMultiModuleExam2.value = group ? String(group.exam_id_module2) : "";
+  if (adminMultiModuleMin1) adminMultiModuleMin1.value = group ? String(group.module1_min_grade) : "16";
+  if (adminMultiModuleMin2) adminMultiModuleMin2.value = group ? String(group.module2_min_grade) : "16";
+  if (adminMultiModuleWeight1) adminMultiModuleWeight1.value = group ? String(group.weight_module1) : "0.5";
+  if (adminMultiModuleWeight2) adminMultiModuleWeight2.value = group ? String(group.weight_module2) : "0.5";
+  if (adminMultiModuleWeight1Label)
+    adminMultiModuleWeight1Label.textContent = adminMultiModuleWeight1?.value || "0.5";
+  if (adminMultiModuleWeight2Label)
+    adminMultiModuleWeight2Label.textContent = adminMultiModuleWeight2?.value || "0.5";
+  if (adminCreateMultiModuleBtn)
+    adminCreateMultiModuleBtn.classList.toggle("is-hidden", Boolean(group));
+  if (adminUpdateMultiModuleBtn)
+    adminUpdateMultiModuleBtn.classList.toggle("is-hidden", !group);
+  if (adminCancelMultiModuleBtn)
+    adminCancelMultiModuleBtn.classList.toggle("is-hidden", !group);
+  if (adminMultiModuleStatus) {
+    adminMultiModuleStatus.textContent = group ? `Modifica gruppo: ${group.name}` : "";
+  }
+};
+
+const renderMultiModuleList = (groups) => {
+  if (!adminMultiModuleList) return;
+  adminMultiModuleList.innerHTML = "";
+  if (!groups.length) {
+    adminMultiModuleList.textContent = "Nessun gruppo multi-modulo per questo corso.";
+    return;
+  }
+  groups.forEach((group) => {
+    const item = createEl("div", "list-item");
+    const content = createEl("div", "question-card-content");
+    const title = createEl("div", "list-item-title", group.name);
+    const meta = createEl(
+      "div",
+      "list-item-meta",
+      `Modulo 1: ${group.module1_title || "—"} (${group.module1_date || "n.d."}) · Modulo 2: ${
+        group.module2_title || "—"
+      } (${group.module2_date || "n.d."})`
+    );
+    const chips = createEl("div", "chip-row");
+    const min1 = createEl("span", "chip", `Soglia M1: ${group.module1_min_grade}`);
+    const min2 = createEl("span", "chip", `Soglia M2: ${group.module2_min_grade}`);
+    const weights = createEl(
+      "span",
+      "chip",
+      `Pesi: ${group.weight_module1} / ${group.weight_module2}`
+    );
+    const finalMin = createEl("span", "chip", `Finale: ≥ ${group.final_min_grade}`);
+    const rounding = createEl("span", "chip", "Arrotondamento: ceil");
+    chips.appendChild(min1);
+    chips.appendChild(min2);
+    chips.appendChild(weights);
+    chips.appendChild(finalMin);
+    chips.appendChild(rounding);
+    const actions = createEl("div", "list-actions");
+    const editBtn = createEl("button", "btn btn-outline-secondary btn-sm", "Modifica");
+    editBtn.type = "button";
+    editBtn.addEventListener("click", () => setMultiModuleEditState(group));
+    const deleteBtn = createEl("button", "btn btn-outline-danger btn-sm", "Elimina");
+    deleteBtn.type = "button";
+    deleteBtn.addEventListener("click", () => deleteMultiModule(group.id));
+    actions.appendChild(editBtn);
+    actions.appendChild(deleteBtn);
+    content.appendChild(title);
+    content.appendChild(meta);
+    content.appendChild(chips);
+    content.appendChild(actions);
+    item.appendChild(content);
+    adminMultiModuleList.appendChild(item);
+  });
+};
+
+const loadMultiModuleExams = async (courseId) => {
+  if (!Number.isFinite(courseId)) {
+    renderSelectOptions(adminMultiModuleExam1, [], "Seleziona modulo 1");
+    renderSelectOptions(adminMultiModuleExam2, [], "Seleziona modulo 2");
+    multiModuleExamCache = [];
+    return [];
+  }
+  const payload = await apiFetch("/api/exams");
+  const exams = (payload.exams || [])
+    .filter((exam) => exam.course_id === courseId)
+    .sort((a, b) => {
+      const ta = a.date ? new Date(a.date).getTime() : 0;
+      const tb = b.date ? new Date(b.date).getTime() : 0;
+      if (tb !== ta) return tb - ta;
+      return String(b.updated_at || "").localeCompare(String(a.updated_at || ""));
+    });
+  multiModuleExamCache = exams;
+  const examOptions = exams.map((exam) => ({
+    id: exam.id,
+    name: `${exam.title}${exam.date ? ` • ${exam.date}` : ""}`,
+  }));
+  renderSelectOptions(adminMultiModuleExam1, examOptions, "Seleziona modulo 1");
+  renderSelectOptions(adminMultiModuleExam2, examOptions, "Seleziona modulo 2");
+  return exams;
+};
+
+const loadMultiModules = async (courseId) => {
+  if (!Number.isFinite(courseId)) {
+    renderMultiModuleList([]);
+    return;
+  }
+  const payload = await apiFetch(`/api/multi-modules?courseId=${courseId}`);
+  multiModuleCache = payload.multiModules || [];
+  renderMultiModuleList(multiModuleCache);
+};
+
+const createMultiModule = async () => {
+  const courseId = Number(activeCourseId);
+  const name = String(adminMultiModuleName?.value || "").trim();
+  const examIdModule1 = readSelectNumber(adminMultiModuleExam1);
+  const examIdModule2 = readSelectNumber(adminMultiModuleExam2);
+  const module1MinGrade = Number(adminMultiModuleMin1?.value || "");
+  const module2MinGrade = Number(adminMultiModuleMin2?.value || "");
+  const weightModule1 = Number(adminMultiModuleWeight1?.value || "");
+  const weightModule2 = Number(adminMultiModuleWeight2?.value || "");
+  if (!Number.isFinite(courseId)) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Seleziona un corso.";
+    return;
+  }
+  if (!name || !Number.isFinite(examIdModule1) || !Number.isFinite(examIdModule2)) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Compila nome e moduli.";
+    return;
+  }
+  if (!Number.isFinite(module1MinGrade) || !Number.isFinite(module2MinGrade)) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Soglie non valide.";
+    return;
+  }
+  if (!Number.isFinite(weightModule1) || !Number.isFinite(weightModule2)) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Pesi non validi.";
+    return;
+  }
+  if (weightModule1 < 0 || weightModule2 < 0) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "I pesi devono essere positivi.";
+    return;
+  }
+  const weightSum = Number((weightModule1 + weightModule2).toFixed(4));
+  if (weightSum !== 1) {
+    if (adminMultiModuleStatus)
+      adminMultiModuleStatus.textContent = "La somma dei pesi deve essere 1.0.";
+    return;
+  }
+  if (weightModule1 < 0 || weightModule2 < 0) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "I pesi devono essere positivi.";
+    return;
+  }
+  const weightSum = Number((weightModule1 + weightModule2).toFixed(4));
+  if (weightSum !== 1) {
+    if (adminMultiModuleStatus)
+      adminMultiModuleStatus.textContent = "La somma dei pesi deve essere 1.0.";
+    return;
+  }
+  try {
+    await apiFetch("/api/multi-modules", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        examIdModule1,
+        examIdModule2,
+        module1MinGrade,
+        module2MinGrade,
+        weightModule1,
+        weightModule2,
+      }),
+    });
+    setMultiModuleEditState(null);
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Gruppo creato.";
+    await loadMultiModules(courseId);
+  } catch (err) {
+    if (adminMultiModuleStatus) {
+      adminMultiModuleStatus.textContent = err.message || "Errore creazione gruppo.";
+    }
+  }
+};
+
+const updateMultiModule = async () => {
+  if (!editingMultiModuleId) return;
+  const courseId = Number(activeCourseId);
+  const name = String(adminMultiModuleName?.value || "").trim();
+  const module1MinGrade = Number(adminMultiModuleMin1?.value || "");
+  const module2MinGrade = Number(adminMultiModuleMin2?.value || "");
+  const weightModule1 = Number(adminMultiModuleWeight1?.value || "");
+  const weightModule2 = Number(adminMultiModuleWeight2?.value || "");
+  if (!Number.isFinite(courseId) || !name) {
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Compila il nome.";
+    return;
+  }
+  try {
+    await apiFetch(`/api/multi-modules/${editingMultiModuleId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        name,
+        module1MinGrade,
+        module2MinGrade,
+        weightModule1,
+        weightModule2,
+      }),
+    });
+    setMultiModuleEditState(null);
+    if (adminMultiModuleStatus) adminMultiModuleStatus.textContent = "Gruppo aggiornato.";
+    await loadMultiModules(courseId);
+  } catch (err) {
+    if (adminMultiModuleStatus) {
+      adminMultiModuleStatus.textContent = err.message || "Errore aggiornamento gruppo.";
+    }
+  }
+};
+
+const cancelMultiModuleEdit = () => {
+  setMultiModuleEditState(null);
+};
+
+const deleteMultiModule = async (id) => {
+  if (!confirm("Vuoi eliminare il gruppo multi-modulo?")) return;
+  await apiFetch(`/api/multi-modules/${id}`, { method: "DELETE" });
+  if (Number.isFinite(activeCourseId)) {
+    await loadMultiModules(activeCourseId);
+  }
 };
 
 const loadTopics = async (courseId, select, placeholder) => {
@@ -2745,6 +2996,16 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       showAdminSection(willOpen ? adminTopicsSection : null);
     });
   }
+  if (toggleMultiModulesBtn && adminMultiModulesSection) {
+    toggleMultiModulesBtn.addEventListener("click", () => {
+      const willOpen = adminMultiModulesSection.classList.contains("is-hidden");
+      showAdminSection(willOpen ? adminMultiModulesSection : null);
+      if (willOpen && Number.isFinite(activeCourseId)) {
+        loadMultiModuleExams(activeCourseId);
+        loadMultiModules(activeCourseId);
+      }
+    });
+  }
   if (toggleShortcutsBtn && adminShortcutsSection) {
     toggleShortcutsBtn.addEventListener("click", () => {
       const willOpen = adminShortcutsSection.classList.contains("is-hidden");
@@ -2872,6 +3133,10 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   if (adminCancelCourseBtn) adminCancelCourseBtn.addEventListener("click", cancelCourseEdit);
   if (adminUpdateTopicBtn) adminUpdateTopicBtn.addEventListener("click", updateTopic);
   if (adminCancelTopicBtn) adminCancelTopicBtn.addEventListener("click", cancelTopicEdit);
+  if (adminCreateMultiModuleBtn) adminCreateMultiModuleBtn.addEventListener("click", createMultiModule);
+  if (adminUpdateMultiModuleBtn) adminUpdateMultiModuleBtn.addEventListener("click", updateMultiModule);
+  if (adminCancelMultiModuleBtn)
+    adminCancelMultiModuleBtn.addEventListener("click", cancelMultiModuleEdit);
   if (adminCreateShortcutBtn) adminCreateShortcutBtn.addEventListener("click", createShortcut);
   if (adminUpdateShortcutBtn) adminUpdateShortcutBtn.addEventListener("click", updateShortcut);
   if (adminCancelShortcutBtn)
@@ -2879,6 +3144,26 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
   if (adminCreateUserBtn) adminCreateUserBtn.addEventListener("click", createUser);
   if (adminUpdateUserBtn) adminUpdateUserBtn.addEventListener("click", updateUser);
   if (adminCancelUserBtn) adminCancelUserBtn.addEventListener("click", cancelUserEdit);
+  if (adminMultiModuleWeight1) {
+    adminMultiModuleWeight1.addEventListener("input", () => {
+      const value = Number(adminMultiModuleWeight1.value || "0");
+      const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+      const counterpart = Number((1 - clamped).toFixed(2));
+      if (adminMultiModuleWeight2) adminMultiModuleWeight2.value = String(counterpart);
+      if (adminMultiModuleWeight1Label) adminMultiModuleWeight1Label.textContent = String(clamped);
+      if (adminMultiModuleWeight2Label) adminMultiModuleWeight2Label.textContent = String(counterpart);
+    });
+  }
+  if (adminMultiModuleWeight2) {
+    adminMultiModuleWeight2.addEventListener("input", () => {
+      const value = Number(adminMultiModuleWeight2.value || "0");
+      const clamped = Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
+      const counterpart = Number((1 - clamped).toFixed(2));
+      if (adminMultiModuleWeight1) adminMultiModuleWeight1.value = String(counterpart);
+      if (adminMultiModuleWeight2Label) adminMultiModuleWeight2Label.textContent = String(clamped);
+      if (adminMultiModuleWeight1Label) adminMultiModuleWeight1Label.textContent = String(counterpart);
+    });
+  }
   if (adminDbTableSelect) {
     adminDbTableSelect.addEventListener("change", () => {
       dbOffset = 0;
