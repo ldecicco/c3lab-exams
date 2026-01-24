@@ -10,14 +10,19 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 ## Stato avanzamento
 
 ### Step 0 — Inventario duplicati (PRE‑WORK)
-- [ ] Mappare funzioni duplicate (toast, modal, apiFetch, format date).
-- [ ] Annotare file interessati: `app.js`, `admin.js`, `exam-builder.js`, `dashboard.js`, `questions.js`, `home.js`, `nav.js`.
+- [x] Mappare funzioni duplicate (toast, modal, apiFetch, format date).
+- [x] Annotare file interessati: `app.js`, `admin.js`, `exam-builder.js`, `dashboard.js`, `home.js`, `nav.js`, `esame-completo.js`.
+  - **showToast**: `app.js`, `admin.js` (usa globale), `exam-builder.js`, `dashboard.js`, `home.js`, `nav.js`, `esame-completo.js`.
+  - **apiFetch**: `admin.js`, `exam-builder.js`, `esame-completo.js`.
+  - **open/close modal**: `nav.js`, `esame-completo.js` (pattern simili).
+  - **toggle class is-hidden / is-active**: diffuso in `app.js`, `admin.js`, `exam-builder.js`, `dashboard.js`.
+  - **format score**: `app.js`/`esame-completo.js` (simile).
 
 ### Step 1 — Utilities UI (toast + modal)
-- [ ] Creare `utils/ui.js` con `showToast`, `openModal`, `closeModal`.
-- [ ] Rimuovere implementazioni duplicate di `showToast` nei file JS.
-- [ ] Aggiornare i layout EJS per includere `utils/ui.js`.
-- [ ] Test: toast e modali in Domande / Tracce / Valutazione / Dashboard.
+- [x] Creare `utils/ui.js` con `showToast`, `openModal`, `closeModal`.
+- [x] Rimuovere implementazioni duplicate di `showToast` nei file JS.
+- [x] Aggiornare i layout EJS per includere `utils/ui.js`.
+- [x] Test: toast e modali in Domande / Tracce / Valutazione / Dashboard.
 
 ### Step 2 — API helper
 - [ ] Creare `utils/api.js` con `apiFetch` + gestione CSRF.

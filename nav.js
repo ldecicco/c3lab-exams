@@ -157,24 +157,8 @@
   let originalBase64 = "";
   let originalName = "";
 
-  const showToast = (message, tone) => {
-    if (typeof window.showToast === "function") {
-      window.showToast(message, tone);
-      return;
-    }
-    let toast = document.querySelector(".toast-notify");
-    if (!toast) {
-      toast = document.createElement("div");
-      toast.className = "toast-notify";
-      document.body.appendChild(toast);
-    }
-    toast.textContent = message;
-    toast.classList.remove("is-error", "is-success");
-    if (tone === "error") toast.classList.add("is-error");
-    if (tone === "success") toast.classList.add("is-success");
-    toast.classList.add("show");
-    setTimeout(() => toast.classList.remove("show"), 2400);
-  };
+  const showToast =
+    typeof window.showToast === "function" ? window.showToast : () => {};
 
   const loadCropper = (() => {
     let promise = null;

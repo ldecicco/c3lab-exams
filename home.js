@@ -2,18 +2,8 @@ const courseGrid = document.getElementById("courseGrid");
 const courseActiveStatus = document.getElementById("courseActiveStatus");
 const courseToast = document.getElementById("courseToast");
 
-let toastTimer = null;
-
-const showToast = (message, tone = "info") => {
-  if (!courseToast) return;
-  courseToast.textContent = message;
-  courseToast.classList.remove("is-error", "is-success");
-  if (tone === "error") courseToast.classList.add("is-error");
-  if (tone === "success") courseToast.classList.add("is-success");
-  courseToast.classList.add("show");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => courseToast.classList.remove("show"), 2400);
-};
+const showToast =
+  typeof window.showToast === "function" ? window.showToast : () => {};
 
 const loadActiveCourse = async () => {
   try {

@@ -32,21 +32,12 @@ let currentSessionId = null;
 let mapping = null;
 let examQuestions = [];
 let students = [];
-let toastTimer = null;
 let activeCourseId = null;
 
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
 
-const showToast = (message, tone = "info") => {
-  if (!analysisToast) return;
-  analysisToast.textContent = message;
-  analysisToast.classList.remove("is-error", "is-success");
-  if (tone === "error") analysisToast.classList.add("is-error");
-  if (tone === "success") analysisToast.classList.add("is-success");
-  analysisToast.classList.add("show");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => analysisToast.classList.remove("show"), 2400);
-};
+const showToast =
+  typeof window.showToast === "function" ? window.showToast : () => {};
 
 const fetchActiveCourse = async () => {
   try {

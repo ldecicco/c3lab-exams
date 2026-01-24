@@ -579,19 +579,10 @@ const renderMathDisplay = (source, target) => {
   }
 };
 
+const showToast =
+  typeof window.showToast === "function" ? window.showToast : () => {};
+
 let toastTimer = null;
-const showToast = (message, tone = "info") => {
-  if (!toastNotify) return;
-  toastNotify.textContent = message;
-  toastNotify.classList.remove("is-error", "is-success", "is-loading");
-  if (tone === "error") toastNotify.classList.add("is-error");
-  if (tone === "success") toastNotify.classList.add("is-success");
-  toastNotify.classList.add("show");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    toastNotify.classList.remove("show");
-  }, 2600);
-};
 
 const showLoadingToast = (message) => {
   if (!toastNotify) return;

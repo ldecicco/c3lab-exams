@@ -124,7 +124,6 @@ let esse3Base64 = "";
 let examsCache = [];
 let examStatsCache = {};
 let examQuestions = [];
-let toastTimer = null;
 let currentExamId = null;
 let currentExam = null;
 let publicExamsCache = [];
@@ -136,18 +135,8 @@ let activeQuestionIndex = 1;
 let activeAnswerIndex = 0;
 let currentStudentCredentials = null;
 
-const showToast = (message, tone = "info") => {
-  if (!gradingToast) return;
-  gradingToast.textContent = message;
-  gradingToast.classList.remove("is-error", "is-success");
-  if (tone === "error") gradingToast.classList.add("is-error");
-  if (tone === "success") gradingToast.classList.add("is-success");
-  gradingToast.classList.add("show");
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => {
-    gradingToast.classList.remove("show");
-  }, 2600);
-};
+const showToast =
+  typeof window.showToast === "function" ? window.showToast : () => {};
 
 const fetchActiveCourse = async () => {
   try {
