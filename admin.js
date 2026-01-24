@@ -415,6 +415,23 @@ const insertMathDelimiters = () => {
   target.focus();
 };
 
+const insertWrappedText = (wrapperStart, wrapperEnd = "}") => {
+  const target = lastFocusedInput || adminQuestionText;
+  if (!target) return;
+  const value = target.value || "";
+  const start = Number.isFinite(target.selectionStart) ? target.selectionStart : value.length;
+  const end = Number.isFinite(target.selectionEnd) ? target.selectionEnd : value.length;
+  const selected = value.slice(start, end);
+  const nextValue = `${value.slice(0, start)}${wrapperStart}${selected}${wrapperEnd}${value.slice(end)}`;
+  target.value = nextValue;
+  const cursor = start + wrapperStart.length;
+  if (typeof target.setSelectionRange === "function") {
+    target.setSelectionRange(cursor, cursor);
+  }
+  target.dispatchEvent(new Event("input", { bubbles: true }));
+  target.focus();
+};
+
 const handleShortcutHotkeys = (event) => {
   const target = event.target;
   const isTextInput = target && (target instanceof HTMLInputElement || target instanceof HTMLTextAreaElement);
@@ -433,6 +450,21 @@ const handleShortcutHotkeys = (event) => {
   if (key === 'm' || key === 'M') {
     event.preventDefault();
     insertMathDelimiters();
+    return;
+  }
+  if (key === 'b' || key === 'B') {
+    event.preventDefault();
+    insertWrappedText("\\textbf{");
+    return;
+  }
+  if (key === 'i' || key === 'I') {
+    event.preventDefault();
+    insertWrappedText("\\textit{");
+    return;
+  }
+  if (key === 's' || key === 'S') {
+    event.preventDefault();
+    saveAdminQuestion();
     return;
   }
   if (!shortcutCache.length) return;
@@ -476,6 +508,30 @@ const updateKeyboardShortcutsHint = () => {
     <span class="keyboard-shortcut-label">Inserisci $$</span>
   `;
   keyboardShortcutsList.appendChild(mathShortcut);
+
+  const boldShortcut = document.createElement("div");
+  boldShortcut.className = "keyboard-shortcut-item";
+  boldShortcut.innerHTML = `
+    <span class="keyboard-shortcut-key">CTRL + B</span>
+    <span class="keyboard-shortcut-label">Inserisci \\textbf{}</span>
+  `;
+  keyboardShortcutsList.appendChild(boldShortcut);
+
+  const italicShortcut = document.createElement("div");
+  italicShortcut.className = "keyboard-shortcut-item";
+  italicShortcut.innerHTML = `
+    <span class="keyboard-shortcut-key">CTRL + I</span>
+    <span class="keyboard-shortcut-label">Inserisci \\textit{}</span>
+  `;
+  keyboardShortcutsList.appendChild(italicShortcut);
+
+  const saveShortcut = document.createElement("div");
+  saveShortcut.className = "keyboard-shortcut-item";
+  saveShortcut.innerHTML = `
+    <span class="keyboard-shortcut-key">CTRL + S</span>
+    <span class="keyboard-shortcut-label">Salva domanda</span>
+  `;
+  keyboardShortcutsList.appendChild(saveShortcut);
 
   shortcutCache.forEach((shortcut, index) => {
     if (index >= 9) return;
