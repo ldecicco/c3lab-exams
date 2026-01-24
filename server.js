@@ -518,6 +518,7 @@ const SESSION_TTL_DAYS = Number(process.env.SESSION_TTL_DAYS || 7);
 const PUBLIC_ACCESS_TTL_DAYS = Number(process.env.PUBLIC_ACCESS_TTL_DAYS || 30);
 
 const USE_SECURE_COOKIES = process.env.NODE_ENV !== "development";
+const REQUIRE_2FA = process.env.NODE_ENV !== "development";
 const SESSION_COOKIE_OPTIONS = (expiresAt) => ({
   httpOnly: true,
   sameSite: "strict",
@@ -610,7 +611,7 @@ const loadUser = (req, res, next) => {
   req.activeExamId = user?.activeExamId ?? null;
   req.sessionToken = token || null;
   res.locals.user = user || null;
-  res.locals.requireTwoFactor = Boolean(user && !user.totpEnabled);
+  res.locals.requireTwoFactor = REQUIRE_2FA && Boolean(user && !user.totpEnabled);
   res.locals.activeCourseId = user?.activeCourseId ?? null;
   if (user?.activeCourseId) {
     const course = db
@@ -634,7 +635,7 @@ const loadUser = (req, res, next) => {
 app.use(loadUser);
 
 app.use((req, res, next) => {
-  if (!req.user || req.user.totpEnabled) return next();
+  if (!REQUIRE_2FA || !req.user || req.user.totpEnabled) return next();
   const rawPath = req.path || "";
   const normalizedPath =
     BASE_PATH && rawPath.startsWith(BASE_PATH)
@@ -654,7 +655,7 @@ app.use((req, res, next) => {
 });
 
 app.use((req, res, next) => {
-  if (!req.user || req.user.totpEnabled) return next();
+  if (!REQUIRE_2FA || !req.user || req.user.totpEnabled) return next();
   if (req.method !== "GET") return next();
   const rawPath = req.path || "";
   const pathOnly =
@@ -837,7 +838,7 @@ router.post("/auth/login", loginLimiter, (req, res) => {
     res.status(401).json({ error: "Credenziali non valide" });
     return;
   }
-  if (user.totp_enabled) {
+  if (REQUIRE_2FA && user.totp_enabled) {
     if (!speakeasy) {
       res.status(500).json({ error: "2FA non disponibile sul server." });
       return;
@@ -854,6 +855,10 @@ router.post("/auth/login", loginLimiter, (req, res) => {
 });
 
 router.post("/auth/login-2fa", loginLimiter, (req, res) => {
+  if (!REQUIRE_2FA) {
+    res.status(400).json({ error: "2FA disabilitata in sviluppo." });
+    return;
+  }
   const tempToken = String(req.body.tempToken || "");
   const otp = String(req.body.otp || "").trim();
   if (!tempToken || !otp) {
