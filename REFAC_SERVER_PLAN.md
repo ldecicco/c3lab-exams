@@ -34,8 +34,8 @@ Checklist test minimi (da usare dopo ogni step):
 - [x] Test: login/logout, accesso ruoli, POST protetti.
 
 ### Step 7.3 — DB layer
-- [ ] Estrarre `db.js` + repo per domini principali.
-- [ ] Test: query base (exams, questions, images, users, results).
+- [x] Estrarre `db.js` + repo per domini principali.
+- [x] Test: query base (exams, questions, images, users, results).
 
 ### Step 7.4 — Routes split
 - [ ] Dividere per dominio (`auth`, `courses`, `questions`, `images`, `exams`, `grading`, `public`, `admin`, `multi-modules`).
@@ -56,7 +56,7 @@ Checklist test minimi (da usare dopo ogni step):
 - Step 7.0: _ok_
 - Step 7.1: _ok (avvio + login + /home + /valutazione)_
 - Step 7.2: _ok (login/logout + ruoli + POST protetti)_
-- Step 7.3: _pending_
+- Step 7.3: _ok (avvio + home + questions + valutazione)_
 - Step 7.4: _pending_
 - Step 7.5: _pending_
 - Step 7.6: _pending_
