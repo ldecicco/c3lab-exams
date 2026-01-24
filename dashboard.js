@@ -38,6 +38,15 @@ const ANSWER_OPTIONS = ["A", "B", "C", "D"];
 
 const showToast =
   typeof window.showToast === "function" ? window.showToast : () => {};
+const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
+const analysisExamModalApi = bindModal
+  ? bindModal({
+      modal: analysisExamModal,
+      backdrop: analysisExamBackdrop,
+      closers: [analysisExamClose],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -199,11 +208,27 @@ const updateTopbarStatus = (text, isActive = false) => {
 };
 
 const openExamModal = () => {
+  if (analysisExamModalApi) {
+    analysisExamModalApi.open();
+    return;
+  }
+  if (typeof window.openModal === "function") {
+    window.openModal(analysisExamModal, analysisExamBackdrop);
+    return;
+  }
   if (analysisExamBackdrop) analysisExamBackdrop.classList.remove("is-hidden");
   if (analysisExamModal) analysisExamModal.classList.remove("is-hidden");
 };
 
 const closeExamModal = () => {
+  if (analysisExamModalApi) {
+    analysisExamModalApi.close();
+    return;
+  }
+  if (typeof window.closeModal === "function") {
+    window.closeModal(analysisExamModal, analysisExamBackdrop);
+    return;
+  }
   if (analysisExamBackdrop) analysisExamBackdrop.classList.add("is-hidden");
   if (analysisExamModal) analysisExamModal.classList.add("is-hidden");
 };
@@ -688,9 +713,11 @@ if (analysisTopbarSelectExam) {
     openExamModal();
   });
 }
-if (analysisExamClose) {
-  analysisExamClose.addEventListener("click", closeExamModal);
-}
-if (analysisExamBackdrop) {
-  analysisExamBackdrop.addEventListener("click", closeExamModal);
+if (!analysisExamModalApi) {
+  if (analysisExamClose) {
+    analysisExamClose.addEventListener("click", closeExamModal);
+  }
+  if (analysisExamBackdrop) {
+    analysisExamBackdrop.addEventListener("click", closeExamModal);
+  }
 }

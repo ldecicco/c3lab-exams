@@ -137,6 +137,50 @@ let currentStudentCredentials = null;
 
 const showToast =
   typeof window.showToast === "function" ? window.showToast : () => {};
+const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
+const clearResultsModalApi = bindModal
+  ? bindModal({
+      modal: clearResultsModal,
+      backdrop: clearResultsBackdrop,
+      closers: [clearResultsCloseBtn, clearResultsCancelBtn],
+    })
+  : null;
+const publicAccessModalApi = bindModal
+  ? bindModal({
+      modal: publicAccessModal,
+      backdrop: publicAccessBackdrop,
+      closers: [publicAccessClose],
+    })
+  : null;
+const promptTestModalApi = bindModal
+  ? bindModal({
+      modal: promptTestModal,
+      backdrop: promptTestBackdrop,
+      closers: [promptTestClose],
+    })
+  : null;
+const teachingPromptModalApi = bindModal
+  ? bindModal({
+      modal: teachingPromptModal,
+      backdrop: teachingPromptBackdrop,
+      closers: [teachingPromptClose],
+    })
+  : null;
+const examPreviewModalApi = bindModal
+  ? bindModal({
+      modal: examPreviewModal,
+      backdrop: examPreviewBackdrop,
+      closers: [examPreviewCloseBtn],
+    })
+  : null;
+const examHistoryModalApi = bindModal
+  ? bindModal({
+      modal: examHistoryModal,
+      backdrop: examHistoryBackdrop,
+      closers: [examHistoryCloseBtn],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -429,14 +473,26 @@ const openPublicAccessModal = (exam) => {
   }
   if (publicAccessError) publicAccessError.textContent = "";
   if (publicAccessForm) publicAccessForm.reset();
-  publicAccessModal.classList.remove("is-hidden");
-  publicAccessBackdrop.classList.remove("is-hidden");
+  if (publicAccessModalApi) {
+    publicAccessModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(publicAccessModal, publicAccessBackdrop);
+  } else {
+    publicAccessModal.classList.remove("is-hidden");
+    publicAccessBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closePublicAccessModal = () => {
   if (!publicAccessModal || !publicAccessBackdrop) return;
-  publicAccessModal.classList.add("is-hidden");
-  publicAccessBackdrop.classList.add("is-hidden");
+  if (publicAccessModalApi) {
+    publicAccessModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(publicAccessModal, publicAccessBackdrop);
+  } else {
+    publicAccessModal.classList.add("is-hidden");
+    publicAccessBackdrop.classList.add("is-hidden");
+  }
 };
 
 const loadPublicExams = async () => {
@@ -603,16 +659,6 @@ const initPublicAccess = () => {
   if (!publicAccessForm) return;
   loadPublicExams();
 
-  if (publicAccessClose) {
-    publicAccessClose.addEventListener("click", closePublicAccessModal);
-  }
-  if (publicAccessBackdrop) {
-    publicAccessBackdrop.addEventListener("click", (event) => {
-      if (event.target === publicAccessBackdrop) {
-        closePublicAccessModal();
-      }
-    });
-  }
   if (publicAccessModal) {
     publicAccessModal.addEventListener("click", (event) => {
       event.stopPropagation();
@@ -1049,13 +1095,25 @@ const openExamPreview = (index, version) => {
     return;
   }
   renderExamPreview(question, index, mappedIndex, version);
-  examPreviewModal.classList.remove("is-hidden");
-  examPreviewBackdrop.classList.remove("is-hidden");
+  if (examPreviewModalApi) {
+    examPreviewModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(examPreviewModal, examPreviewBackdrop);
+  } else {
+    examPreviewModal.classList.remove("is-hidden");
+    examPreviewBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closeExamPreview = () => {
-  if (examPreviewModal) examPreviewModal.classList.add("is-hidden");
-  if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
+  if (examPreviewModalApi) {
+    examPreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(examPreviewModal, examPreviewBackdrop);
+  } else {
+    if (examPreviewModal) examPreviewModal.classList.add("is-hidden");
+    if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
+  }
   if (examPreviewBody) examPreviewBody.innerHTML = "";
 };
 
@@ -1438,8 +1496,12 @@ const renderTable = () => {
       }
 
       // Open modal
-      if (promptTestBackdrop) promptTestBackdrop.classList.remove("is-hidden");
-      if (promptTestModal) promptTestModal.classList.remove("is-hidden");
+      if (promptTestModalApi) {
+        promptTestModalApi.open();
+      } else {
+        if (promptTestBackdrop) promptTestBackdrop.classList.remove("is-hidden");
+        if (promptTestModal) promptTestModal.classList.remove("is-hidden");
+      }
       if (promptTestContent) promptTestContent.textContent = "Caricamento prompt...";
 
       try {
@@ -2040,23 +2102,47 @@ const clearAll = () => {
 };
 
 const openClearResultsModal = () => {
-  if (clearResultsBackdrop) clearResultsBackdrop.classList.remove("is-hidden");
-  if (clearResultsModal) clearResultsModal.classList.remove("is-hidden");
+  if (clearResultsModalApi) {
+    clearResultsModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(clearResultsModal, clearResultsBackdrop);
+  } else {
+    if (clearResultsBackdrop) clearResultsBackdrop.classList.remove("is-hidden");
+    if (clearResultsModal) clearResultsModal.classList.remove("is-hidden");
+  }
 };
 
 const closeClearResultsModal = () => {
-  if (clearResultsBackdrop) clearResultsBackdrop.classList.add("is-hidden");
-  if (clearResultsModal) clearResultsModal.classList.add("is-hidden");
+  if (clearResultsModalApi) {
+    clearResultsModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(clearResultsModal, clearResultsBackdrop);
+  } else {
+    if (clearResultsBackdrop) clearResultsBackdrop.classList.add("is-hidden");
+    if (clearResultsModal) clearResultsModal.classList.add("is-hidden");
+  }
 };
 
 const openExamHistoryModal = () => {
-  if (examHistoryBackdrop) examHistoryBackdrop.classList.remove("is-hidden");
-  if (examHistoryModal) examHistoryModal.classList.remove("is-hidden");
+  if (examHistoryModalApi) {
+    examHistoryModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(examHistoryModal, examHistoryBackdrop);
+  } else {
+    if (examHistoryBackdrop) examHistoryBackdrop.classList.remove("is-hidden");
+    if (examHistoryModal) examHistoryModal.classList.remove("is-hidden");
+  }
 };
 
 const closeExamHistoryModal = () => {
-  if (examHistoryBackdrop) examHistoryBackdrop.classList.add("is-hidden");
-  if (examHistoryModal) examHistoryModal.classList.add("is-hidden");
+  if (examHistoryModalApi) {
+    examHistoryModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(examHistoryModal, examHistoryBackdrop);
+  } else {
+    if (examHistoryBackdrop) examHistoryBackdrop.classList.add("is-hidden");
+    if (examHistoryModal) examHistoryModal.classList.add("is-hidden");
+  }
 };
 
 if (publicPasswordToggle && publicPassword) {
@@ -2099,9 +2185,6 @@ if (!appUser) {
   if (exportBtn) exportBtn.addEventListener("click", exportCsv);
   if (exportRBtn) exportRBtn.addEventListener("click", exportCsvForR);
   if (clearBtn) clearBtn.addEventListener("click", openClearResultsModal);
-  if (clearResultsCloseBtn) clearResultsCloseBtn.addEventListener("click", closeClearResultsModal);
-  if (clearResultsCancelBtn) clearResultsCancelBtn.addEventListener("click", closeClearResultsModal);
-  if (clearResultsBackdrop) clearResultsBackdrop.addEventListener("click", closeClearResultsModal);
   if (confirmClearResultsBtn) {
     confirmClearResultsBtn.addEventListener("click", () => {
       clearAll();
@@ -2129,23 +2212,6 @@ if (!appUser) {
   }
   if (publicAccessSaveBtn) publicAccessSaveBtn.addEventListener("click", savePublicAccess);
 
-  // Prompt test modal event listeners
-  if (promptTestClose) {
-    promptTestClose.addEventListener("click", () => {
-      if (promptTestBackdrop) promptTestBackdrop.classList.add("is-hidden");
-      if (promptTestModal) promptTestModal.classList.add("is-hidden");
-    });
-  }
-
-  if (promptTestBackdrop) {
-    promptTestBackdrop.addEventListener("click", (event) => {
-      if (event.target === promptTestBackdrop) {
-        promptTestBackdrop.classList.add("is-hidden");
-        if (promptTestModal) promptTestModal.classList.add("is-hidden");
-      }
-    });
-  }
-
   if (copyPromptBtn) {
     copyPromptBtn.addEventListener("click", () => {
       if (!promptTestContent) return;
@@ -2172,8 +2238,12 @@ if (!appUser) {
       }
 
       // Open modal
-      if (teachingPromptBackdrop) teachingPromptBackdrop.classList.remove("is-hidden");
-      if (teachingPromptModal) teachingPromptModal.classList.remove("is-hidden");
+      if (teachingPromptModalApi) {
+        teachingPromptModalApi.open();
+      } else {
+        if (teachingPromptBackdrop) teachingPromptBackdrop.classList.remove("is-hidden");
+        if (teachingPromptModal) teachingPromptModal.classList.remove("is-hidden");
+      }
       if (teachingPromptContent) teachingPromptContent.textContent = "Caricamento prompt...";
 
       try {
@@ -2196,23 +2266,6 @@ if (!appUser) {
           teachingPromptContent.textContent = "Errore: " + err.message;
         }
         alert("Errore nella generazione del prompt: " + err.message);
-      }
-    });
-  }
-
-  // Teaching prompt modal event listeners
-  if (teachingPromptClose) {
-    teachingPromptClose.addEventListener("click", () => {
-      if (teachingPromptBackdrop) teachingPromptBackdrop.classList.add("is-hidden");
-      if (teachingPromptModal) teachingPromptModal.classList.add("is-hidden");
-    });
-  }
-
-  if (teachingPromptBackdrop) {
-    teachingPromptBackdrop.addEventListener("click", (event) => {
-      if (event.target === teachingPromptBackdrop) {
-        teachingPromptBackdrop.classList.add("is-hidden");
-        if (teachingPromptModal) teachingPromptModal.classList.add("is-hidden");
       }
     });
   }
@@ -2269,10 +2322,6 @@ if (!appUser) {
       URL.revokeObjectURL(link.href);
     });
   }
-  if (examPreviewCloseBtn) examPreviewCloseBtn.addEventListener("click", closeExamPreview);
-  if (examPreviewBackdrop) examPreviewBackdrop.addEventListener("click", closeExamPreview);
-  if (examHistoryCloseBtn) examHistoryCloseBtn.addEventListener("click", closeExamHistoryModal);
-  if (examHistoryBackdrop) examHistoryBackdrop.addEventListener("click", closeExamHistoryModal);
   if (versioneInput) {
     versioneInput.addEventListener("input", () => {
       applyCorrectHints();

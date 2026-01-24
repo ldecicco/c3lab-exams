@@ -31,7 +31,63 @@
     if (backdrop) backdrop.classList.add("is-hidden");
   };
 
+  const bindModal = ({
+    modal,
+    backdrop,
+    openers = [],
+    closers = [],
+    onOpen,
+    onClose,
+    closeOnEsc = true,
+    focusSelector = "button, [href], input, select, textarea, [tabindex]:not([tabindex=\"-1\"])",
+  } = {}) => {
+    let lastActive = null;
+    let escHandler = null;
+
+    const open = () => {
+      lastActive = document.activeElement;
+      openModal(modal, backdrop);
+      if (modal) {
+        const focusTarget = modal.querySelector(focusSelector);
+        if (focusTarget && typeof focusTarget.focus === "function") {
+          focusTarget.focus();
+        }
+      }
+      if (closeOnEsc) {
+        escHandler = (event) => {
+          if (event.key === "Escape") {
+            event.preventDefault();
+            close();
+          }
+        };
+        document.addEventListener("keydown", escHandler);
+      }
+      if (typeof onOpen === "function") onOpen();
+    };
+    const close = () => {
+      closeModal(modal, backdrop);
+      if (escHandler) {
+        document.removeEventListener("keydown", escHandler);
+        escHandler = null;
+      }
+      if (lastActive && typeof lastActive.focus === "function") {
+        lastActive.focus();
+      }
+      if (typeof onClose === "function") onClose();
+    };
+
+    const openList = Array.isArray(openers) ? openers : [openers];
+    const closeList = Array.isArray(closers) ? closers : [closers];
+
+    openList.filter(Boolean).forEach((el) => el.addEventListener("click", open));
+    closeList.filter(Boolean).forEach((el) => el.addEventListener("click", close));
+    if (backdrop) backdrop.addEventListener("click", close);
+
+    return { open, close };
+  };
+
   window.showToast = showToast;
   window.openModal = openModal;
   window.closeModal = closeModal;
+  window.bindModal = bindModal;
 })();

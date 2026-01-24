@@ -51,6 +51,23 @@ const notify = (message, tone = "info") => {
 };
 
 const apiFetch = typeof window.apiFetch === "function" ? window.apiFetch : fetch;
+const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
+const multiModuleModalApi = bindModal
+  ? bindModal({
+      modal: multiModuleModal,
+      backdrop: multiModuleModalBackdrop,
+      closers: [multiModuleModalClose],
+    })
+  : null;
+
+const multiModuleOverrideApi = bindModal
+  ? bindModal({
+      modal: multiModuleOverrideModal,
+      backdrop: multiModuleOverrideBackdrop,
+      closers: [multiModuleOverrideClose],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -64,11 +81,27 @@ const fetchActiveCourse = async () => {
 };
 
 const openModal = () => {
+  if (multiModuleModalApi) {
+    multiModuleModalApi.open();
+    return;
+  }
+  if (typeof window.openModal === "function") {
+    window.openModal(multiModuleModal, multiModuleModalBackdrop);
+    return;
+  }
   if (multiModuleModal) multiModuleModal.classList.remove("is-hidden");
   if (multiModuleModalBackdrop) multiModuleModalBackdrop.classList.remove("is-hidden");
 };
 
 const closeModal = () => {
+  if (multiModuleModalApi) {
+    multiModuleModalApi.close();
+    return;
+  }
+  if (typeof window.closeModal === "function") {
+    window.closeModal(multiModuleModal, multiModuleModalBackdrop);
+    return;
+  }
   if (multiModuleModal) multiModuleModal.classList.add("is-hidden");
   if (multiModuleModalBackdrop) multiModuleModalBackdrop.classList.add("is-hidden");
 };
@@ -171,13 +204,25 @@ const openOverrideModal = (row) => {
   buildOptions(overrideModule2Select, row.module2.attempts, row.module2.resultId);
 
   if (multiModuleOverrideStatus) multiModuleOverrideStatus.textContent = "";
-  if (multiModuleOverrideModal) multiModuleOverrideModal.classList.remove("is-hidden");
-  if (multiModuleOverrideBackdrop) multiModuleOverrideBackdrop.classList.remove("is-hidden");
+  if (multiModuleOverrideApi) {
+    multiModuleOverrideApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(multiModuleOverrideModal, multiModuleOverrideBackdrop);
+  } else {
+    if (multiModuleOverrideModal) multiModuleOverrideModal.classList.remove("is-hidden");
+    if (multiModuleOverrideBackdrop) multiModuleOverrideBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closeOverrideModal = () => {
-  if (multiModuleOverrideModal) multiModuleOverrideModal.classList.add("is-hidden");
-  if (multiModuleOverrideBackdrop) multiModuleOverrideBackdrop.classList.add("is-hidden");
+  if (multiModuleOverrideApi) {
+    multiModuleOverrideApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(multiModuleOverrideModal, multiModuleOverrideBackdrop);
+  } else {
+    if (multiModuleOverrideModal) multiModuleOverrideModal.classList.add("is-hidden");
+    if (multiModuleOverrideBackdrop) multiModuleOverrideBackdrop.classList.add("is-hidden");
+  }
   activeOverrideStudent = null;
 };
 
@@ -422,13 +467,17 @@ if (multiModuleSelectBtnEmpty) multiModuleSelectBtnEmpty.addEventListener("click
   loadMultiModules();
   openModal();
 });
-if (multiModuleModalClose) multiModuleModalClose.addEventListener("click", closeModal);
-if (multiModuleModalBackdrop) multiModuleModalBackdrop.addEventListener("click", closeModal);
+if (!multiModuleModalApi) {
+  if (multiModuleModalClose) multiModuleModalClose.addEventListener("click", closeModal);
+  if (multiModuleModalBackdrop) multiModuleModalBackdrop.addEventListener("click", closeModal);
+}
 if (multiModuleExportCsv) multiModuleExportCsv.addEventListener("click", exportCsv);
-if (multiModuleOverrideClose)
-  multiModuleOverrideClose.addEventListener("click", closeOverrideModal);
-if (multiModuleOverrideBackdrop)
-  multiModuleOverrideBackdrop.addEventListener("click", closeOverrideModal);
+if (!multiModuleOverrideApi) {
+  if (multiModuleOverrideClose)
+    multiModuleOverrideClose.addEventListener("click", closeOverrideModal);
+  if (multiModuleOverrideBackdrop)
+    multiModuleOverrideBackdrop.addEventListener("click", closeOverrideModal);
+}
 if (multiModuleOverrideSave)
   multiModuleOverrideSave.addEventListener("click", () => saveOverride(false));
 if (multiModuleOverrideClear)

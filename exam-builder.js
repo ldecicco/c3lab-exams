@@ -157,6 +157,50 @@ const createEl = (tag, className, text) => {
 };
 
 const apiFetch = typeof window.apiFetch === "function" ? window.apiFetch : fetch;
+const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
+const confirmModalApi = bindModal
+  ? bindModal({
+      modal: confirmModal,
+      backdrop: confirmBackdrop,
+      closers: [confirmClose, confirmCancel],
+    })
+  : null;
+const newExamModalApi = bindModal
+  ? bindModal({
+      modal: newExamModal,
+      backdrop: newExamBackdrop,
+      closers: [newExamCloseBtn, newExamCancelBtn],
+    })
+  : null;
+const bankPreviewModalApi = bindModal
+  ? bindModal({
+      modal: bankPreviewModal,
+      backdrop: bankPreviewBackdrop,
+      closers: [bankPreviewCloseBtn],
+    })
+  : null;
+const pdfPreviewModalApi = bindModal
+  ? bindModal({
+      modal: pdfPreviewModal,
+      backdrop: pdfPreviewBackdrop,
+      closers: [pdfPreviewCloseBtn],
+    })
+  : null;
+const builderImagePickerApi = bindModal
+  ? bindModal({
+      modal: builderImagePickerModal,
+      backdrop: builderImagePickerBackdrop,
+      closers: [builderImagePickerCloseBtn],
+    })
+  : null;
+const builderImagePreviewApi = bindModal
+  ? bindModal({
+      modal: builderImagePreviewModal,
+      backdrop: builderImagePreviewBackdrop,
+      closers: [builderImagePreviewCloseBtn],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -267,13 +311,25 @@ const openImagePreview = (filePath, name, description) => {
     const metaParts = [name, description].filter(Boolean);
     builderImagePreviewMeta.textContent = metaParts.join(" • ");
   }
-  builderImagePreviewBackdrop.classList.remove("is-hidden");
-  builderImagePreviewModal.classList.remove("is-hidden");
+  if (builderImagePreviewApi) {
+    builderImagePreviewApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(builderImagePreviewModal, builderImagePreviewBackdrop);
+  } else {
+    builderImagePreviewBackdrop.classList.remove("is-hidden");
+    builderImagePreviewModal.classList.remove("is-hidden");
+  }
 };
 
 const closeImagePreview = () => {
-  if (builderImagePreviewBackdrop) builderImagePreviewBackdrop.classList.add("is-hidden");
-  if (builderImagePreviewModal) builderImagePreviewModal.classList.add("is-hidden");
+  if (builderImagePreviewApi) {
+    builderImagePreviewApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(builderImagePreviewModal, builderImagePreviewBackdrop);
+  } else {
+    if (builderImagePreviewBackdrop) builderImagePreviewBackdrop.classList.add("is-hidden");
+    if (builderImagePreviewModal) builderImagePreviewModal.classList.add("is-hidden");
+  }
   if (builderImagePreviewImg) builderImagePreviewImg.src = "";
 };
 
@@ -353,25 +409,49 @@ const openImagePicker = async (options = {}) => {
       }
     }
   }
-  if (builderImagePickerBackdrop) builderImagePickerBackdrop.classList.remove("is-hidden");
-  if (builderImagePickerModal) builderImagePickerModal.classList.remove("is-hidden");
+  if (builderImagePickerApi) {
+    builderImagePickerApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(builderImagePickerModal, builderImagePickerBackdrop);
+  } else {
+    if (builderImagePickerBackdrop) builderImagePickerBackdrop.classList.remove("is-hidden");
+    if (builderImagePickerModal) builderImagePickerModal.classList.remove("is-hidden");
+  }
 };
 
 const closeImagePicker = () => {
-  if (builderImagePickerBackdrop) builderImagePickerBackdrop.classList.add("is-hidden");
-  if (builderImagePickerModal) builderImagePickerModal.classList.add("is-hidden");
+  if (builderImagePickerApi) {
+    builderImagePickerApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(builderImagePickerModal, builderImagePickerBackdrop);
+  } else {
+    if (builderImagePickerBackdrop) builderImagePickerBackdrop.classList.add("is-hidden");
+    if (builderImagePickerModal) builderImagePickerModal.classList.add("is-hidden");
+  }
   activeImageQuestionId = null;
   imagePickerTarget = null;
 };
 
 const openNewExamModal = () => {
-  if (newExamBackdrop) newExamBackdrop.classList.remove("is-hidden");
-  if (newExamModal) newExamModal.classList.remove("is-hidden");
+  if (newExamModalApi) {
+    newExamModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(newExamModal, newExamBackdrop);
+  } else {
+    if (newExamBackdrop) newExamBackdrop.classList.remove("is-hidden");
+    if (newExamModal) newExamModal.classList.remove("is-hidden");
+  }
 };
 
 const closeNewExamModal = () => {
-  if (newExamBackdrop) newExamBackdrop.classList.add("is-hidden");
-  if (newExamModal) newExamModal.classList.add("is-hidden");
+  if (newExamModalApi) {
+    newExamModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(newExamModal, newExamBackdrop);
+  } else {
+    if (newExamBackdrop) newExamBackdrop.classList.add("is-hidden");
+    if (newExamModal) newExamModal.classList.add("is-hidden");
+  }
 };
 
 const getStepCompletion = () => {
@@ -579,13 +659,25 @@ const openConfirmModal = (message, onConfirm) => {
   if (!confirmModal || !confirmBackdrop) return;
   if (confirmMessage) confirmMessage.textContent = message;
   confirmCallback = onConfirm;
-  confirmBackdrop.classList.remove("is-hidden");
-  confirmModal.classList.remove("is-hidden");
+  if (confirmModalApi) {
+    confirmModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(confirmModal, confirmBackdrop);
+  } else {
+    confirmBackdrop.classList.remove("is-hidden");
+    confirmModal.classList.remove("is-hidden");
+  }
 };
 
 const closeConfirmModal = () => {
-  if (confirmBackdrop) confirmBackdrop.classList.add("is-hidden");
-  if (confirmModal) confirmModal.classList.add("is-hidden");
+  if (confirmModalApi) {
+    confirmModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(confirmModal, confirmBackdrop);
+  } else {
+    if (confirmBackdrop) confirmBackdrop.classList.add("is-hidden");
+    if (confirmModal) confirmModal.classList.add("is-hidden");
+  }
   confirmCallback = null;
 };
 
@@ -905,13 +997,25 @@ const renderQuestionPreviewBody = (container, question, options = {}) => {
 const openBankPreviewModal = (question) => {
   if (!bankPreviewModal || !bankPreviewBackdrop || !bankPreviewBody) return;
   renderQuestionPreviewBody(bankPreviewBody, question);
-  bankPreviewModal.classList.remove("is-hidden");
-  bankPreviewBackdrop.classList.remove("is-hidden");
+  if (bankPreviewModalApi) {
+    bankPreviewModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(bankPreviewModal, bankPreviewBackdrop);
+  } else {
+    bankPreviewModal.classList.remove("is-hidden");
+    bankPreviewBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closeBankPreviewModal = () => {
-  if (bankPreviewModal) bankPreviewModal.classList.add("is-hidden");
-  if (bankPreviewBackdrop) bankPreviewBackdrop.classList.add("is-hidden");
+  if (bankPreviewModalApi) {
+    bankPreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(bankPreviewModal, bankPreviewBackdrop);
+  } else {
+    if (bankPreviewModal) bankPreviewModal.classList.add("is-hidden");
+    if (bankPreviewBackdrop) bankPreviewBackdrop.classList.add("is-hidden");
+  }
   if (bankPreviewBody) bankPreviewBody.innerHTML = "";
 };
 
@@ -1654,14 +1758,26 @@ const openPdfPreview = (blob) => {
   if (!pdfPreviewFrame || !pdfPreviewBackdrop || !pdfPreviewModal) return;
   const url = URL.createObjectURL(blob);
   pdfPreviewFrame.src = url;
-  pdfPreviewModal.classList.remove("is-hidden");
-  pdfPreviewBackdrop.classList.remove("is-hidden");
+  if (pdfPreviewModalApi) {
+    pdfPreviewModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(pdfPreviewModal, pdfPreviewBackdrop);
+  } else {
+    pdfPreviewModal.classList.remove("is-hidden");
+    pdfPreviewBackdrop.classList.remove("is-hidden");
+  }
   pdfPreviewFrame.onload = () => URL.revokeObjectURL(url);
 };
 
 const closePdfPreview = () => {
-  if (pdfPreviewBackdrop) pdfPreviewBackdrop.classList.add("is-hidden");
-  if (pdfPreviewModal) pdfPreviewModal.classList.add("is-hidden");
+  if (pdfPreviewModalApi) {
+    pdfPreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(pdfPreviewModal, pdfPreviewBackdrop);
+  } else {
+    if (pdfPreviewBackdrop) pdfPreviewBackdrop.classList.add("is-hidden");
+    if (pdfPreviewModal) pdfPreviewModal.classList.add("is-hidden");
+  }
   if (pdfPreviewFrame) pdfPreviewFrame.src = "";
 };
 
@@ -1918,9 +2034,6 @@ const init = async () => {
   };
   if (closeSettingsBtn) closeSettingsBtn.addEventListener("click", closeSettings);
   if (settingsBackdrop) settingsBackdrop.addEventListener("click", closeSettings);
-  if (newExamCloseBtn) newExamCloseBtn.addEventListener("click", closeNewExamModal);
-  if (newExamCancelBtn) newExamCancelBtn.addEventListener("click", closeNewExamModal);
-  if (newExamBackdrop) newExamBackdrop.addEventListener("click", closeNewExamModal);
   if (examStatus) {
     const observer = new MutationObserver(() => {
       const message = examStatus.textContent.trim();
@@ -1931,11 +2044,6 @@ const init = async () => {
     });
     observer.observe(examStatus, { childList: true, characterData: true, subtree: true });
   }
-  if (bankPreviewCloseBtn) bankPreviewCloseBtn.addEventListener("click", closeBankPreviewModal);
-  if (bankPreviewBackdrop) bankPreviewBackdrop.addEventListener("click", closeBankPreviewModal);
-  if (confirmClose) confirmClose.addEventListener("click", closeConfirmModal);
-  if (confirmCancel) confirmCancel.addEventListener("click", closeConfirmModal);
-  if (confirmBackdrop) confirmBackdrop.addEventListener("click", closeConfirmModal);
   if (confirmConfirm) {
     confirmConfirm.addEventListener("click", () => {
       if (typeof confirmCallback === "function") {
@@ -1947,12 +2055,6 @@ const init = async () => {
       }
     });
   }
-  if (pdfPreviewCloseBtn) pdfPreviewCloseBtn.addEventListener("click", closePdfPreview);
-  if (pdfPreviewBackdrop) pdfPreviewBackdrop.addEventListener("click", closePdfPreview);
-  if (builderImagePickerCloseBtn) builderImagePickerCloseBtn.addEventListener("click", closeImagePicker);
-  if (builderImagePickerBackdrop) builderImagePickerBackdrop.addEventListener("click", closeImagePicker);
-  if (builderImagePreviewCloseBtn) builderImagePreviewCloseBtn.addEventListener("click", closeImagePreview);
-  if (builderImagePreviewBackdrop) builderImagePreviewBackdrop.addEventListener("click", closeImagePreview);
   stepButtons.forEach((btn) => {
     btn.addEventListener("click", () => goToStep(btn.dataset.stepTarget));
   });

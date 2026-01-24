@@ -153,6 +153,8 @@
   if (!openButton || !modal || !backdrop || !fileInput || !cropImage || !saveButton || !preview)
     return;
 
+  const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
   let cropper = null;
   let originalBase64 = "";
   let originalName = "";
@@ -180,16 +182,6 @@
     };
   })();
 
-  const openModal = () => {
-    modal.classList.remove("is-hidden");
-    backdrop.classList.remove("is-hidden");
-  };
-
-  const closeModal = () => {
-    modal.classList.add("is-hidden");
-    backdrop.classList.add("is-hidden");
-  };
-
   const resetCropper = () => {
     if (cropper) {
       cropper.destroy();
@@ -203,18 +195,30 @@
     saveButton.disabled = true;
   };
 
+  const avatarModalApi = bindModal
+    ? bindModal({
+        modal,
+        backdrop,
+        openers: [openButton],
+        closers: [closeButton, cancelButton],
+        onClose: resetCropper,
+      })
+    : null;
+
   const closePasswordModal = () => {
-    if (passwordBackdrop) passwordBackdrop.classList.add("is-hidden");
-    if (passwordModal) passwordModal.classList.add("is-hidden");
+    if (passwordModalApi) {
+      passwordModalApi.close();
+    } else {
+      if (passwordBackdrop) passwordBackdrop.classList.add("is-hidden");
+      if (passwordModal) passwordModal.classList.add("is-hidden");
+    }
     if (passwordError) passwordError.textContent = "";
     if (passwordCurrent) passwordCurrent.value = "";
     if (passwordNew) passwordNew.value = "";
     if (passwordConfirm) passwordConfirm.value = "";
   };
 
-  const openTwoFa = () => {
-    if (twoFaBackdrop) twoFaBackdrop.classList.remove("is-hidden");
-    if (twoFaModal) twoFaModal.classList.remove("is-hidden");
+  const prepareTwoFaModal = () => {
     if (twoFaError) twoFaError.textContent = "";
     if (twoFaCode) twoFaCode.value = "";
     if (twoFaDisablePassword) twoFaDisablePassword.value = "";
@@ -222,12 +226,6 @@
     if (twoFaSecret) twoFaSecret.textContent = "";
     if (twoFaSetupSection) twoFaSetupSection.classList.add("is-hidden");
     updateTwoFaView();
-  };
-
-  const closeTwoFa = () => {
-    if (twoFaBackdrop) twoFaBackdrop.classList.add("is-hidden");
-    if (twoFaModal) twoFaModal.classList.add("is-hidden");
-    if (twoFaError) twoFaError.textContent = "";
   };
 
   const updateTwoFaView = () => {
@@ -252,27 +250,33 @@
     }
   };
 
-  if (openPasswordModal) {
-    openPasswordModal.addEventListener("click", () => {
-      if (passwordBackdrop) passwordBackdrop.classList.remove("is-hidden");
-      if (passwordModal) passwordModal.classList.remove("is-hidden");
-    });
-  }
-  if (openTwoFaModal) openTwoFaModal.addEventListener("click", openTwoFa);
-  if (twoFaClose) twoFaClose.addEventListener("click", closeTwoFa);
-  if (twoFaCancel) twoFaCancel.addEventListener("click", closeTwoFa);
-  if (twoFaBackdrop) {
-    twoFaBackdrop.addEventListener("click", (event) => {
-      if (event.target === twoFaBackdrop) closeTwoFa();
-    });
-  }
-  if (passwordClose) passwordClose.addEventListener("click", closePasswordModal);
-  if (passwordCancel) passwordCancel.addEventListener("click", closePasswordModal);
-  if (passwordBackdrop) {
-    passwordBackdrop.addEventListener("click", (event) => {
-      if (event.target === passwordBackdrop) closePasswordModal();
-    });
-  }
+  const passwordModalApi = bindModal
+    ? bindModal({
+        modal: passwordModal,
+        backdrop: passwordBackdrop,
+        openers: [openPasswordModal],
+        closers: [passwordClose, passwordCancel],
+        onClose: () => {
+          if (passwordError) passwordError.textContent = "";
+          if (passwordCurrent) passwordCurrent.value = "";
+          if (passwordNew) passwordNew.value = "";
+          if (passwordConfirm) passwordConfirm.value = "";
+        },
+      })
+    : null;
+
+  const twoFaModalApi = bindModal
+    ? bindModal({
+        modal: twoFaModal,
+        backdrop: twoFaBackdrop,
+        openers: [openTwoFaModal],
+        closers: [twoFaClose, twoFaCancel],
+        onOpen: prepareTwoFaModal,
+        onClose: () => {
+          if (twoFaError) twoFaError.textContent = "";
+        },
+      })
+    : null;
   if (passwordSave) {
     passwordSave.addEventListener("click", async () => {
       if (passwordError) passwordError.textContent = "";
@@ -394,17 +398,7 @@
     preview.appendChild(img);
   };
 
-  openButton.addEventListener("click", () => {
-    openModal();
-  });
-
-  [backdrop, closeButton, cancelButton].forEach((el) => {
-    if (!el) return;
-    el.addEventListener("click", () => {
-      closeModal();
-      resetCropper();
-    });
-  });
+  // bindModal handles open/close/backdrop
 
   fileInput.addEventListener("change", async (event) => {
     const file = event.target.files?.[0];

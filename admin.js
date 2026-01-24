@@ -313,6 +313,64 @@ const updateImageLayoutState = () => {
 };
 
 const apiFetch = typeof window.apiFetch === "function" ? window.apiFetch : fetch;
+const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
+
+const shortcutModalApi = bindModal
+  ? bindModal({
+      modal: shortcutModal,
+      backdrop: shortcutModalBackdrop,
+      closers: [shortcutModalClose],
+    })
+  : null;
+const imagePreviewModalApi = bindModal
+  ? bindModal({
+      modal: imagePreviewModal,
+      backdrop: imagePreviewBackdrop,
+      closers: [imagePreviewCloseBtn],
+    })
+  : null;
+const bankModalApi = bindModal
+  ? bindModal({
+      modal: bankModal,
+      backdrop: bankModalBackdrop,
+      closers: [bankModalClose],
+    })
+  : null;
+const questionPreviewModalApi = bindModal
+  ? bindModal({
+      modal: questionPreviewModal,
+      backdrop: questionPreviewBackdrop,
+      closers: [questionPreviewCloseBtn],
+    })
+  : null;
+const questionNoteModalApi = bindModal
+  ? bindModal({
+      modal: questionNoteModal,
+      backdrop: questionNoteBackdrop,
+      closers: [questionNoteClose, questionNoteCancel],
+    })
+  : null;
+const answerNoteModalApi = bindModal
+  ? bindModal({
+      modal: answerNoteModal,
+      backdrop: answerNoteBackdrop,
+      closers: [answerNoteClose, answerNoteCancel],
+    })
+  : null;
+const imagePickerModalApi = bindModal
+  ? bindModal({
+      modal: imagePickerModal,
+      backdrop: imagePickerBackdrop,
+      closers: [imagePickerCloseBtn],
+    })
+  : null;
+const imageUploadModalApi = bindModal
+  ? bindModal({
+      modal: imageUploadModal,
+      backdrop: imageUploadBackdrop,
+      closers: [imageUploadCloseBtn],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -498,14 +556,26 @@ const openShortcutModal = () => {
   if (shortcutModalLabel) shortcutModalLabel.value = "";
   if (shortcutModalSnippet) shortcutModalSnippet.value = "";
   if (shortcutModalStatus) shortcutModalStatus.textContent = "";
-  shortcutModal.classList.remove("is-hidden");
-  shortcutModalBackdrop.classList.remove("is-hidden");
-  if (shortcutModalLabel) shortcutModalLabel.focus();
+  if (shortcutModalApi) {
+    shortcutModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(shortcutModal, shortcutModalBackdrop);
+  } else {
+    shortcutModal.classList.remove("is-hidden");
+    shortcutModalBackdrop.classList.remove("is-hidden");
+  }
+  if (shortcutModalLabel && !shortcutModalApi) shortcutModalLabel.focus();
 };
 
 const closeShortcutModal = () => {
-  if (shortcutModal) shortcutModal.classList.add("is-hidden");
-  if (shortcutModalBackdrop) shortcutModalBackdrop.classList.add("is-hidden");
+  if (shortcutModalApi) {
+    shortcutModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(shortcutModal, shortcutModalBackdrop);
+  } else {
+    if (shortcutModal) shortcutModal.classList.add("is-hidden");
+    if (shortcutModalBackdrop) shortcutModalBackdrop.classList.add("is-hidden");
+  }
 };
 
 const updateKeyboardShortcutsHint = () => {
@@ -737,13 +807,25 @@ const openImagePreview = (filePath, name, description) => {
     const metaParts = [name, description].filter(Boolean);
     imagePreviewMeta.textContent = metaParts.join(" • ");
   }
-  imagePreviewBackdrop.classList.remove("is-hidden");
-  imagePreviewModal.classList.remove("is-hidden");
+  if (imagePreviewModalApi) {
+    imagePreviewModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(imagePreviewModal, imagePreviewBackdrop);
+  } else {
+    imagePreviewBackdrop.classList.remove("is-hidden");
+    imagePreviewModal.classList.remove("is-hidden");
+  }
 };
 
 const closeImagePreview = () => {
-  if (imagePreviewBackdrop) imagePreviewBackdrop.classList.add("is-hidden");
-  if (imagePreviewModal) imagePreviewModal.classList.add("is-hidden");
+  if (imagePreviewModalApi) {
+    imagePreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(imagePreviewModal, imagePreviewBackdrop);
+  } else {
+    if (imagePreviewBackdrop) imagePreviewBackdrop.classList.add("is-hidden");
+    if (imagePreviewModal) imagePreviewModal.classList.add("is-hidden");
+  }
   if (imagePreviewImg) imagePreviewImg.src = "";
 };
 
@@ -755,23 +837,47 @@ const openBankModal = async () => {
     renderSelectOptions(bankTopicSelect, [], "Tutti gli argomenti");
   }
   await refreshQuestionBank();
-  if (bankModalBackdrop) bankModalBackdrop.classList.remove("is-hidden");
-  if (bankModal) bankModal.classList.remove("is-hidden");
+  if (bankModalApi) {
+    bankModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(bankModal, bankModalBackdrop);
+  } else {
+    if (bankModalBackdrop) bankModalBackdrop.classList.remove("is-hidden");
+    if (bankModal) bankModal.classList.remove("is-hidden");
+  }
 };
 
 const closeBankModal = () => {
-  if (bankModalBackdrop) bankModalBackdrop.classList.add("is-hidden");
-  if (bankModal) bankModal.classList.add("is-hidden");
+  if (bankModalApi) {
+    bankModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(bankModal, bankModalBackdrop);
+  } else {
+    if (bankModalBackdrop) bankModalBackdrop.classList.add("is-hidden");
+    if (bankModal) bankModal.classList.add("is-hidden");
+  }
 };
 
 const openQuestionPreviewModal = () => {
-  if (questionPreviewBackdrop) questionPreviewBackdrop.classList.remove("is-hidden");
-  if (questionPreviewModal) questionPreviewModal.classList.remove("is-hidden");
+  if (questionPreviewModalApi) {
+    questionPreviewModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(questionPreviewModal, questionPreviewBackdrop);
+  } else {
+    if (questionPreviewBackdrop) questionPreviewBackdrop.classList.remove("is-hidden");
+    if (questionPreviewModal) questionPreviewModal.classList.remove("is-hidden");
+  }
 };
 
 const closeQuestionPreviewModal = () => {
-  if (questionPreviewBackdrop) questionPreviewBackdrop.classList.add("is-hidden");
-  if (questionPreviewModal) questionPreviewModal.classList.add("is-hidden");
+  if (questionPreviewModalApi) {
+    questionPreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(questionPreviewModal, questionPreviewBackdrop);
+  } else {
+    if (questionPreviewBackdrop) questionPreviewBackdrop.classList.add("is-hidden");
+    if (questionPreviewModal) questionPreviewModal.classList.add("is-hidden");
+  }
   if (questionPreviewBody) questionPreviewBody.innerHTML = "";
 };
 
@@ -781,13 +887,25 @@ const openQuestionNoteModal = () => {
   if (questionNotePreview) {
     renderMathPreview(adminQuestionState.note || "", questionNotePreview, null);
   }
-  questionNoteModal.classList.remove("is-hidden");
-  questionNoteBackdrop.classList.remove("is-hidden");
+  if (questionNoteModalApi) {
+    questionNoteModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(questionNoteModal, questionNoteBackdrop);
+  } else {
+    questionNoteModal.classList.remove("is-hidden");
+    questionNoteBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closeQuestionNoteModal = () => {
-  if (questionNoteModal) questionNoteModal.classList.add("is-hidden");
-  if (questionNoteBackdrop) questionNoteBackdrop.classList.add("is-hidden");
+  if (questionNoteModalApi) {
+    questionNoteModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(questionNoteModal, questionNoteBackdrop);
+  } else {
+    if (questionNoteModal) questionNoteModal.classList.add("is-hidden");
+    if (questionNoteBackdrop) questionNoteBackdrop.classList.add("is-hidden");
+  }
 };
 
 const openAnswerNoteModal = (index) => {
@@ -798,13 +916,25 @@ const openAnswerNoteModal = (index) => {
   if (answerNotePreview) {
     renderMathPreview(answer?.note || "", answerNotePreview, null);
   }
-  answerNoteModal.classList.remove("is-hidden");
-  answerNoteBackdrop.classList.remove("is-hidden");
+  if (answerNoteModalApi) {
+    answerNoteModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(answerNoteModal, answerNoteBackdrop);
+  } else {
+    answerNoteModal.classList.remove("is-hidden");
+    answerNoteBackdrop.classList.remove("is-hidden");
+  }
 };
 
 const closeAnswerNoteModal = () => {
-  if (answerNoteModal) answerNoteModal.classList.add("is-hidden");
-  if (answerNoteBackdrop) answerNoteBackdrop.classList.add("is-hidden");
+  if (answerNoteModalApi) {
+    answerNoteModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(answerNoteModal, answerNoteBackdrop);
+  } else {
+    if (answerNoteModal) answerNoteModal.classList.add("is-hidden");
+    if (answerNoteBackdrop) answerNoteBackdrop.classList.add("is-hidden");
+  }
   editingAnswerNoteIndex = null;
 };
 
@@ -1237,13 +1367,25 @@ const openImagePicker = async () => {
       if (imagePickerStatus) imagePickerStatus.textContent = err.message || "Errore caricamento immagini.";
     }
   }
-  if (imagePickerBackdrop) imagePickerBackdrop.classList.remove("is-hidden");
-  if (imagePickerModal) imagePickerModal.classList.remove("is-hidden");
+  if (imagePickerModalApi) {
+    imagePickerModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(imagePickerModal, imagePickerBackdrop);
+  } else {
+    if (imagePickerBackdrop) imagePickerBackdrop.classList.remove("is-hidden");
+    if (imagePickerModal) imagePickerModal.classList.remove("is-hidden");
+  }
 };
 
 const closeImagePicker = () => {
-  if (imagePickerBackdrop) imagePickerBackdrop.classList.add("is-hidden");
-  if (imagePickerModal) imagePickerModal.classList.add("is-hidden");
+  if (imagePickerModalApi) {
+    imagePickerModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(imagePickerModal, imagePickerBackdrop);
+  } else {
+    if (imagePickerBackdrop) imagePickerBackdrop.classList.add("is-hidden");
+    if (imagePickerModal) imagePickerModal.classList.add("is-hidden");
+  }
 };
 
 const setImageUploadMode = (mode, image = null) => {
@@ -1267,20 +1409,38 @@ const setImageUploadMode = (mode, image = null) => {
 const openImageUploadModal = () => {
   closeImagePicker();
   setImageUploadMode("new");
-  if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
-  if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+  if (imageUploadModalApi) {
+    imageUploadModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(imageUploadModal, imageUploadBackdrop);
+  } else {
+    if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
+    if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+  }
 };
 
 const openImageEditModal = (image) => {
   closeImagePicker();
   setImageUploadMode("edit", image);
-  if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
-  if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+  if (imageUploadModalApi) {
+    imageUploadModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(imageUploadModal, imageUploadBackdrop);
+  } else {
+    if (imageUploadBackdrop) imageUploadBackdrop.classList.remove("is-hidden");
+    if (imageUploadModal) imageUploadModal.classList.remove("is-hidden");
+  }
 };
 
 const closeImageUploadModal = () => {
-  if (imageUploadBackdrop) imageUploadBackdrop.classList.add("is-hidden");
-  if (imageUploadModal) imageUploadModal.classList.add("is-hidden");
+  if (imageUploadModalApi) {
+    imageUploadModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(imageUploadModal, imageUploadBackdrop);
+  } else {
+    if (imageUploadBackdrop) imageUploadBackdrop.classList.add("is-hidden");
+    if (imageUploadModal) imageUploadModal.classList.add("is-hidden");
+  }
   imagePickerEditId = null;
   imagePickerEditImage = null;
 };
@@ -2781,14 +2941,7 @@ if (adminToolbarSave) {
 }
   if (adminPreviewRefresh) adminPreviewRefresh.addEventListener("click", updateAdminPreviews);
   if (adminToolbarBank) adminToolbarBank.addEventListener("click", openBankModal);
-  if (bankModalClose) bankModalClose.addEventListener("click", closeBankModal);
-  if (bankModalBackdrop) bankModalBackdrop.addEventListener("click", closeBankModal);
-if (questionPreviewCloseBtn) questionPreviewCloseBtn.addEventListener("click", closeQuestionPreviewModal);
-if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", closeQuestionPreviewModal);
   if (adminQuestionNoteBtn) adminQuestionNoteBtn.addEventListener("click", openQuestionNoteModal);
-  if (questionNoteClose) questionNoteClose.addEventListener("click", closeQuestionNoteModal);
-  if (questionNoteCancel) questionNoteCancel.addEventListener("click", closeQuestionNoteModal);
-  if (questionNoteBackdrop) questionNoteBackdrop.addEventListener("click", closeQuestionNoteModal);
   if (questionNoteText) questionNoteText.addEventListener("input", updateQuestionNotePreview);
   if (questionNoteSave) {
     questionNoteSave.addEventListener("click", () => {
@@ -2807,9 +2960,6 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       updateSaveStateFromSnapshot();
     });
   }
-  if (answerNoteClose) answerNoteClose.addEventListener("click", closeAnswerNoteModal);
-  if (answerNoteCancel) answerNoteCancel.addEventListener("click", closeAnswerNoteModal);
-  if (answerNoteBackdrop) answerNoteBackdrop.addEventListener("click", closeAnswerNoteModal);
   if (answerNoteText) answerNoteText.addEventListener("input", updateAnswerNotePreview);
   if (answerNoteSave) {
     answerNoteSave.addEventListener("click", () => {
@@ -2833,8 +2983,6 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
     });
   }
   if (adminShortcutAddBtn) adminShortcutAddBtn.addEventListener("click", openShortcutModal);
-  if (shortcutModalClose) shortcutModalClose.addEventListener("click", closeShortcutModal);
-  if (shortcutModalBackdrop) shortcutModalBackdrop.addEventListener("click", closeShortcutModal);
   if (shortcutModalSave) shortcutModalSave.addEventListener("click", createShortcutFromModal);
   document.addEventListener("keydown", handleShortcutHotkeys);
   document.addEventListener("keyup", handleKeyUp);
@@ -2936,13 +3084,7 @@ if (questionPreviewBackdrop) questionPreviewBackdrop.addEventListener("click", c
       closeImagePicker();
     });
   }
-  if (imagePickerCloseBtn) imagePickerCloseBtn.addEventListener("click", closeImagePicker);
-  if (imagePickerBackdrop) imagePickerBackdrop.addEventListener("click", closeImagePicker);
-  if (imageUploadCloseBtn) imageUploadCloseBtn.addEventListener("click", closeImageUploadModal);
-  if (imageUploadBackdrop) imageUploadBackdrop.addEventListener("click", closeImageUploadModal);
   if (imageUploadSaveBtn) imageUploadSaveBtn.addEventListener("click", uploadImageFromModal);
-  if (imagePreviewCloseBtn) imagePreviewCloseBtn.addEventListener("click", closeImagePreview);
-  if (imagePreviewBackdrop) imagePreviewBackdrop.addEventListener("click", closeImagePreview);
   if (adminCoursePicker) {
     adminCoursePicker.addEventListener("change", () => {
       setActiveCourse(readSelectNumber(adminCoursePicker));

@@ -40,9 +40,13 @@ Obiettivo: ridurre duplicazioni JS e rendere il codice più manutenibile senza r
 - [x] Test: liste in Admin / Tracce / Domande / Esame completo.
 
 ### Step 5 — Modali condivisi
-- [ ] Unificare comportamento modali (ESC, backdrop, focus).
-- [ ] Rimuovere duplicazioni JS.
-- [ ] Test: modali principali (image picker, override, 2FA, password).
+- [x] Aggiungere helper `bindModal` in `utils/ui.js`.
+- [x] Migrare modali principali in `esame-completo.js` e `dashboard.js`.
+- [x] Unificare comportamento modali (ESC + focus base).
+- [x] Migrare modali principali in `/questions` (admin.js).
+- [x] Migrare modali principali in `nav.js`, `exam-builder.js`, `app.js`.
+- [x] Rimuovere duplicazioni JS residue.
+- [x] Test: modali principali (image picker, override, 2FA, password).
 
 ### Step 6 — Cleanup finale
 - [ ] Rimuovere funzioni inutilizzate.
