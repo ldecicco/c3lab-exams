@@ -84,6 +84,12 @@
             </div>
           </div>
         </div>
+        <div class="actions">
+          <div class="chip-action active" data-filter="all">Tutti</div>
+          <div class="chip-action" data-filter="passed">Solo superati</div>
+          <div class="chip-action" data-filter="incomplete">Solo incompleti</div>
+          <div class="chip-action" data-filter="not_passed">Solo non superati</div>
+        </div>
         <div class="table-wrap">
           <table class="table table-striped align-middle">
             <thead>
@@ -95,6 +101,7 @@
                 <th id="module2Header">Modulo 2</th>
                 <th>Finale</th>
                 <th>Esito</th>
+                <th>Override</th>
               </tr>
             </thead>
             <tbody id="multiModuleResultsBody"></tbody>
@@ -113,6 +120,33 @@
       </div>
       <div class="modal-body">
         <div id="multiModuleList" class="list-panel"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="multiModuleOverrideBackdrop"></div>
+    <div class="modal-panel is-hidden" id="multiModuleOverrideModal" role="dialog" aria-modal="true">
+      <div class="modal-header">
+        <h3 class="h5 mb-0">Seleziona tentativo</h3>
+        <button class="btn btn-outline-secondary btn-sm" type="button" id="multiModuleOverrideClose">
+          Chiudi
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="grid">
+          <label class="field">
+            <span id="overrideModule1Label">Modulo 1</span>
+            <select id="overrideModule1Select" class="form-select"></select>
+          </label>
+          <label class="field">
+            <span id="overrideModule2Label">Modulo 2</span>
+            <select id="overrideModule2Select" class="form-select"></select>
+          </label>
+        </div>
+        <div class="actions">
+          <button class="btn btn-outline-primary" type="button" id="multiModuleOverrideSave">Salva override</button>
+          <button class="btn btn-outline-secondary" type="button" id="multiModuleOverrideClear">Reset</button>
+        </div>
+        <div class="text-secondary small" id="multiModuleOverrideStatus"></div>
       </div>
     </div>
 

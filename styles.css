@@ -2904,6 +2904,40 @@ input {
   font-size: 0.75rem;
 }
 
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-weight: 700;
+  font-size: 0.75rem;
+  border: 1px solid transparent;
+}
+
+.status-badge.is-success {
+  background: rgba(47, 95, 167, 0.12);
+  border-color: rgba(47, 95, 167, 0.2);
+  color: var(--brand-primary);
+}
+
+.status-badge.is-danger {
+  background: rgba(214, 58, 44, 0.12);
+  border-color: rgba(214, 58, 44, 0.2);
+  color: var(--brand-accent);
+}
+
+.status-badge.is-warning {
+  background: rgba(242, 194, 48, 0.18);
+  border-color: rgba(242, 194, 48, 0.3);
+  color: #8a6b00;
+}
+
+.result-score {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .list-actions {
   display: flex;
   gap: 8px;
