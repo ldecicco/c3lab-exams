@@ -151,6 +151,13 @@
                 <i class="fa-solid fa-rotate"></i>
               </button>
             </div>
+            <div class="bank-locked-overlay is-hidden" id="bankLockedOverlay">
+              <div class="bank-locked-card">
+                <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                <div class="bank-locked-title">Traccia chiusa: domande congelate</div>
+                <div class="bank-locked-subtitle">Per modificare riapri la traccia.</div>
+              </div>
+            </div>
             <details class="admin-accordion bank-filters" id="bankFilters">
               <summary>
                 <span>Filtri</span>
@@ -175,6 +182,13 @@
               <span class="text-secondary small" id="selectedCount">0 domande</span>
             </div>
             <div class="chip-row" id="selectedTopicStats"></div>
+            <div class="bank-locked-overlay is-hidden" id="selectedLockedOverlay">
+              <div class="bank-locked-card">
+                <i class="fa-solid fa-lock" aria-hidden="true"></i>
+                <div class="bank-locked-title">Traccia chiusa: domande congelate</div>
+                <div class="bank-locked-subtitle">Per modificare riapri la traccia.</div>
+              </div>
+            </div>
             <div id="selectedList" class="list-panel"></div>
           </div>
         </div>

@@ -110,6 +110,8 @@ const selectedList = document.getElementById("selectedList");
 const selectedCount = document.getElementById("selectedCount");
 const bankTopicChips = document.getElementById("bankTopicChips");
 const selectedTopicStats = document.getElementById("selectedTopicStats");
+const bankLockedOverlay = document.getElementById("bankLockedOverlay");
+const selectedLockedOverlay = document.getElementById("selectedLockedOverlay");
 const stepButtons = Array.from(document.querySelectorAll("[data-step-target]"));
 const wizardSteps = Array.from(document.querySelectorAll(".wizard-step"));
 const builderImagePickerBackdrop = document.getElementById("builderImagePickerBackdrop");
@@ -263,6 +265,14 @@ const setLockedState = (locked) => {
       ? "Traccia chiusa."
       : "Bozza attiva."
     : "Nessuna traccia.";
+  if (bankList) bankList.classList.toggle("is-locked", locked);
+  if (selectedList) selectedList.classList.toggle("is-locked", locked);
+  if (bankTopicChips) bankTopicChips.classList.toggle("is-locked", locked);
+  if (bankSearchInput) bankSearchInput.disabled = locked;
+  if (bankLockedOverlay) bankLockedOverlay.classList.toggle("is-hidden", !locked);
+  if (selectedLockedOverlay) {
+    selectedLockedOverlay.classList.toggle("is-hidden", !locked);
+  }
   const main = document.querySelector("main");
   if (!main) return;
   const controls = main.querySelectorAll("input, select, textarea, button");
@@ -531,11 +541,14 @@ const scheduleAutosave = (immediate = false) => {
   if (!currentExamId) return;
   if (!state.meta.examName || !Number.isFinite(state.meta.courseId)) return;
   if (immediate) {
-    updateCurrentExam();
+    updateCurrentExam({ keepalive: true, silent: true });
     return;
   }
   if (autosaveTimer) clearTimeout(autosaveTimer);
-  autosaveTimer = setTimeout(updateCurrentExam, 700);
+  autosaveTimer = setTimeout(
+    () => updateCurrentExam({ keepalive: true, silent: true }),
+    700
+  );
 };
 
 const renderSelectOptions = (select, items, placeholder) => {
@@ -822,6 +835,8 @@ const renderBankList = (questions) => {
           {
             label: "Importa",
             className: "btn btn-outline-primary btn-sm",
+            disabled: currentExamLocked || state.meta.isDraft === false,
+            title: currentExamLocked || state.meta.isDraft === false ? "Traccia chiusa" : "",
             onClick: () => importQuestionFromBank(q.id),
           },
         ],
@@ -886,6 +901,10 @@ const renderBankList = (questions) => {
     const actions = createEl("div", "list-actions");
     const btn = createEl("button", "btn btn-outline-primary btn-sm", "Importa");
     btn.type = "button";
+    if (currentExamLocked || state.meta.isDraft === false) {
+      btn.disabled = true;
+      btn.title = "Traccia chiusa";
+    }
     btn.addEventListener("click", () => importQuestionFromBank(question.id));
     actions.appendChild(btn);
     content.appendChild(preview);
@@ -970,11 +989,19 @@ const renderSelectedQuestions = () => {
     } else {
       editBtn.disabled = true;
     }
+    if (currentExamLocked || state.meta.isDraft === false) {
+      editBtn.disabled = true;
+      editBtn.title = "Traccia chiusa";
+    }
     actions.appendChild(editBtn);
     const removeBtn = createEl("button", "btn btn-outline-danger btn-sm", "Rimuovi");
     removeBtn.type = "button";
     removeBtn.dataset.action = "remove-selected";
     removeBtn.dataset.questionId = question.id;
+    if (currentExamLocked || state.meta.isDraft === false) {
+      removeBtn.disabled = true;
+      removeBtn.title = "Traccia chiusa";
+    }
     actions.appendChild(removeBtn);
     item.appendChild(badge);
     item.appendChild(body);
@@ -1040,6 +1067,10 @@ const closeBankPreviewModal = () => {
 
 const importQuestionFromBank = async (questionId) => {
   try {
+    if (currentExamLocked || state.meta.isDraft === false) {
+      showToast("Traccia chiusa: non puoi aggiungere domande.", "error");
+      return;
+    }
     const payload = await apiFetch(`/api/questions/${questionId}`);
     const q = payload.question;
     const newQuestion = createQuestion();
@@ -1066,7 +1097,7 @@ const importQuestionFromBank = async (questionId) => {
     state.questions.push(newQuestion);
     renderSelectedQuestions();
     renderLatex();
-    scheduleAutosave(true);
+    await persistExamChanges();
   } catch (err) {
     if (examStatus) examStatus.textContent = err.message;
   }
@@ -1124,7 +1155,7 @@ const collectExamPayload = () => ({
   }),
 });
 
-const updateCurrentExam = async () => {
+const updateCurrentExam = async ({ keepalive = false, silent = false } = {}) => {
   if (currentExamLocked) return;
   if (!currentExamId) return;
   if (!state.meta.examName || !Number.isFinite(state.meta.courseId)) return;
@@ -1134,13 +1165,34 @@ const updateCurrentExam = async () => {
       method: "PUT",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
+      keepalive,
     });
-    if (examStatus) examStatus.textContent = "Bozza aggiornata automaticamente.";
+    if (examStatus && !silent) {
+      examStatus.textContent = "Bozza aggiornata automaticamente.";
+    }
     setLockedState(false);
     await loadExamHistory();
   } catch (err) {
-    if (examStatus) examStatus.textContent = err.message;
+    if (examStatus && !silent) examStatus.textContent = err.message;
+    if (!silent) showToast("Errore salvataggio bozza", "error");
   }
+};
+
+const persistExamChanges = async () => {
+  if (currentExamLocked) {
+    showToast("Traccia chiusa: modifica non salvata.", "error");
+    return false;
+  }
+  if (!state.meta.examName || !Number.isFinite(state.meta.courseId)) {
+    showToast("Compila il nome traccia prima di aggiungere domande.", "error");
+    return false;
+  }
+  if (!currentExamId) {
+    await saveExam();
+    return Boolean(currentExamId);
+  }
+  await updateCurrentExam({ keepalive: true, silent: true });
+  return true;
 };
 
 const filterExamHistory = (exams) => {
@@ -1486,6 +1538,10 @@ const handleMetaInput = (event) => {
 const handleBankClick = async (event) => {
   const target = event.target;
   const action = target.dataset.action;
+  if (currentExamLocked) {
+    showToast("Traccia chiusa: domande bloccate.", "error");
+    return;
+  }
   if (action !== "preview-bank") return;
   const questionId = target.dataset.questionId;
   if (!questionId) return;
@@ -1509,13 +1565,17 @@ const handleBankClick = async (event) => {
 const handleSelectedClick = (event) => {
   const target = event.target;
   const action = target.dataset.action;
+  if (currentExamLocked) {
+    showToast("Traccia chiusa: domande bloccate.", "error");
+    return;
+  }
   if (action === "remove-selected") {
     const questionId = target.dataset.questionId;
     if (!questionId) return;
     state.questions = state.questions.filter((q) => q.id !== questionId);
     renderSelectedQuestions();
     renderLatex();
-    scheduleAutosave(true);
+    persistExamChanges();
     return;
   }
   if (action === "edit-selected") {
@@ -2026,6 +2086,10 @@ const init = async () => {
   }
   if (bankTopicChips) {
     bankTopicChips.addEventListener("click", (event) => {
+      if (currentExamLocked) {
+        showToast("Traccia chiusa: domande bloccate.", "error");
+        return;
+      }
       const target = event.target;
       if (!target.classList.contains("chip-action")) return;
       const topicId = target.dataset.topicId || "";

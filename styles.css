@@ -822,6 +822,58 @@ h1 {
   color: #234a85;
 }
 
+.is-locked {
+  pointer-events: none;
+  opacity: 0.6;
+}
+
+.bank-column {
+  position: relative;
+}
+
+.bank-locked-overlay {
+  position: absolute;
+  inset: 48px 0 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  background: rgba(248, 250, 255, 0.82);
+  backdrop-filter: blur(2px);
+  z-index: 2;
+  padding: 16px;
+}
+
+.bank-locked-overlay.is-hidden {
+  display: none;
+}
+
+.bank-locked-card {
+  width: min(320px, 90%);
+  background: #ffffff;
+  border: 1px solid rgba(47, 95, 167, 0.2);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  box-shadow: 0 12px 24px rgba(15, 40, 80, 0.12);
+}
+
+.bank-locked-card i {
+  font-size: 1.4rem;
+  color: #2f5fa7;
+  margin-bottom: 8px;
+}
+
+.bank-locked-title {
+  font-weight: 700;
+  color: #2f5fa7;
+  margin-bottom: 4px;
+}
+
+.bank-locked-subtitle {
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
 .icon-button {
   border: 1px solid var(--line);
   background: #ffffff;
