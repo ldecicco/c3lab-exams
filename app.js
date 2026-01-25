@@ -533,10 +533,10 @@ const renderPublicResults = (payload) => {
   }
   if (publicResultMeta) {
     const nameParts = [payload.student.nome, payload.student.cognome]
-      .map((part) => String(part || "").trim())
+      .map((part) => formatName(String(part || "").trim()))
       .filter(Boolean);
     const name = nameParts.length ? nameParts.join(" ") : "Studente";
-    publicResultMeta.textContent = `${name} • Matricola ${payload.student.matricola} • Versione ${payload.student.versione}`;
+    publicResultMeta.textContent = `${name} • Matricola ${payload.student.matricola}`;
   }
   if (publicResultQuestions) {
     publicResultQuestions.innerHTML = "";
