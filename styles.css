@@ -1506,6 +1506,12 @@ input {
   color: #2f5fa7;
 }
 
+.section-header .btn.is-active {
+  background: rgba(47, 95, 167, 0.12);
+  border-color: rgba(47, 95, 167, 0.4);
+  color: #2f5fa7;
+}
+
 .actions,
 .table-actions {
   display: flex;

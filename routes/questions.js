@@ -274,10 +274,12 @@ const buildQuestionsRouter = (deps) => {
     }
     const question = db
       .prepare(
-        `SELECT id, text, type, image_path, image_layout_enabled,
-                image_layout_mode, image_left_width, image_right_width, image_scale
-           FROM questions
-          WHERE id = ?`
+        `SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
+                q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
+                i.thumbnail_path AS image_thumbnail_path
+           FROM questions q
+           LEFT JOIN images i ON i.file_path = q.image_path
+          WHERE q.id = ?`
       )
       .get(id);
     if (!question) {

@@ -1617,6 +1617,7 @@ const updateAdminPreviews = () => {
     const hasText = String(adminQuestionText?.value || "").trim() !== "";
     adminQuestionError.classList.toggle("is-hidden", questionOk || !hasText);
   }
+  updateQuestionNoteButton();
 };
 
 const adminQuestionState = {

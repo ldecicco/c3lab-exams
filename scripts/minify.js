@@ -9,8 +9,10 @@ const ROOT = path.resolve(__dirname, "..");
 const JS_FILES = [
   "app.js",
   "admin.js",
+  "bootstrap.js",
   "exam-builder.js",
   "dashboard.js",
+  "esame-completo.js",
   "home.js",
   "history-cards.js",
   "exam-cards.js",
@@ -20,6 +22,9 @@ const JS_FILES = [
   "nav.js",
   "login.js",
   "twofa.js",
+  "utils/api.js",
+  "utils/format.js",
+  "utils/ui.js",
 ];
 
 const exists = (p) => fs.existsSync(path.join(ROOT, p));
