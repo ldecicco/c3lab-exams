@@ -1231,6 +1231,7 @@ const saveExam = async () => {
     if (examStatus) examStatus.textContent = "Bozza creata.";
     setLockedState(false);
     await loadExamHistory();
+    closeNewExamModal();
   } catch (err) {
     if (examStatus) examStatus.textContent = err.message;
   }
