@@ -6,7 +6,7 @@ const path = require("path");
 const crypto = require("crypto");
 const fs = require("fs");
 const os = require("os");
-const { spawn, spawnSync } = require("child_process");
+const { spawn } = require("child_process");
 const PDFDocument = require("pdfkit");
 const xlsx = require("xlsx");
 const bcrypt = require("bcryptjs");
@@ -125,28 +125,6 @@ const getExamQuestions = (examId) => {
   });
 };
 
-const getExamResults = (examId) =>
-  db
-    .prepare(
-      `SELECT ess.id AS result_id,
-              ess.matricola,
-              ess.nome,
-              ess.cognome,
-              ess.normalized_score,
-              ess.session_id,
-              ess.updated_at AS result_updated_at,
-              es.result_date,
-              es.updated_at AS session_updated_at
-         FROM exam_session_students ess
-         JOIN exam_sessions es ON es.id = ess.session_id
-        WHERE es.exam_id = ?`
-    )
-    .all(examId)
-    .map((row) => ({
-      ...row,
-      normalized_score: row.normalized_score === null ? null : Number(row.normalized_score),
-    }));
-
 const getExamSnapshotQuestions = (examId) => {
   const rows = db
     .prepare(
@@ -160,32 +138,6 @@ const getExamSnapshotQuestions = (examId) => {
     const snapshot = JSON.parse(row.snapshot_json);
     return { ...snapshot, position: row.position };
   });
-};
-
-const normalizeAnswerSet = (arr) =>
-  Array.from(new Set(arr))
-    .filter((val) => Number.isFinite(val))
-    .sort((a, b) => a - b)
-    .join(",");
-
-const getSelectedOriginalAnswers = (student, questionIndex, mapping) => {
-  if (!mapping) return [];
-  const version = Number(student.versione);
-  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
-    return [];
-  }
-  const qdict = mapping.questiondictionary?.[version - 1] || [];
-  const adict = mapping.randomizedanswersdictionary?.[version - 1] || [];
-  const displayedIndex = Number(qdict[questionIndex] || 0) - 1;
-  if (displayedIndex < 0) return [];
-  const selected = String(student.answers?.[displayedIndex] || "").split("");
-  const selectedIdx = selected
-    .map((letter) => ANSWER_OPTIONS.indexOf(letter) + 1)
-    .filter((idx) => idx > 0);
-  const answerMap = adict[questionIndex] || [];
-  return selectedIdx
-    .map((idx) => Number(answerMap[idx - 1]))
-    .filter((idx) => Number.isFinite(idx));
 };
 
 app.use(express.text({ type: ["text/plain", "application/octet-stream"], limit: "5mb" }));

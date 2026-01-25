@@ -52,10 +52,10 @@ Checklist test minimi (da usare dopo ogni step):
 
 ### Step 7.5 — Services
 - [x] Estrarre servizi (latex, traces, thumbnails, cheating).
-- [x] Test: preview PDF, generate traces, thumbnails.
+- [x] Test: preview PDF, generate traces, thumbnails, cheating.
 
 ### Step 7.6 — Cleanup finale
-- [ ] Eliminare duplicazioni residue in server.
+- [x] Eliminare duplicazioni residue in server.
 - [ ] Aggiornare README (struttura progetto).
 - [ ] Test end‑to‑end.
 
