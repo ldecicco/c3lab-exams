@@ -2968,6 +2968,37 @@ input {
   grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
 }
 
+.image-bank-item {
+  display: grid;
+  grid-template-columns: 120px 1fr;
+  gap: 14px;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  padding: 12px;
+  background: #ffffff;
+}
+
+.image-bank-item img {
+  width: 120px;
+  height: 90px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: #ffffff;
+}
+
+.image-bank-info {
+  display: grid;
+  gap: 6px;
+}
+
+.image-bank-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
 .image-item {
   display: grid;
   grid-template-columns: 120px 1fr;

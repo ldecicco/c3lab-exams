@@ -48,6 +48,15 @@ Variabili principali in `.env` (vedi `.env.example`):
 - `CSRF_SECRET`
 - `PORT`
 
+## Struttura progetto (principale)
+- `server.js`: entrypoint Express.
+- `routes/`: API e pagine (exams, questions, images, grading, ecc.).
+- `services/`: servizi condivisi (latex, exampaper, thumbnails, cheating).
+- `repositories/`, `db/`: accesso dati e query SQL.
+- `middlewares/`, `config/`, `utils/`: sicurezza, config, helper comuni.
+- `views/` + `*.js` in root: UI (EJS) e script client.
+- `data/`: database SQLite e file caricati.
+
 ## Note
 - Il database SQLite è in `data/exam-builder.db`
 - I file caricati (immagini/avatar) vivono in `data/`  

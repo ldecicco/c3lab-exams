@@ -29,34 +29,43 @@ Checklist test minimi (da usare dopo ogni step):
 - [x] Test: avvio server, login, `/home`, `/valutazione`.
 
 ### Step 7.2 — Middlewares
-- [ ] Spostare `requireAuth`, `requireRole`.
-- [ ] Spostare CSRF, rate limit, session, helmet.
-- [ ] Test: login/logout, accesso ruoli, POST protetti.
+- [x] Spostare `requireAuth`, `requireRole`.
+- [x] Spostare CSRF, rate limit, helmet.
+- [x] Test: login/logout, accesso ruoli, POST protetti.
 
 ### Step 7.3 — DB layer
-- [ ] Estrarre `db.js` + repo per domini principali.
-- [ ] Test: query base (exams, questions, images, users, results).
+- [x] Estrarre `db.js` + repo per domini principali.
+- [x] Test: query base (exams, questions, images, users, results).
 
 ### Step 7.4 — Routes split
 - [ ] Dividere per dominio (`auth`, `courses`, `questions`, `images`, `exams`, `grading`, `public`, `admin`, `multi-modules`).
+  - [x] Auth routes (login/logout/2FA).
+  - [x] Pages routes (home, valutazione, questions, exam-builder, dashboard, admin, guida).
+  - [x] Session routes (active course/exam).
+  - [x] Users routes (CRUD + avatar/password).
+  - [x] Courses/topics/shortcuts routes.
+  - [x] Exams + multi-modules routes.
+  - [x] Questions routes.
+  - [x] Images routes.
+  - [x] Grading/public routes.
 - [ ] Test: pagine principali + API core.
 
 ### Step 7.5 — Services
-- [ ] Estrarre servizi (latex, traces, thumbnails, cheating).
-- [ ] Test: preview PDF, generate traces, thumbnails.
+- [x] Estrarre servizi (latex, traces, thumbnails, cheating).
+- [x] Test: preview PDF, generate traces, thumbnails, cheating.
 
 ### Step 7.6 — Cleanup finale
-- [ ] Eliminare duplicazioni residue in server.
-- [ ] Aggiornare README (struttura progetto).
-- [ ] Test end‑to‑end.
+- [x] Eliminare duplicazioni residue in server.
+- [x] Aggiornare README (struttura progetto).
+- [x] Test end‑to‑end.
 
 ---
 
 ## Registro test & commit
 - Step 7.0: _ok_
 - Step 7.1: _ok (avvio + login + /home + /valutazione)_
-- Step 7.2: _pending_
-- Step 7.3: _pending_
-- Step 7.4: _pending_
-- Step 7.5: _pending_
-- Step 7.6: _pending_
+- Step 7.2: _ok (login/logout + ruoli + POST protetti)_
+- Step 7.3: _ok (avvio + home + questions + valutazione)_
+- Step 7.4: _ok (pagine principali + API core)_
+- Step 7.5: _ok (latex service + test preview/generate)_
+- Step 7.6: _ok (cleanup + README + E2E)_

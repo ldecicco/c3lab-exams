@@ -2351,8 +2351,9 @@ const renderAdminImageList = (images) => {
   images.forEach((image) => {
     const item = document.createElement("div");
     item.className = "image-bank-item";
+    const previewPath = image.thumbnail_path || image.file_path || "";
     item.innerHTML = `
-      <img src="${image.file_path}" alt="${image.name}" />
+      <img src="${previewPath}" alt="${image.name}" />
       <div class="image-bank-info">
         <strong>${image.name}</strong>
         ${image.is_locked ? `<span class="chip is-warning">In uso (chiusa)</span>` : ""}
@@ -2360,6 +2361,7 @@ const renderAdminImageList = (images) => {
       </div>
       <div class="image-bank-actions">
         <button class="btn btn-outline-secondary btn-sm edit-btn">Modifica</button>
+        <button class="btn btn-outline-secondary btn-sm thumb-btn" type="button">Rigenera thumbnail</button>
         <button class="btn btn-outline-danger btn-sm delete-btn">Elimina</button>
       </div>
     `;
@@ -2379,6 +2381,24 @@ const renderAdminImageList = (images) => {
         loadImagesForAdmin();
       } catch (err) {
         if (adminImageStatus) adminImageStatus.textContent = err.message || "Errore eliminazione.";
+      }
+    });
+    const thumbBtn = item.querySelector(".thumb-btn");
+    thumbBtn?.addEventListener("click", async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      try {
+        await apiFetch(`/api/images/${image.id}/thumbnail`, { method: "POST" });
+        if (typeof showToast === "function") {
+          showToast("Thumbnail rigenerata.", "success");
+        }
+        loadImagesForAdmin();
+      } catch (err) {
+        if (typeof showToast === "function") {
+          showToast(err.message || "Errore rigenerazione thumbnail.", "error");
+        } else if (adminImageStatus) {
+          adminImageStatus.textContent = err.message || "Errore rigenerazione thumbnail.";
+        }
       }
     });
     adminImageList.appendChild(item);
@@ -2670,6 +2690,9 @@ const deleteQuestion = async (questionId) => {
 };
 
 const loadQuestionForEdit = async (questionId) => {
+  if (!Number.isFinite(Number(questionId)) || Number(questionId) <= 0) {
+    return;
+  }
   const payload = await apiFetch(`/api/questions/${questionId}`);
   const q = payload.question;
   if (q.courseId) {
