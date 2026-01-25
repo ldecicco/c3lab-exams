@@ -1364,10 +1364,11 @@ const uploadImageFromModal = async () => {
   const file = imageUploadFileInput?.files?.[0];
   const sourceFile = imageUploadSourceFileInput?.files?.[0];
   try {
+    let createdImage = null;
     const dataBase64 = file ? await readFileAsDataUrl(file) : "";
     const sourceBase64 = sourceFile ? await readFileAsDataUrl(sourceFile) : "";
     if (imagePickerEditId) {
-      await apiFetch(`/api/images/${imagePickerEditId}`, {
+      const response = await apiFetch(`/api/images/${imagePickerEditId}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1381,12 +1382,13 @@ const uploadImageFromModal = async () => {
           sourceMimeType: sourceFile?.type || "",
         }),
       });
+      createdImage = response?.image || null;
     } else {
       if (!file) {
         if (imageUploadStatus) imageUploadStatus.textContent = "Seleziona un file.";
         return;
       }
-      await apiFetch("/api/images", {
+      const response = await apiFetch("/api/images", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -1401,6 +1403,7 @@ const uploadImageFromModal = async () => {
           sourceMimeType: sourceFile?.type || "",
         }),
       });
+      createdImage = response?.image || null;
     }
     if (imageUploadNameInput) imageUploadNameInput.value = "";
     if (imageUploadDescriptionInput) imageUploadDescriptionInput.value = "";
@@ -1412,6 +1415,13 @@ const uploadImageFromModal = async () => {
         : "Immagine caricata.";
     }
     await loadImages(courseId);
+    if (createdImage?.file_path) {
+      adminQuestionState.image = createdImage.file_path;
+      updateImagePickButton();
+      updateAdminPreviews();
+      if (adminQuestionStatus) adminQuestionStatus.textContent = "Immagine selezionata.";
+      closeImagePicker();
+    }
     closeImageUploadModal();
     imagePickerEditId = null;
     imagePickerEditImage = null;
