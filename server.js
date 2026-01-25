@@ -33,6 +33,7 @@ const buildExamsRouter = require("./routes/exams");
 const buildQuestionsRouter = require("./routes/questions");
 const buildImagesRouter = require("./routes/images");
 const buildGradingRouter = require("./routes/grading");
+const createLatexService = require("./services/latex");
 let speakeasy;
 try {
   speakeasy = require("speakeasy");
@@ -821,62 +822,12 @@ const insertQuestion = (question, courseId) => {
   return questionId;
 };
 
-const collectLatexAssets = (latex) => {
-  const assets = new Set();
-  const includeRe = /\\includegraphics(?:\[[^\]]*\])?{([^}]+)}/g;
-  let match = includeRe.exec(latex);
-  while (match) {
-    assets.add(match[1]);
-    match = includeRe.exec(latex);
-  }
-  const logoMatch = latex.match(/\\newcommand\{\\examlogo\}\{([^}]+)\}/);
-  if (logoMatch && logoMatch[1]) assets.add(logoMatch[1]);
-  return Array.from(assets);
-};
-
-const copyLatexAssets = (assets, destDir) => {
-  assets.forEach((asset) => {
-    const clean = asset.trim();
-    if (!clean) return;
-    const src = path.isAbsolute(clean) ? clean : path.join(__dirname, clean);
-    if (!fs.existsSync(src)) return;
-    const dest = path.join(destDir, clean);
-    fs.mkdirSync(path.dirname(dest), { recursive: true });
-    fs.copyFileSync(src, dest);
-  });
-};
-
-const runPdflatex = (outputDir, jobName, texArg, cwd = outputDir) =>
-  new Promise((resolve) => {
-    const args = [
-      "-interaction=nonstopmode",
-      "-halt-on-error",
-      "-output-directory",
-      outputDir,
-      "-jobname",
-      jobName,
-      texArg,
-    ];
-    const pdflatex = spawn("pdflatex", args, { cwd });
-    let stdout = "";
-    let stderr = "";
-    pdflatex.stdout.on("data", (chunk) => {
-      stdout += chunk.toString();
-    });
-    pdflatex.stderr.on("data", (chunk) => {
-      stderr += chunk.toString();
-    });
-    pdflatex.on("close", (code) => {
-      const logPath = path.join(cwd, `${jobName}.log`);
-      const log = fs.existsSync(logPath) ? fs.readFileSync(logPath, "utf8") : "";
-      resolve({
-        ok: code === 0,
-        stdout,
-        stderr,
-        log,
-      });
-    });
-  });
+const { collectLatexAssets, copyLatexAssets, runPdflatex } = createLatexService({
+  fs,
+  path,
+  spawn,
+  baseDir: __dirname,
+});
 
 const TRACE_JOB_TTL_MS = 60 * 60 * 1000;
 const traceJobs = new Map();

@@ -51,8 +51,8 @@ Checklist test minimi (da usare dopo ogni step):
 - [ ] Test: pagine principali + API core.
 
 ### Step 7.5 — Services
-- [ ] Estrarre servizi (latex, traces, thumbnails, cheating).
-- [ ] Test: preview PDF, generate traces, thumbnails.
+- [x] Estrarre servizi (latex, traces, thumbnails, cheating).
+- [x] Test: preview PDF, generate traces, thumbnails.
 
 ### Step 7.6 — Cleanup finale
 - [ ] Eliminare duplicazioni residue in server.
@@ -66,6 +66,6 @@ Checklist test minimi (da usare dopo ogni step):
 - Step 7.1: _ok (avvio + login + /home + /valutazione)_
 - Step 7.2: _ok (login/logout + ruoli + POST protetti)_
 - Step 7.3: _ok (avvio + home + questions + valutazione)_
-- Step 7.4: _pending_
-- Step 7.5: _pending_
+- Step 7.4: _ok (pagine principali + API core)_
+- Step 7.5: _ok (latex service + test preview/generate)_
 - Step 7.6: _pending_
