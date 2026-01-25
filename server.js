@@ -36,6 +36,7 @@ const buildGradingRouter = require("./routes/grading");
 const createLatexService = require("./services/latex");
 const createExamPaperService = require("./services/exampaper");
 const createThumbnailService = require("./services/thumbnails");
+const createCheatingService = require("./services/cheating");
 let speakeasy;
 try {
   speakeasy = require("speakeasy");
@@ -648,6 +649,7 @@ function detectExtension(originalName, dataBase64) {
 }
 
 const { canThumbnailExtension, generateThumbnail } = createThumbnailService({ fs, path });
+const { computeSuspiciousPairs } = createCheatingService();
 
 function stripDataUrl(dataBase64) {
   const parts = String(dataBase64 || "").split(",");
@@ -854,6 +856,7 @@ router.use(
     logSecurityEvent,
     PUBLIC_ACCESS_TTL_DAYS,
     bcrypt,
+    computeSuspiciousPairs,
   })
 );
 
