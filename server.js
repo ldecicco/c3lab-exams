@@ -34,6 +34,8 @@ const buildQuestionsRouter = require("./routes/questions");
 const buildImagesRouter = require("./routes/images");
 const buildGradingRouter = require("./routes/grading");
 const createLatexService = require("./services/latex");
+const createExamPaperService = require("./services/exampaper");
+const createThumbnailService = require("./services/thumbnails");
 let speakeasy;
 try {
   speakeasy = require("speakeasy");
@@ -645,38 +647,7 @@ function detectExtension(originalName, dataBase64) {
   return map[mime] || "";
 }
 
-const canThumbnailExtension = (ext) => [".pdf", ".ps", ".eps"].includes(ext);
-
-const generateThumbnail = (inputPath, destDir, baseName, ext = "") => {
-  const thumbName = `${baseName}-thumb.png`;
-  const thumbPath = path.join(destDir, thumbName);
-  const cropFlags = [];
-  if (ext === ".pdf") {
-    cropFlags.push("-dUseCropBox");
-  } else if (ext === ".eps" || ext === ".ps") {
-    cropFlags.push("-dEPSCrop");
-  }
-  const args = [
-    "-dSAFER",
-    "-dBATCH",
-    "-dNOPAUSE",
-    "-sDEVICE=pngalpha",
-    "-r150",
-    "-dFirstPage=1",
-    "-dLastPage=1",
-    ...cropFlags,
-    `-sOutputFile=${thumbPath}`,
-    inputPath,
-  ];
-  const result = spawnSync("gs", args, { stdio: "ignore" });
-  if (result.status === 0 && fs.existsSync(thumbPath)) {
-    return thumbPath;
-  }
-  if (fs.existsSync(thumbPath)) {
-    fs.unlinkSync(thumbPath);
-  }
-  return null;
-};
+const { canThumbnailExtension, generateThumbnail } = createThumbnailService({ fs, path });
 
 function stripDataUrl(dataBase64) {
   const parts = String(dataBase64 || "").split(",");
@@ -829,55 +800,13 @@ const { collectLatexAssets, copyLatexAssets, runPdflatex } = createLatexService(
   baseDir: __dirname,
 });
 
-const TRACE_JOB_TTL_MS = 60 * 60 * 1000;
-const traceJobs = new Map();
-
-const emitTraceJob = (jobId, event, payload) => {
-  io.to(jobId).emit(event, payload);
-};
-
-const cleanupTraceJob = (jobId) => {
-  const job = traceJobs.get(jobId);
-  if (!job) return;
-  if (job.tmpDir && fs.existsSync(job.tmpDir)) {
-    try {
-      fs.rmSync(job.tmpDir, { recursive: true, force: true });
-    } catch {}
-  }
-  traceJobs.delete(jobId);
-};
-
-io.on("connection", (socket) => {
-  socket.on("job:join", (jobId) => {
-    if (jobId) socket.join(jobId);
-  });
-});
-
-const mergePdfs = async (outputPath, inputPaths) => {
-  if (!inputPaths.length) return { ok: false, error: "Nessun PDF da unire" };
-  const tryPdfunite = () =>
-    new Promise((resolve) => {
-      const proc = spawn("pdfunite", [...inputPaths, outputPath]);
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  const tryGhostscript = () =>
-    new Promise((resolve) => {
-      const args = [
-        "-dBATCH",
-        "-dNOPAUSE",
-        "-sDEVICE=pdfwrite",
-        `-sOutputFile=${outputPath}`,
-        ...inputPaths,
-      ];
-      const proc = spawn("gs", args);
-      proc.on("close", (code) => resolve(code === 0));
-      proc.on("error", () => resolve(false));
-    });
-  if (await tryPdfunite()) return { ok: true };
-  if (await tryGhostscript()) return { ok: true };
-  return { ok: false, error: "pdfunite/gs non disponibili per unire i PDF" };
-};
+const {
+  JOB_TTL_MS: EXAMPAPER_JOB_TTL_MS,
+  jobs: exampaperJobs,
+  emitJob: emitExamPaperJob,
+  cleanupJob: cleanupExamPaperJob,
+  mergePdfs: mergeExamPapers,
+} = createExamPaperService({ fs, path, spawn, io });
 
 router.post("/api/mapping", (req, res) => {
   try {
@@ -917,11 +846,11 @@ router.use(
     xlsx,
     spawn,
     crypto,
-    traceJobs,
-    emitTraceJob,
-    mergePdfs,
-    cleanupTraceJob,
-    TRACE_JOB_TTL_MS,
+    traceJobs: exampaperJobs,
+    emitTraceJob: emitExamPaperJob,
+    mergePdfs: mergeExamPapers,
+    cleanupTraceJob: cleanupExamPaperJob,
+    TRACE_JOB_TTL_MS: EXAMPAPER_JOB_TTL_MS,
     logSecurityEvent,
     PUBLIC_ACCESS_TTL_DAYS,
     bcrypt,
