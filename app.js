@@ -86,7 +86,6 @@ const resultDateInput = document.getElementById("resultDate");
 const esse3ResultsFileInput = document.getElementById("esse3ResultsFile");
 const targetTopGradeInput = document.getElementById("targetTopGrade");
 const currentTopGradeBadge = document.getElementById("currentTopGradeBadge");
-const gradingFactor = document.getElementById("gradingFactor");
 const gradingToast = document.getElementById("gradingToast");
 const studentSearchInput = document.getElementById("studentSearch");
 const gradingProgress = document.getElementById("gradingProgress");
@@ -1552,7 +1551,6 @@ const renderGrading = () => {
   if (!mapping) {
 
     if (gradeHistogram) gradeHistogram.innerHTML = "";
-    if (gradingFactor) gradingFactor.textContent = "Fattore: -";
     if (targetTopGradeInput) targetTopGradeInput.disabled = true;
     if (currentTopGradeBadge) currentTopGradeBadge.textContent = "-";
     if (exportGradedBtn) exportGradedBtn.disabled = true;
@@ -1584,9 +1582,6 @@ const renderGrading = () => {
   const bestGrade = Math.max(...grades);
   if (currentTopGradeBadge) currentTopGradeBadge.textContent = bestGrade.toFixed(1);
   const factor = getNormalizationFactor();
-  if (gradingFactor) {
-    gradingFactor.textContent = factor ? `Fattore: ${factor.toFixed(3)}` : "Fattore: -";
-  }
 
 
   renderHistogram(grades.map((g) => normalizeGrade(g)));
