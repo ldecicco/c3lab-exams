@@ -133,6 +133,7 @@ const createQuestion = () => ({
   sourceId: null,
   type: "singola",
   text: "",
+  note: "",
   image: "",
   imageWidthLeft: "0.5\\linewidth",
   imageWidthRight: "0.5\\linewidth",
@@ -142,10 +143,10 @@ const createQuestion = () => ({
   imagePreset: "50-50",
   topics: [],
   answers: [
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
-    { text: "", correct: false },
+    { text: "", correct: false, note: "" },
+    { text: "", correct: false, note: "" },
+    { text: "", correct: false, note: "" },
+    { text: "", correct: false, note: "" },
   ],
 });
 
@@ -856,6 +857,7 @@ const renderBankList = (questions) => {
       preview,
       {
         ...question,
+        note: question.note || "",
         imagePath: question.image_path || question.imagePath || "",
         imageThumbnailPath: question.image_thumbnail_path || question.imageThumbnailPath || "",
         imageLayoutEnabled: Boolean(question.image_layout_enabled ?? question.imageLayoutEnabled),
@@ -865,6 +867,7 @@ const renderBankList = (questions) => {
         imageScale: question.image_scale || question.imageScale || "",
         answers: (question.answers || []).map((ans) => ({
           text: ans.text,
+          note: ans.note || "",
           isCorrect: Boolean(ans.isCorrect || ans.is_correct),
         })),
       },
@@ -914,6 +917,14 @@ const renderSelectedQuestions = () => {
     const text = createEl("div", "selected-question-text");
     renderMathDisplay(question.text, text);
     body.appendChild(text);
+    if (question.note) {
+      const noteWrap = createEl("div", "public-question-note");
+      noteWrap.innerHTML = "<strong>Nota:</strong>";
+      const noteBody = createEl("div", "public-question-note-body");
+      renderMathDisplay(question.note, noteBody);
+      noteWrap.appendChild(noteBody);
+      body.appendChild(noteWrap);
+    }
     if (question.image) {
       const imgWrap = createEl("div", "selected-question-image");
       const img = createEl("img", "selected-preview-thumb");
@@ -932,6 +943,14 @@ const renderSelectedQuestions = () => {
         renderMathDisplay(answer.text, textEl);
         row.appendChild(label);
         row.appendChild(textEl);
+        if (answer.note) {
+          const noteWrap = createEl("div", "selected-answer-note");
+          noteWrap.innerHTML = "<strong>Nota:</strong>";
+          const noteBody = createEl("div", "selected-answer-note-body");
+          renderMathDisplay(answer.note, noteBody);
+          noteWrap.appendChild(noteBody);
+          row.appendChild(noteWrap);
+        }
         if (answer.correct) {
           const tick = createEl("span", "answer-tick");
           tick.innerHTML =
@@ -1026,6 +1045,7 @@ const importQuestionFromBank = async (questionId) => {
     const newQuestion = createQuestion();
     newQuestion.type = q.type || "singola";
     newQuestion.text = q.text || "";
+    newQuestion.note = q.note || "";
     newQuestion.sourceId = q.id;
     newQuestion.image = q.imagePath || "";
     newQuestion.imageThumbnail = q.imageThumbnailPath || "";
@@ -1041,6 +1061,7 @@ const importQuestionFromBank = async (questionId) => {
     newQuestion.answers = (q.answers || []).map((answer) => ({
       text: answer.text,
       correct: Boolean(answer.isCorrect),
+      note: answer.note || "",
     }));
     state.questions.push(newQuestion);
     renderSelectedQuestions();
