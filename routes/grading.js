@@ -221,6 +221,7 @@ const buildGradingRouter = (deps) => {
         return {
           letter,
           text: answer.text,
+          note: allowNotes ? answer.note || "" : "",
           isCorrect: Boolean(answer.isCorrect),
           selected: selectedLetters.includes(letter),
         };
@@ -463,6 +464,7 @@ const buildGradingRouter = (deps) => {
         return {
           letter,
           text: answer.text,
+          note: answer.note || "",
           isCorrect: Boolean(answer.isCorrect),
           selected: selectedLetters.includes(letter),
         };
