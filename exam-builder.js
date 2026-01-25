@@ -917,14 +917,6 @@ const renderSelectedQuestions = () => {
     const text = createEl("div", "selected-question-text");
     renderMathDisplay(question.text, text);
     body.appendChild(text);
-    if (question.note) {
-      const noteWrap = createEl("div", "public-question-note");
-      noteWrap.innerHTML = "<strong>Nota:</strong>";
-      const noteBody = createEl("div", "public-question-note-body");
-      renderMathDisplay(question.note, noteBody);
-      noteWrap.appendChild(noteBody);
-      body.appendChild(noteWrap);
-    }
     if (question.image) {
       const imgWrap = createEl("div", "selected-question-image");
       const img = createEl("img", "selected-preview-thumb");
@@ -936,6 +928,14 @@ const renderSelectedQuestions = () => {
     const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
     if (answers.length) {
       const list = createEl("div", "selected-question-answers");
+      if (question.note) {
+        const noteWrap = createEl("div", "public-question-note");
+        noteWrap.innerHTML = "<strong>Nota:</strong>";
+        const noteBody = createEl("div", "public-question-note-body");
+        renderMathDisplay(question.note, noteBody);
+        noteWrap.appendChild(noteBody);
+        list.appendChild(noteWrap);
+      }
       answers.forEach((answer, ansIdx) => {
         const row = createEl("div", "selected-question-answer");
         const label = createEl("span", "selected-preview-answer-label", `${ansIdx + 1}.`);
