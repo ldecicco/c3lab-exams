@@ -47,6 +47,7 @@ Checklist test minimi (da usare dopo ogni step):
   - [x] Exams + multi-modules routes.
   - [x] Questions routes.
   - [x] Images routes.
+  - [x] Grading/public routes.
 - [ ] Test: pagine principali + API core.
 
 ### Step 7.5 — Services
