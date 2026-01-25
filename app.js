@@ -879,6 +879,11 @@ const loadSessionsForExam = async (examId) => {
     debugLog("loadSessionsForExam payload", sessions.length, sessions);
     renderSessionSelect(sessions, currentSessionId);
     if (!sessions.length) {
+      currentSessionId = null;
+      students = [];
+      persistStudents();
+      renderTable();
+      renderGrading();
       const title = formatSessionTitle(resultDateInput.value || "");
       const createResponse = await fetch(`api/exams/${examId}/sessions`, {
         method: "POST",
@@ -891,10 +896,11 @@ const loadSessionsForExam = async (examId) => {
       if (!createResponse.ok) return;
       const info = await createResponse.json();
       currentSessionId = info.id;
+      await loadSession(currentSessionId);
       await loadSessionsForExam(examId);
       return;
     }
-    if (!currentSessionId) {
+    if (!currentSessionId || !sessions.some((s) => s.id === currentSessionId)) {
       currentSessionId = sessions[0].id;
       await loadSession(currentSessionId);
     }
