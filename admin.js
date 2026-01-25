@@ -2351,8 +2351,9 @@ const renderAdminImageList = (images) => {
   images.forEach((image) => {
     const item = document.createElement("div");
     item.className = "image-bank-item";
+    const previewPath = image.thumbnail_path || image.file_path || "";
     item.innerHTML = `
-      <img src="${image.file_path}" alt="${image.name}" />
+      <img src="${previewPath}" alt="${image.name}" />
       <div class="image-bank-info">
         <strong>${image.name}</strong>
         ${image.is_locked ? `<span class="chip is-warning">In uso (chiusa)</span>` : ""}
@@ -2670,6 +2671,9 @@ const deleteQuestion = async (questionId) => {
 };
 
 const loadQuestionForEdit = async (questionId) => {
+  if (!Number.isFinite(Number(questionId)) || Number(questionId) <= 0) {
+    return;
+  }
   const payload = await apiFetch(`/api/questions/${questionId}`);
   const q = payload.question;
   if (q.courseId) {
