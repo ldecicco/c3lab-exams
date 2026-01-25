@@ -56,8 +56,8 @@ Checklist test minimi (da usare dopo ogni step):
 
 ### Step 7.6 — Cleanup finale
 - [x] Eliminare duplicazioni residue in server.
-- [ ] Aggiornare README (struttura progetto).
-- [ ] Test end‑to‑end.
+- [x] Aggiornare README (struttura progetto).
+- [x] Test end‑to‑end.
 
 ---
 
@@ -68,4 +68,4 @@ Checklist test minimi (da usare dopo ogni step):
 - Step 7.3: _ok (avvio + home + questions + valutazione)_
 - Step 7.4: _ok (pagine principali + API core)_
 - Step 7.5: _ok (latex service + test preview/generate)_
-- Step 7.6: _pending_
+- Step 7.6: _ok (cleanup + README + E2E)_
