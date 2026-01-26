@@ -424,7 +424,6 @@ const updateDashboardVisibility = (hasExam) => {
   setSectionVisible(analysisSessionSection, hasExam);
   if (!hasExam) {
     setSectionVisible(analysisSummary, false);
-    setSectionVisible(analysisCdfSection, false);
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
     setSectionVisible(analysisCheatingSection, false);
