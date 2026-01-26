@@ -107,6 +107,34 @@
         <div class="analysis-kpis" id="analysisKpis"></div>
       </section>
 
+      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisCdfSection">
+        <div class="card-header">
+          <div class="card-header-row">
+            <div>
+              <h2 class="h5 mb-1">Distribuzione cumulativa voti</h2>
+              <p class="text-secondary mb-0">CDF interattiva dei voti in trentesimi.</p>
+            </div>
+            <div class="header-actions">
+              <label class="field">
+                <span>Ambito</span>
+                <select id="analysisCdfScope" class="form-select">
+                  <option value="current">Traccia selezionata</option>
+                  <option value="all">Tutte le tracce valutate</option>
+                </select>
+              </label>
+            </div>
+          </div>
+        </div>
+        <div class="analysis-cdf-meta">
+          <span class="chip">Campione: <strong id="analysisCdfCount">-</strong></span>
+          <span class="chip">Mediana: <strong id="analysisCdfMedian">-</strong></span>
+          <span class="chip">Dev. std: <strong id="analysisCdfStd">-</strong></span>
+        </div>
+        <div class="analysis-cdf-chart">
+          <canvas id="analysisCdfChart" height="220"></canvas>
+        </div>
+      </section>
+
       <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisQuestionsSection">
         <div class="card-header">
           <h2 class="h5 mb-1">Domande</h2>
@@ -209,6 +237,8 @@
       src="https://cdn.jsdelivr.net/npm/latex.js/dist/latex.min.js"
     ></script>
     <script src="exam-cards.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom@2.0.1/dist/chartjs-plugin-zoom.min.js"></script>
     <script defer src="dashboard.js"></script>
   </body>
 </html>

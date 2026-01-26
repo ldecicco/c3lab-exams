@@ -8,6 +8,12 @@ const analysisQuestionsSection = document.getElementById("analysisQuestionsSecti
 const analysisQuestions = document.getElementById("analysisQuestions");
 const analysisTopicsSection = document.getElementById("analysisTopicsSection");
 const analysisTopics = document.getElementById("analysisTopics");
+const analysisCdfSection = document.getElementById("analysisCdfSection");
+const analysisCdfScope = document.getElementById("analysisCdfScope");
+const analysisCdfCount = document.getElementById("analysisCdfCount");
+const analysisCdfMedian = document.getElementById("analysisCdfMedian");
+const analysisCdfStd = document.getElementById("analysisCdfStd");
+const analysisCdfChart = document.getElementById("analysisCdfChart");
 const analysisSessionEmpty = document.getElementById("analysisSessionEmpty");
 const analysisCheatingSection = document.getElementById("analysisCheatingSection");
 const analysisCheating = document.getElementById("analysisCheating");
@@ -33,6 +39,10 @@ let mapping = null;
 let examQuestions = [];
 let students = [];
 let activeCourseId = null;
+let currentSessionTargetTopGrade = null;
+let cdfChart = null;
+let cdfScope = "current";
+let allCourseGrades = [];
 
 const ANSWER_OPTIONS = ["A", "B", "C", "D"];
 
@@ -142,6 +152,213 @@ const getQuestionPoints = (row) => {
   return row.reduce((acc, val) => (val > 0 ? acc + val : acc), 0);
 };
 
+const getMaxPoints = () => {
+  if (!mapping) return 0;
+  return mapping.correctiondictionary.reduce(
+    (sum, row) => sum + getQuestionPoints(row),
+    0
+  );
+};
+
+const gradeStudentLocal = (student) => {
+  if (!mapping) return null;
+  const version = Number(student.versione);
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    return null;
+  }
+  const qdict = mapping.questiondictionary[version - 1];
+  const adict = mapping.randomizedanswersdictionary[version - 1];
+  const cdict = mapping.correctiondictionary;
+  let total = 0;
+  for (let q = 0; q < mapping.Nquestions; q += 1) {
+    const override = student.overrides?.[q];
+    if (typeof override === "number" && Number.isFinite(override)) {
+      total += override;
+      continue;
+    }
+    const displayedIndex = (qdict[q] || 1) - 1;
+    const selected = String(student.answers?.[displayedIndex] || "");
+    const selectedIdx = selected
+      .split("")
+      .map((letter) => ANSWER_OPTIONS.indexOf(letter) + 1)
+      .filter((idx) => idx > 0);
+    const originalSelected = selectedIdx.map((idx) => adict[q][idx - 1]);
+    const correctIdx = cdict[q]
+      .map((val, i) => (val > 0 ? i + 1 : null))
+      .filter(Boolean);
+    if (normalizeSet(originalSelected) === normalizeSet(correctIdx)) {
+      total += getQuestionPoints(cdict[q]);
+    }
+  }
+  return total;
+};
+
+const computeMedian = (values) => {
+  if (!values.length) return null;
+  const sorted = values.slice().sort((a, b) => a - b);
+  const mid = Math.floor(sorted.length / 2);
+  if (sorted.length % 2 === 0) {
+    return (sorted[mid - 1] + sorted[mid]) / 2;
+  }
+  return sorted[mid];
+};
+
+const computeStd = (values) => {
+  if (!values.length) return null;
+  const mean = values.reduce((sum, val) => sum + val, 0) / values.length;
+  const variance =
+    values.reduce((sum, val) => sum + (val - mean) ** 2, 0) / values.length;
+  return Math.sqrt(variance);
+};
+
+const computeCdfPoints = (values) => {
+  if (!values.length) return { x: [], y: [] };
+  const sorted = values.slice().sort((a, b) => a - b);
+  const n = sorted.length;
+  const x = [];
+  const y = [];
+  sorted.forEach((val, idx) => {
+    x.push(val);
+    y.push((idx + 1) / n);
+  });
+  return { x, y };
+};
+
+const updateCdfStats = (grades) => {
+  if (analysisCdfCount) analysisCdfCount.textContent = grades.length || "-";
+  const median = computeMedian(grades);
+  const std = computeStd(grades);
+  if (analysisCdfMedian) {
+    analysisCdfMedian.textContent =
+      median === null ? "-" : median.toFixed(1);
+  }
+  if (analysisCdfStd) {
+    analysisCdfStd.textContent = std === null ? "-" : std.toFixed(2);
+  }
+};
+
+const renderCdfChart = (grades) => {
+  if (!analysisCdfChart) return;
+  if (!window.Chart) {
+    analysisCdfChart.replaceWith("Chart.js non disponibile.");
+    return;
+  }
+  const { x, y } = computeCdfPoints(grades);
+  const data = x.map((val, idx) => ({ x: val, y: y[idx] }));
+  if (cdfChart) {
+    cdfChart.data.datasets[0].data = data;
+    cdfChart.update();
+    return;
+  }
+  cdfChart = new Chart(analysisCdfChart, {
+    type: "line",
+    data: {
+      datasets: [
+        {
+          label: "CDF",
+          data,
+          borderColor: "#2f5fa7",
+          backgroundColor: "rgba(47, 95, 167, 0.15)",
+          fill: true,
+          pointRadius: 2,
+          pointHoverRadius: 4,
+          tension: 0.2,
+        },
+      ],
+    },
+    options: {
+      responsive: true,
+      parsing: false,
+      scales: {
+        x: {
+          type: "linear",
+          title: { display: true, text: "Voto (30)" },
+          min: 0,
+          max: 30,
+        },
+        y: {
+          title: { display: true, text: "CDF" },
+          min: 0,
+          max: 1,
+          ticks: {
+            callback: (value) => `${Math.round(value * 100)}%`,
+          },
+        },
+      },
+      plugins: {
+        legend: { display: false },
+        tooltip: {
+          callbacks: {
+            label: (ctx) =>
+              `Voto: ${ctx.parsed.x.toFixed(1)} • CDF: ${(ctx.parsed.y * 100).toFixed(0)}%`,
+          },
+        },
+        zoom: {
+          pan: {
+            enabled: true,
+            mode: "x",
+          },
+          zoom: {
+            wheel: { enabled: true },
+            pinch: { enabled: true },
+            mode: "x",
+          },
+        },
+      },
+    },
+  });
+};
+
+const computeCurrentGrades = () => {
+  if (!students.length) return [];
+  const normalized = students
+    .map((student) => Number(student.normalizedScore))
+    .filter((val) => Number.isFinite(val));
+  if (normalized.length === students.length) return normalized;
+  const maxPoints = getMaxPoints();
+  if (!maxPoints) return normalized;
+  const rawGrades = students
+    .map((student) => {
+      const score = gradeStudentLocal(student);
+      return score === null ? null : (score / maxPoints) * 30;
+    })
+    .filter((val) => val !== null);
+  const top = rawGrades.length ? Math.max(...rawGrades) : null;
+  const target = Number(currentSessionTargetTopGrade);
+  const targetTop = Number.isFinite(target) ? target : 30;
+  const factor = top && top > 0 ? targetTop / top : null;
+  return rawGrades.map((grade) =>
+    Math.round(factor ? grade * factor : grade)
+  );
+};
+
+const loadAllCourseGrades = async () => {
+  if (!activeCourseId) return [];
+  try {
+    const response = await fetch(`api/courses/${activeCourseId}/grades?scope=all`);
+    if (!response.ok) return [];
+    const payload = await response.json();
+    return Array.isArray(payload.grades) ? payload.grades : [];
+  } catch {
+    return [];
+  }
+};
+
+const renderCdfForScope = async (scope) => {
+  if (!analysisCdfSection) return;
+  let grades = [];
+  if (scope === "all") {
+    if (!allCourseGrades.length) {
+      allCourseGrades = await loadAllCourseGrades();
+    }
+    grades = allCourseGrades.slice();
+  } else {
+    grades = computeCurrentGrades();
+  }
+  updateCdfStats(grades);
+  renderCdfChart(grades);
+};
+
 const getSelectedOriginalAnswers = (student, questionIndex) => {
   if (!mapping) return [];
   const version = Number(student.versione);
@@ -195,6 +412,7 @@ const updateDashboardVisibility = (hasExam) => {
   setSectionVisible(analysisSessionSection, hasExam);
   if (!hasExam) {
     setSectionVisible(analysisSummary, false);
+    setSectionVisible(analysisCdfSection, false);
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
     setSectionVisible(analysisCheatingSection, false);
@@ -440,6 +658,12 @@ const computeAnalytics = () => {
   if (!mapping || !examQuestions.length) return;
   if (!students.length) {
     setSectionVisible(analysisSummary, false);
+    if (cdfScope === "all") {
+      setSectionVisible(analysisCdfSection, true);
+      renderCdfForScope("all");
+    } else {
+      setSectionVisible(analysisCdfSection, false);
+    }
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
     setSectionVisible(analysisCheatingSection, false);
@@ -532,9 +756,11 @@ const computeAnalytics = () => {
     totalAnswers,
     correctRate: totalAnswers ? (totalCorrect / totalAnswers) * 100 : 0,
   });
+  renderCdfForScope("current");
   renderQuestionTable(enhanced, answerStats);
   renderTopicsTable(topicStats);
   setSectionVisible(analysisSummary, true);
+  setSectionVisible(analysisCdfSection, true);
   setSectionVisible(analysisQuestionsSection, true);
   setSectionVisible(analysisTopicsSection, true);
 };
@@ -570,6 +796,7 @@ const loadSession = async (sessionId) => {
     }
     const payload = await response.json();
     currentSessionId = payload.session.id;
+    currentSessionTargetTopGrade = payload.session.target_top_grade;
     students = payload.students || [];
     computeAnalytics();
     if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Pronto al calcolo.";
@@ -577,6 +804,12 @@ const loadSession = async (sessionId) => {
     if (!students.length) {
       if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Nessuno studente valutato.";
       setSectionVisible(analysisSummary, false);
+      if (cdfScope === "all") {
+        setSectionVisible(analysisCdfSection, true);
+        renderCdfForScope("all");
+      } else {
+        setSectionVisible(analysisCdfSection, false);
+      }
       setSectionVisible(analysisQuestionsSection, false);
       setSectionVisible(analysisTopicsSection, false);
       setSectionVisible(analysisCheatingSection, false);
@@ -635,6 +868,10 @@ const loadExam = async (examId) => {
     updateDashboardVisibility(true);
     await loadSessions(examId);
     setActiveExam(examId);
+    allCourseGrades = [];
+    if (cdfScope === "all") {
+      renderCdfForScope("all");
+    }
   } catch {
     analysisStatus.textContent = "Errore nel caricamento traccia.";
     updateTopbarStatus("Nessuna traccia", false);
@@ -711,6 +948,12 @@ if (analysisSelectExam) {
 if (analysisTopbarSelectExam) {
   analysisTopbarSelectExam.addEventListener("click", () => {
     openExamModal();
+  });
+}
+if (analysisCdfScope) {
+  analysisCdfScope.addEventListener("change", async (event) => {
+    cdfScope = event.target.value || "current";
+    await renderCdfForScope(cdfScope);
   });
 }
 if (!analysisExamModalApi) {

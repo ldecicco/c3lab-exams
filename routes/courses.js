@@ -101,6 +101,90 @@ const buildCoursesRouter = ({ requireRole, db, gradeStudent, getMaxPoints }) => 
     });
   });
 
+  router.get(
+    "/api/courses/:id/grades",
+    requireRole("admin", "creator", "evaluator"),
+    (req, res) => {
+      const courseId = Number(req.params.id);
+      if (!Number.isFinite(courseId)) {
+        res.status(400).json({ error: "Id non valido" });
+        return;
+      }
+      const rows = db
+        .prepare(
+          `SELECT es.id AS session_id, es.exam_id, es.target_top_grade,
+                  ess.versione, ess.answers_json, ess.overrides_json, ess.normalized_score
+             FROM exam_sessions es
+             JOIN exam_session_students ess ON ess.session_id = es.id
+             JOIN exams e ON e.id = es.exam_id
+            WHERE e.course_id = ?`
+        )
+        .all(courseId);
+
+      const examMappings = new Map();
+      const sessions = new Map();
+      rows.forEach((row) => {
+        if (!sessions.has(row.session_id)) {
+          sessions.set(row.session_id, {
+            examId: row.exam_id,
+            targetTopGrade: row.target_top_grade,
+            students: [],
+          });
+        }
+        sessions.get(row.session_id).students.push({
+          versione: row.versione,
+          answers: JSON.parse(row.answers_json || "[]"),
+          overrides: JSON.parse(row.overrides_json || "[]"),
+          normalizedScore: row.normalized_score,
+        });
+      });
+
+      const grades = [];
+      sessions.forEach((session) => {
+        const { examId, targetTopGrade, students } = session;
+        if (!examMappings.has(examId)) {
+          const exam = db
+            .prepare("SELECT mapping_json FROM exams WHERE id = ?")
+            .get(examId);
+          let mapping = null;
+          if (exam?.mapping_json) {
+            try {
+              mapping = JSON.parse(exam.mapping_json);
+            } catch {
+              mapping = null;
+            }
+          }
+          examMappings.set(examId, mapping);
+        }
+        const mapping = examMappings.get(examId);
+        const normalizedFromDb = students
+          .map((s) => Number(s.normalizedScore))
+          .filter((val) => Number.isFinite(val));
+        if (normalizedFromDb.length === students.length) {
+          grades.push(...normalizedFromDb);
+          return;
+        }
+        if (!mapping) return;
+        const scores = students
+          .map((student) => gradeStudent(student, mapping))
+          .filter((val) => val !== null);
+        if (!scores.length) return;
+        const maxPoints = getMaxPoints(mapping);
+        if (!maxPoints) return;
+        const rawGrades = scores.map((points) => (points / maxPoints) * 30);
+        const top = Math.max(...rawGrades);
+        const target = Number(targetTopGrade);
+        const targetTop = Number.isFinite(target) ? target : 30;
+        const factor = top > 0 ? targetTop / top : null;
+        rawGrades.forEach((grade) => {
+          grades.push(Math.round(factor ? grade * factor : grade));
+        });
+      });
+
+      res.json({ grades });
+    }
+  );
+
   router.post("/api/courses", requireRole("admin"), (req, res) => {
     const payload = req.body || {};
     const name = String(payload.name || "").trim();
