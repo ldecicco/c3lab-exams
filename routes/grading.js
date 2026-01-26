@@ -106,7 +106,8 @@ const buildGradingRouter = (deps) => {
     }
     const studentRow = db
       .prepare(
-        `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione, ess.answers_json, ess.overrides_json
+        `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione,
+                ess.answers_json, ess.overrides_json, ess.normalized_score
            FROM exam_sessions es
            JOIN exam_session_students ess ON ess.session_id = es.id
           WHERE es.exam_id = ? AND ess.matricola = ?
@@ -151,7 +152,10 @@ const buildGradingRouter = (deps) => {
     const grades = scores.map((points) => (maxPoints ? (points / maxPoints) * 30 : 0));
     const top = grades.length ? Math.max(...grades) : null;
     const factor = top && top > 0 ? 30 / top : null;
-    const normalizedGrade = factor ? Math.round(rawGrade * factor) : Math.round(rawGrade);
+    const normalizedFromDb = Number(studentRow.normalized_score);
+    const normalizedGrade = Number.isFinite(normalizedFromDb)
+      ? normalizedFromDb
+      : (factor ? Math.round(rawGrade * factor) : Math.round(rawGrade));
 
     const allowNotes = Boolean(exam.public_access_show_notes) && Boolean(exam.has_results);
 
