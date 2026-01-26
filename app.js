@@ -88,6 +88,9 @@ const targetTopGradeInput = document.getElementById("targetTopGrade");
 const currentTopGradeBadge = document.getElementById("currentTopGradeBadge");
 const gradingToast = document.getElementById("gradingToast");
 const studentSearchInput = document.getElementById("studentSearch");
+const studentSortSelect = document.getElementById("studentSort");
+const studentGradeMin = document.getElementById("studentGradeMin");
+const studentGradeMax = document.getElementById("studentGradeMax");
 const gradingProgress = document.getElementById("gradingProgress");
 const gradingProgressLabel = document.getElementById("gradingProgressLabel");
 const recalcNormalizedBtn = document.getElementById("recalcNormalized");
@@ -415,11 +418,17 @@ const renderPublicCourses = () => {
       if (!acc.has(exam.course_id)) acc.set(exam.course_id, exam.course_name);
       return acc;
     }, new Map())
-  ).map(([id, name]) => ({
-    id,
-    name,
-    examCount: publicExamsCache.filter((exam) => exam.course_id === id).length,
-  }));
+  )
+    .map(([id, name]) => ({
+      id,
+      name,
+      examCount: publicExamsCache.filter((exam) => exam.course_id === id).length,
+    }))
+    .sort((a, b) => {
+      const an = (a.name || "").toString();
+      const bn = (b.name || "").toString();
+      return an.localeCompare(bn, "it", { sensitivity: "base" });
+    });
 
   ExamCards.render(publicCourseGrid, courses, {
     emptyText: "Nessun corso disponibile.",
@@ -1410,7 +1419,7 @@ const handleAnswerShortcut = (event) => {
 const renderTable = () => {
   studentsTable.innerHTML = "";
   const query = String(studentSearchInput?.value || "").trim().toLowerCase();
-  const filtered = filterStudents(query);
+  let filtered = filterStudents(query);
   debugLog("renderTable", {
     total: students.length,
     filtered: filtered.length,
@@ -1439,6 +1448,35 @@ const renderTable = () => {
     return;
   }
   const maxPoints = mapping ? getMaxPoints() : 0;
+  const minVal = Number(studentGradeMin?.value);
+  const maxVal = Number(studentGradeMax?.value);
+  const hasMin = Number.isFinite(minVal);
+  const hasMax = Number.isFinite(maxVal);
+  if (hasMin || hasMax) {
+    filtered = filtered.filter(({ student }) => {
+      const score = mapping ? gradeStudent(student) : null;
+      const grade = score === null ? null : toThirty(score, maxPoints);
+      const normalized = getNormalizedGrade(student, grade);
+      if (normalized === null) return false;
+      if (hasMin && normalized < minVal) return false;
+      if (hasMax && normalized > maxVal) return false;
+      return true;
+    });
+  }
+  const sortMode = studentSortSelect?.value || "default";
+  if (sortMode !== "default") {
+    filtered = filtered.slice().sort((a, b) => {
+      const scoreA = mapping ? gradeStudent(a.student) : null;
+      const scoreB = mapping ? gradeStudent(b.student) : null;
+      const gradeA = scoreA === null ? null : toThirty(scoreA, maxPoints);
+      const gradeB = scoreB === null ? null : toThirty(scoreB, maxPoints);
+      const normA = getNormalizedGrade(a.student, gradeA);
+      const normB = getNormalizedGrade(b.student, gradeB);
+      const safeA = Number.isFinite(normA) ? normA : -Infinity;
+      const safeB = Number.isFinite(normB) ? normB : -Infinity;
+      return sortMode === "gradeAsc" ? safeA - safeB : safeB - safeA;
+    });
+  }
   filtered.forEach(({ student, index }) => {
     const score = mapping ? gradeStudent(student) : null;
     const grade = score === null ? null : toThirty(score, maxPoints);
@@ -1447,12 +1485,7 @@ const renderTable = () => {
     const answersLabel = isEvaluated
       ? student.answers.join(" | ")
       : "-";
-    const normalized =
-      isEvaluated
-        ? (Number.isFinite(Number(student.normalizedScore))
-            ? Number(student.normalizedScore)
-            : normalizeGrade(grade))
-        : null;
+    const normalized = getNormalizedGrade(student, grade);
     const row = document.createElement("tr");
     row.dataset.index = String(index);
     row.innerHTML = `
@@ -1862,6 +1895,23 @@ const importEsse3 = async () => {
 };
 
 const normalizeSet = (arr) => Array.from(new Set(arr)).sort().join(",");
+
+const isStudentEvaluated = (student) => {
+  const version = Number(student?.versione);
+  if (!Number.isFinite(version) || version < 1) return false;
+  const answers = Array.isArray(student?.answers) ? student.answers : [];
+  const overrides = Array.isArray(student?.overrides) ? student.overrides : [];
+  const hasAnswer = answers.some((ans) => String(ans || "").trim() !== "");
+  const hasOverride = overrides.some((val) => Number.isFinite(Number(val)));
+  return hasAnswer || hasOverride;
+};
+
+const getNormalizedGrade = (student, grade) => {
+  if (!isStudentEvaluated(student)) return null;
+  const fromDb = Number(student.normalizedScore);
+  if (Number.isFinite(fromDb)) return fromDb;
+  return grade === null ? null : normalizeGrade(grade);
+};
 
 const updateStudentProgress = () => {
   if (!gradingProgress || !gradingProgressLabel) return;
@@ -2403,6 +2453,15 @@ if (!appUser) {
         loadStudentForEdit(filtered[0].index);
       }
     });
+  }
+  if (studentSortSelect) {
+    studentSortSelect.addEventListener("change", renderTable);
+  }
+  if (studentGradeMin) {
+    studentGradeMin.addEventListener("input", renderTable);
+  }
+  if (studentGradeMax) {
+    studentGradeMax.addEventListener("input", renderTable);
   }
   if (answersGrid) {
     answersGrid.addEventListener("click", (event) => {

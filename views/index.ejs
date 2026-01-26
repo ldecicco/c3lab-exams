@@ -166,6 +166,24 @@
                 Ricalcola
               </button>
             </div>
+            <div class="students-toolbar-filters">
+              <label class="field">
+                <span>Ordina</span>
+                <select id="studentSort" class="form-select">
+                  <option value="default">Nessun ordinamento</option>
+                  <option value="gradeDesc">Voto norm. ↓</option>
+                  <option value="gradeAsc">Voto norm. ↑</option>
+                </select>
+              </label>
+              <label class="field">
+                <span>Voto ≥</span>
+                <input id="studentGradeMin" class="form-control" type="number" step="0.1" min="0" max="30" placeholder="Min" />
+              </label>
+              <label class="field">
+                <span>Voto ≤</span>
+                <input id="studentGradeMax" class="form-control" type="number" step="0.1" min="0" max="30" placeholder="Max" />
+              </label>
+            </div>
           </div>
           <div class="table-wrap mt-3">
             <table class="table table-striped table-sm align-middle students-table">

@@ -196,6 +196,117 @@ const buildCoursesRouter = ({ requireRole, db, gradeStudent, getMaxPoints }) => 
     }
   );
 
+  router.get(
+    "/api/courses/:id/students",
+    requireRole("admin", "creator", "evaluator"),
+    (req, res) => {
+      const courseId = Number(req.params.id);
+      if (!Number.isFinite(courseId)) {
+        res.status(400).json({ error: "Id non valido" });
+        return;
+      }
+      const rows = db
+        .prepare(
+          `SELECT ess.matricola, ess.nome, ess.cognome, ess.versione,
+                  ess.answers_json, ess.overrides_json, ess.normalized_score,
+                  es.id AS session_id, es.exam_id, es.target_top_grade,
+                  e.title AS exam_title, e.mapping_json
+             FROM exam_sessions es
+             JOIN exam_session_students ess ON ess.session_id = es.id
+             JOIN exams e ON e.id = es.exam_id
+            WHERE e.course_id = ?`
+        )
+        .all(courseId);
+
+      const isEvaluated = (row) => {
+        const version = Number(row.versione);
+        if (!Number.isFinite(version) || version < 1) return false;
+        const answers = JSON.parse(row.answers_json || "[]");
+        const overrides = JSON.parse(row.overrides_json || "[]");
+        const hasAnswer = answers.some((ans) => String(ans || "").trim() !== "");
+        const hasOverride = overrides.some((val) => Number.isFinite(Number(val)));
+        return hasAnswer || hasOverride;
+      };
+
+      const sessions = new Map();
+      rows.forEach((row) => {
+        if (!isEvaluated(row)) return;
+        if (!sessions.has(row.session_id)) {
+          let mapping = null;
+          if (row.mapping_json) {
+            try {
+              mapping = JSON.parse(row.mapping_json);
+            } catch {
+              mapping = null;
+            }
+          }
+          sessions.set(row.session_id, {
+            examTitle: row.exam_title || "",
+            targetTopGrade: row.target_top_grade,
+            mapping,
+            students: [],
+          });
+        }
+        sessions.get(row.session_id).students.push({
+          matricola: row.matricola,
+          nome: row.nome || "",
+          cognome: row.cognome || "",
+          versione: row.versione,
+          answers: JSON.parse(row.answers_json || "[]"),
+          overrides: JSON.parse(row.overrides_json || "[]"),
+          normalizedScore: row.normalized_score,
+        });
+      });
+
+      const results = [];
+      sessions.forEach((session) => {
+        const normalizedFromDb = session.students
+          .map((s) => Number(s.normalizedScore))
+          .filter((val) => Number.isFinite(val));
+        if (normalizedFromDb.length === session.students.length) {
+          session.students.forEach((student) => {
+            results.push({
+              matricola: String(student.matricola).trim(),
+              nome: student.nome || "",
+              cognome: student.cognome || "",
+              examTitle: session.examTitle,
+              normalizedScore: Number(student.normalizedScore),
+            });
+          });
+          return;
+        }
+        if (!session.mapping) return;
+        const scores = session.students
+          .map((student) => gradeStudent(student, session.mapping))
+          .filter((val) => val !== null);
+        if (!scores.length) return;
+        const maxPoints = getMaxPoints(session.mapping);
+        if (!maxPoints) return;
+        const rawGrades = scores.map((points) => (points / maxPoints) * 30);
+        const top = Math.max(...rawGrades);
+        const target = Number(session.targetTopGrade);
+        const targetTop = Number.isFinite(target) ? target : 30;
+        const factor = top > 0 ? targetTop / top : null;
+        session.students.forEach((student) => {
+          const score = gradeStudent(student, session.mapping);
+          if (score === null) return;
+          const raw = (score / maxPoints) * 30;
+          const normalized = Math.round(factor ? raw * factor : raw);
+          results.push({
+            matricola: String(student.matricola).trim(),
+            nome: student.nome || "",
+            cognome: student.cognome || "",
+            examTitle: session.examTitle,
+            normalizedScore: normalized,
+          });
+        });
+      });
+
+      results.sort((a, b) => b.normalizedScore - a.normalizedScore);
+      res.json({ students: results });
+    }
+  );
+
   router.post("/api/courses", requireRole("admin"), (req, res) => {
     const payload = req.body || {};
     const name = String(payload.name || "").trim();

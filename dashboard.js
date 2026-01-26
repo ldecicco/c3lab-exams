@@ -22,6 +22,8 @@ const analysisCheatingSection = document.getElementById("analysisCheatingSection
 const analysisCheating = document.getElementById("analysisCheating");
 const analysisCheatingStatus = document.getElementById("analysisCheatingStatus");
 const analysisCheatingRun = document.getElementById("analysisCheatingRun");
+const analysisCourseStudentsSection = document.getElementById("analysisCourseStudentsSection");
+const analysisCourseStudents = document.getElementById("analysisCourseStudents");
 const analysisToast = document.getElementById("analysisToast");
 const analysisEmptyState = document.getElementById("analysisEmptyState");
 const analysisExamSection = document.getElementById("analysisExamSection");
@@ -438,6 +440,7 @@ const updateDashboardVisibility = (hasExam) => {
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
     setSectionVisible(analysisCheatingSection, false);
+    setSectionVisible(analysisCourseStudentsSection, false);
   }
 };
 
@@ -632,6 +635,31 @@ const renderTopicsTable = (topicStats) => {
   });
 };
 
+const renderCourseStudentsTable = (rows) => {
+  if (!analysisCourseStudents) return;
+  analysisCourseStudents.innerHTML = "";
+  if (!rows.length) {
+    const row = document.createElement("tr");
+    const cell = document.createElement("td");
+    cell.colSpan = 5;
+    cell.textContent = "Nessun dato disponibile.";
+    row.appendChild(cell);
+    analysisCourseStudents.appendChild(row);
+    return;
+  }
+  rows.forEach((entry) => {
+    const row = document.createElement("tr");
+    row.innerHTML = `
+      <td>${entry.matricola}</td>
+      <td>${formatName(entry.cognome)}</td>
+      <td>${formatName(entry.nome)}</td>
+      <td>${entry.examTitle}</td>
+      <td>${entry.normalizedScore}</td>
+    `;
+    analysisCourseStudents.appendChild(row);
+  });
+};
+
 const renderCheatingTable = (payload) => {
   if (!analysisCheating) return;
   analysisCheating.innerHTML = "";
@@ -805,6 +833,25 @@ const loadCheating = async () => {
   }
 };
 
+const loadCourseStudents = async () => {
+  if (!activeCourseId) return;
+  try {
+    const response = await fetch(`api/courses/${activeCourseId}/students`);
+    if (!response.ok) {
+      renderCourseStudentsTable([]);
+      setSectionVisible(analysisCourseStudentsSection, false);
+      return;
+    }
+    const payload = await response.json();
+    const rows = Array.isArray(payload.students) ? payload.students : [];
+    renderCourseStudentsTable(rows);
+    setSectionVisible(analysisCourseStudentsSection, true);
+  } catch {
+    renderCourseStudentsTable([]);
+    setSectionVisible(analysisCourseStudentsSection, false);
+  }
+};
+
 const loadSession = async (sessionId) => {
   if (!sessionId) return;
   try {
@@ -930,6 +977,7 @@ const initDashboard = async () => {
   if (mainLayout) mainLayout.classList.remove("is-hidden");
   const activeExam = await fetchActiveExam();
   await loadExams();
+  await loadCourseStudents();
   if (activeExam?.id) {
     loadExam(activeExam.id);
   }
