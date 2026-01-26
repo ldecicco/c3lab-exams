@@ -1251,7 +1251,7 @@ const addStudent = (event) => {
     return;
   }
   const answers = collectAnswers();
-  const overrides = collectOverrides();
+  const overrides = mapOverridesToOriginal(collectOverrides(), Number(versioneInput.value));
   const student = {
     matricola: matricolaInput.value.trim(),
     nome: nomeInput.value.trim(),
@@ -1313,7 +1313,10 @@ const loadStudentForEdit = (idx) => {
       if (btnEl) btnEl.classList.add("active");
     });
   });
-  const overrides = student.overrides || [];
+  const overrides = mapOverridesToDisplayed(
+    student.overrides || [],
+    Number(student.versione || versioneInput.value)
+  );
   overrides.forEach((val, i) => {
     const input = answersGrid.querySelector(
       `.override input[data-question="${i + 1}"]`
@@ -1869,6 +1872,39 @@ const buildInverseQuestionMap = (qdict) => {
     inverse[qdict[q] - 1] = q;
   }
   return inverse;
+};
+
+const mapOverridesToOriginal = (overridesDisplayed, version) => {
+  if (!mapping) return overridesDisplayed;
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    return overridesDisplayed;
+  }
+  const qdict = mapping.questiondictionary[version - 1];
+  if (!Array.isArray(qdict)) return overridesDisplayed;
+  const inverse = buildInverseQuestionMap(qdict);
+  const result = Array.from({ length: mapping.Nquestions }, () => null);
+  overridesDisplayed.forEach((val, displayedIdx) => {
+    const originalIdx = inverse[displayedIdx];
+    if (originalIdx === undefined) return;
+    result[originalIdx] = val;
+  });
+  return result;
+};
+
+const mapOverridesToDisplayed = (overridesOriginal, version) => {
+  if (!mapping) return overridesOriginal;
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    return overridesOriginal;
+  }
+  const qdict = mapping.questiondictionary[version - 1];
+  if (!Array.isArray(qdict)) return overridesOriginal;
+  const result = Array.from({ length: questionCount }, () => null);
+  overridesOriginal.forEach((val, originalIdx) => {
+    const displayedIdx = (qdict[originalIdx] || 0) - 1;
+    if (displayedIdx < 0 || displayedIdx >= result.length) return;
+    result[displayedIdx] = val;
+  });
+  return result;
 };
 
 const updatePerQuestionScores = () => {
