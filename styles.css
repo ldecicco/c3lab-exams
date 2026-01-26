@@ -1898,6 +1898,29 @@ input {
   max-width: 900px;
 }
 
+.analysis-accordion summary {
+  cursor: pointer;
+  list-style: none;
+}
+
+.analysis-accordion summary::-webkit-details-marker {
+  display: none;
+}
+
+.analysis-accordion .accordion-toggle {
+  margin-left: 12px;
+  color: var(--ink-muted);
+  transition: transform 0.2s ease;
+}
+
+.analysis-accordion[open] .accordion-toggle {
+  transform: rotate(180deg);
+}
+
+.analysis-accordion-body {
+  padding: 16px 20px 20px;
+}
+
 .analysis-question {
   max-width: 520px;
 }

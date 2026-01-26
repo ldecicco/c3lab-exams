@@ -57,8 +57,8 @@
         </div>
       </div>
 
-      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisExamSection">
-        <div class="card-header">
+      <details class="card shadow-sm mb-4 analysis-section is-hidden analysis-accordion" id="analysisExamSection" open>
+        <summary class="card-header">
           <div class="card-header-row">
             <div>
               <h2 class="h5 mb-1">Seleziona traccia</h2>
@@ -66,13 +66,15 @@
             </div>
             <div class="header-actions">
               <span class="toolbar-status" id="analysisStatus">Nessuna traccia selezionata</span>
+              <i class="fa-solid fa-chevron-down accordion-toggle"></i>
             </div>
           </div>
-        </div>
-      </section>
+        </summary>
+        <div class="analysis-accordion-body"></div>
+      </details>
 
-      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisSessionSection">
-        <div class="card-header">
+      <details class="card shadow-sm mb-4 analysis-section is-hidden analysis-accordion" id="analysisSessionSection" open>
+        <summary class="card-header">
           <div class="card-header-row">
             <div>
               <h2 class="h5 mb-1">Sessione di correzione</h2>
@@ -83,10 +85,12 @@
                 <span>Sessione</span>
                 <select id="analysisSessionSelect" class="form-select"></select>
               </label>
+              <i class="fa-solid fa-chevron-down accordion-toggle"></i>
             </div>
           </div>
-        </div>
-      </section>
+        </summary>
+        <div class="analysis-accordion-body"></div>
+      </details>
 
       <section class="empty-state is-hidden" id="analysisSessionEmpty">
         <div class="empty-state-content">
@@ -99,8 +103,8 @@
         </div>
       </section>
 
-      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisSummary">
-        <div class="card-header">
+      <details class="card shadow-sm mb-4 analysis-section is-hidden analysis-accordion" id="analysisSummary" open>
+        <summary class="card-header">
           <div class="card-header-row">
             <div>
               <h2 class="h5 mb-1">Sintesi</h2>
@@ -111,54 +115,67 @@
                 <i class="fa-solid fa-chart-line"></i>
                 Mostra distribuzione
               </button>
+              <i class="fa-solid fa-chevron-down accordion-toggle"></i>
             </div>
           </div>
+        </summary>
+        <div class="analysis-accordion-body">
+          <div class="analysis-kpis" id="analysisKpis"></div>
         </div>
-        <div class="analysis-kpis" id="analysisKpis"></div>
-      </section>
+      </details>
 
-      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisQuestionsSection">
-        <div class="card-header">
-          <h2 class="h5 mb-1">Domande</h2>
+      <details class="card shadow-sm mb-4 analysis-section is-hidden analysis-accordion" id="analysisQuestionsSection" open>
+        <summary class="card-header">
+          <div class="card-header-row">
+            <h2 class="h5 mb-1">Domande</h2>
+            <i class="fa-solid fa-chevron-down accordion-toggle"></i>
+          </div>
           <!-- <p class="text-secondary mb-0">Percentuale corrette e difficolta stimata.</p> -->
+        </summary>
+        <div class="analysis-accordion-body">
+          <div class="table-wrap">
+            <table class="table table-sm align-middle analysis-table">
+              <thead>
+                <tr>
+                  <th>Es.</th>
+                  <th>Domanda</th>
+                  <th>Argomenti</th>
+                  <th>% corrette</th>
+                  <th>Esito</th>
+                </tr>
+              </thead>
+              <tbody id="analysisQuestions"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="table table-sm align-middle analysis-table">
-            <thead>
-              <tr>
-                <th>Es.</th>
-                <th>Domanda</th>
-                <th>Argomenti</th>
-                <th>% corrette</th>
-                <th>Esito</th>
-              </tr>
-            </thead>
-            <tbody id="analysisQuestions"></tbody>
-          </table>
-        </div>
-      </section>
+      </details>
 
-      <section class="card shadow-sm analysis-section is-hidden" id="analysisTopicsSection">
-        <div class="card-header">
-          <h2 class="h5 mb-1">Argomenti</h2>
+      <details class="card shadow-sm analysis-section is-hidden analysis-accordion" id="analysisTopicsSection" open>
+        <summary class="card-header">
+          <div class="card-header-row">
+            <h2 class="h5 mb-1">Argomenti</h2>
+            <i class="fa-solid fa-chevron-down accordion-toggle"></i>
+          </div>
           <!-- <p class="text-secondary mb-0">Media corrette per argomento.</p> -->
+        </summary>
+        <div class="analysis-accordion-body">
+          <div class="table-wrap">
+            <table class="table table-sm align-middle analysis-table">
+              <thead>
+                <tr>
+                  <th>Argomento</th>
+                  <th>% corrette</th>
+                  <th>Domande</th>
+                </tr>
+              </thead>
+              <tbody id="analysisTopics"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="table table-sm align-middle analysis-table">
-            <thead>
-              <tr>
-                <th>Argomento</th>
-                <th>% corrette</th>
-                <th>Domande</th>
-              </tr>
-            </thead>
-            <tbody id="analysisTopics"></tbody>
-          </table>
-        </div>
-      </section>
+      </details>
 
-      <section class="card shadow-sm analysis-section is-hidden" id="analysisCheatingSection">
-        <div class="card-header">
+      <details class="card shadow-sm analysis-section is-hidden analysis-accordion" id="analysisCheatingSection" open>
+        <summary class="card-header">
           <div class="card-header-row">
             <div>
               <h2 class="h5 mb-1">Similarità risposte</h2>
@@ -170,45 +187,52 @@
                 <i class="fa-solid fa-magnifying-glass-chart"></i>
                 Calcola
               </button>
+              <i class="fa-solid fa-chevron-down accordion-toggle"></i>
             </div>
           </div>
+        </summary>
+        <div class="analysis-accordion-body">
+          <div class="table-wrap">
+            <table class="table table-sm align-middle analysis-table">
+              <thead>
+                <tr>
+                  <th>Studente A</th>
+                  <th>Studente B</th>
+                  <th>S2</th>
+                  <th>Match errati</th>
+                  <th>Domande</th>
+                </tr>
+              </thead>
+              <tbody id="analysisCheating"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="table table-sm align-middle analysis-table">
-            <thead>
-              <tr>
-                <th>Studente A</th>
-                <th>Studente B</th>
-                <th>S2</th>
-                <th>Match errati</th>
-                <th>Domande</th>
-              </tr>
-            </thead>
-            <tbody id="analysisCheating"></tbody>
-          </table>
-        </div>
-      </section>
+      </details>
 
-      <section class="card shadow-sm analysis-section is-hidden" id="analysisCourseStudentsSection">
-        <div class="card-header">
-          <h2 class="h5 mb-1">Studenti del corso</h2>
-          <p class="text-secondary mb-0">Tutti gli studenti valutati nelle tracce del corso.</p>
+      <details class="card shadow-sm analysis-section is-hidden analysis-accordion" id="analysisCourseStudentsSection" open>
+        <summary class="card-header">
+          <div class="card-header-row">
+            <h2 class="h5 mb-1">Studenti del corso</h2>
+            <i class="fa-solid fa-chevron-down accordion-toggle"></i>
+          </div>
+        </summary>
+        <div class="analysis-accordion-body">
+          <div class="table-wrap">
+            <table class="table table-sm align-middle analysis-table">
+              <thead>
+                <tr>
+                  <th>Matricola</th>
+                  <th>Cognome</th>
+                  <th>Nome</th>
+                  <th>Traccia</th>
+                  <th>Voto norm.</th>
+                </tr>
+              </thead>
+              <tbody id="analysisCourseStudents"></tbody>
+            </table>
+          </div>
         </div>
-        <div class="table-wrap">
-          <table class="table table-sm align-middle analysis-table">
-            <thead>
-              <tr>
-                <th>Matricola</th>
-                <th>Cognome</th>
-                <th>Nome</th>
-                <th>Traccia</th>
-                <th>Voto norm.</th>
-              </tr>
-            </thead>
-            <tbody id="analysisCourseStudents"></tbody>
-          </table>
-        </div>
-      </section>
+      </details>
     </main>
 
     <div class="modal-backdrop is-hidden" id="analysisExamBackdrop"></div>
