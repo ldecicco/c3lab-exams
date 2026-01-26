@@ -529,7 +529,16 @@ const renderPublicResults = (payload) => {
     publicResultTitle.textContent = `${payload.exam.courseName} — ${payload.exam.title}${dateText}`;
   }
   if (publicResultGrade) {
-    publicResultGrade.textContent = `Voto: ${payload.grade.normalized}/30`;
+    const normalized = Number(payload.grade.normalized);
+    if (Number.isFinite(normalized)) {
+      if (normalized > 30) {
+        publicResultGrade.textContent = "Voto: 30/30 L";
+      } else {
+        publicResultGrade.textContent = `Voto: ${normalized}/30`;
+      }
+    } else {
+      publicResultGrade.textContent = "Voto: -";
+    }
   }
   if (publicResultMeta) {
     const nameParts = [payload.student.nome, payload.student.cognome]
@@ -1080,9 +1089,10 @@ const getQuestionIndexForVersion = (displayedIndex, version) => {
   if (!mapping || !mapping.questiondictionary) return displayedIndex - 1;
   const qdict = mapping.questiondictionary[version - 1];
   if (!qdict || !Array.isArray(qdict)) return displayedIndex - 1;
-  const mapped = qdict[displayedIndex - 1];
-  if (!mapped) return displayedIndex - 1;
-  return mapped - 1;
+  const inverse = buildInverseQuestionMap(qdict);
+  const mapped = inverse[displayedIndex - 1];
+  if (mapped === undefined) return displayedIndex - 1;
+  return mapped;
 };
 
 const openExamPreview = (index, version) => {
