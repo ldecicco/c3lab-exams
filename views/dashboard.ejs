@@ -101,38 +101,20 @@
 
       <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisSummary">
         <div class="card-header">
-          <h2 class="h5 mb-1">Sintesi</h2>
-          <p class="text-secondary mb-0">Indicatori rapidi sull'andamento della sessione.</p>
-        </div>
-        <div class="analysis-kpis" id="analysisKpis"></div>
-      </section>
-
-      <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisCdfSection">
-        <div class="card-header">
           <div class="card-header-row">
             <div>
-              <h2 class="h5 mb-1">Distribuzione cumulativa voti</h2>
-              <p class="text-secondary mb-0">CDF interattiva dei voti in trentesimi.</p>
+              <h2 class="h5 mb-1">Sintesi</h2>
+              <p class="text-secondary mb-0">Indicatori rapidi sull'andamento della sessione.</p>
             </div>
             <div class="header-actions">
-              <label class="field">
-                <span>Ambito</span>
-                <select id="analysisCdfScope" class="form-select">
-                  <option value="current">Traccia selezionata</option>
-                  <option value="all">Tutte le tracce valutate</option>
-                </select>
-              </label>
+              <button class="btn btn-outline-primary btn-sm" type="button" id="analysisCdfOpen">
+                <i class="fa-solid fa-chart-line"></i>
+                Mostra distribuzione
+              </button>
             </div>
           </div>
         </div>
-        <div class="analysis-cdf-meta">
-          <span class="chip">Campione: <strong id="analysisCdfCount">-</strong></span>
-          <span class="chip">Mediana: <strong id="analysisCdfMedian">-</strong></span>
-          <span class="chip">Dev. std: <strong id="analysisCdfStd">-</strong></span>
-        </div>
-        <div class="analysis-cdf-chart">
-          <canvas id="analysisCdfChart" height="220"></canvas>
-        </div>
+        <div class="analysis-kpis" id="analysisKpis"></div>
       </section>
 
       <section class="card shadow-sm mb-4 analysis-section is-hidden" id="analysisQuestionsSection">
@@ -219,6 +201,35 @@
       <div class="modal-body">
         <div class="template-status text-secondary" id="analysisStatus">Nessuna traccia selezionata</div>
         <div id="analysisExamList" class="exam-grid"></div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="analysisCdfBackdrop"></div>
+    <div class="modal-panel modal-lg is-hidden" id="analysisCdfModal" role="dialog" aria-modal="true" aria-labelledby="analysisCdfTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="analysisCdfTitle">Distribuzione cumulativa voti</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="analysisCdfClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="analysis-cdf-controls">
+          <label class="field">
+            <span>Ambito</span>
+            <select id="analysisCdfScope" class="form-select">
+              <option value="current">Traccia selezionata</option>
+              <option value="all">Tutte le tracce valutate</option>
+            </select>
+          </label>
+        </div>
+        <div class="analysis-cdf-meta">
+          <span class="chip">Campione: <strong id="analysisCdfCount">-</strong></span>
+          <span class="chip">Mediana: <strong id="analysisCdfMedian">-</strong></span>
+          <span class="chip">Dev. std: <strong id="analysisCdfStd">-</strong></span>
+        </div>
+        <div class="analysis-cdf-chart">
+          <canvas id="analysisCdfChart" height="240"></canvas>
+        </div>
       </div>
     </div>
 

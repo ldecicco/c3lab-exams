@@ -1866,12 +1866,22 @@ input {
   padding: 0 1.5rem 1rem;
 }
 
+.analysis-cdf-controls {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 1.5rem 0.75rem;
+}
+
 .analysis-cdf-chart {
   padding: 0 1.5rem 1.5rem;
 }
 
 .analysis-cdf-chart canvas {
   width: 100%;
+}
+
+.modal-panel.modal-lg {
+  max-width: 900px;
 }
 
 .analysis-question {

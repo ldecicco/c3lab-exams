@@ -8,7 +8,10 @@ const analysisQuestionsSection = document.getElementById("analysisQuestionsSecti
 const analysisQuestions = document.getElementById("analysisQuestions");
 const analysisTopicsSection = document.getElementById("analysisTopicsSection");
 const analysisTopics = document.getElementById("analysisTopics");
-const analysisCdfSection = document.getElementById("analysisCdfSection");
+const analysisCdfOpen = document.getElementById("analysisCdfOpen");
+const analysisCdfBackdrop = document.getElementById("analysisCdfBackdrop");
+const analysisCdfModal = document.getElementById("analysisCdfModal");
+const analysisCdfClose = document.getElementById("analysisCdfClose");
 const analysisCdfScope = document.getElementById("analysisCdfScope");
 const analysisCdfCount = document.getElementById("analysisCdfCount");
 const analysisCdfMedian = document.getElementById("analysisCdfMedian");
@@ -55,6 +58,14 @@ const analysisExamModalApi = bindModal
       modal: analysisExamModal,
       backdrop: analysisExamBackdrop,
       closers: [analysisExamClose],
+    })
+  : null;
+
+const analysisCdfModalApi = bindModal
+  ? bindModal({
+      modal: analysisCdfModal,
+      backdrop: analysisCdfBackdrop,
+      closers: [analysisCdfClose],
     })
   : null;
 
@@ -268,13 +279,14 @@ const renderCdfChart = (grades) => {
     },
     options: {
       responsive: true,
+      maintainAspectRatio: false,
       parsing: false,
       scales: {
         x: {
           type: "linear",
           title: { display: true, text: "Voto (30)" },
           min: 0,
-          max: 30,
+          max: 31,
         },
         y: {
           title: { display: true, text: "CDF" },
@@ -345,7 +357,7 @@ const loadAllCourseGrades = async () => {
 };
 
 const renderCdfForScope = async (scope) => {
-  if (!analysisCdfSection) return;
+  if (!analysisCdfModal) return;
   let grades = [];
   if (scope === "all") {
     if (!allCourseGrades.length) {
@@ -659,10 +671,7 @@ const computeAnalytics = () => {
   if (!students.length) {
     setSectionVisible(analysisSummary, false);
     if (cdfScope === "all") {
-      setSectionVisible(analysisCdfSection, true);
       renderCdfForScope("all");
-    } else {
-      setSectionVisible(analysisCdfSection, false);
     }
     setSectionVisible(analysisQuestionsSection, false);
     setSectionVisible(analysisTopicsSection, false);
@@ -760,7 +769,6 @@ const computeAnalytics = () => {
   renderQuestionTable(enhanced, answerStats);
   renderTopicsTable(topicStats);
   setSectionVisible(analysisSummary, true);
-  setSectionVisible(analysisCdfSection, true);
   setSectionVisible(analysisQuestionsSection, true);
   setSectionVisible(analysisTopicsSection, true);
 };
@@ -805,10 +813,7 @@ const loadSession = async (sessionId) => {
       if (analysisCheatingStatus) analysisCheatingStatus.textContent = "Nessuno studente valutato.";
       setSectionVisible(analysisSummary, false);
       if (cdfScope === "all") {
-        setSectionVisible(analysisCdfSection, true);
         renderCdfForScope("all");
-      } else {
-        setSectionVisible(analysisCdfSection, false);
       }
       setSectionVisible(analysisQuestionsSection, false);
       setSectionVisible(analysisTopicsSection, false);
@@ -864,14 +869,14 @@ const loadExam = async (examId) => {
     const courseName =
       examsCache.find((exam) => exam.id === examId)?.course_name || "";
     const courseText = courseName ? `${courseName} — ` : "";
-    updateTopbarStatus(`${courseText}${titleText}${dateText}`, true);
-    updateDashboardVisibility(true);
-    await loadSessions(examId);
-    setActiveExam(examId);
-    allCourseGrades = [];
-    if (cdfScope === "all") {
-      renderCdfForScope("all");
-    }
+  updateTopbarStatus(`${courseText}${titleText}${dateText}`, true);
+  updateDashboardVisibility(true);
+  await loadSessions(examId);
+  setActiveExam(examId);
+  allCourseGrades = [];
+  if (cdfScope === "all") {
+    renderCdfForScope("all");
+  }
   } catch {
     analysisStatus.textContent = "Errore nel caricamento traccia.";
     updateTopbarStatus("Nessuna traccia", false);
@@ -948,6 +953,19 @@ if (analysisSelectExam) {
 if (analysisTopbarSelectExam) {
   analysisTopbarSelectExam.addEventListener("click", () => {
     openExamModal();
+  });
+}
+if (analysisCdfOpen) {
+  analysisCdfOpen.addEventListener("click", async () => {
+    await renderCdfForScope(cdfScope);
+    if (analysisCdfModalApi) {
+      analysisCdfModalApi.open();
+    } else if (typeof window.openModal === "function") {
+      window.openModal(analysisCdfModal, analysisCdfBackdrop);
+    } else {
+      if (analysisCdfBackdrop) analysisCdfBackdrop.classList.remove("is-hidden");
+      if (analysisCdfModal) analysisCdfModal.classList.remove("is-hidden");
+    }
   });
 }
 if (analysisCdfScope) {
