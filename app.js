@@ -88,6 +88,7 @@ const targetTopGradeInput = document.getElementById("targetTopGrade");
 const currentTopGradeBadge = document.getElementById("currentTopGradeBadge");
 const gradingToast = document.getElementById("gradingToast");
 const studentSearchInput = document.getElementById("studentSearch");
+const studentFiltersToggle = document.getElementById("studentFiltersToggle");
 const studentSortSelect = document.getElementById("studentSort");
 const studentGradeMin = document.getElementById("studentGradeMin");
 const studentGradeMax = document.getElementById("studentGradeMax");
@@ -223,6 +224,7 @@ const initApp = async () => {
   if (!appUser) {
     loadStudents();
     renderGrading();
+    updateStudentFiltersState();
     loadExams();
     updateExamVisibility(Boolean(mapping));
     return;
@@ -247,6 +249,7 @@ const initApp = async () => {
   } else {
     updateExamVisibility(Boolean(mapping));
   }
+  updateStudentFiltersState();
 };
 
 const formatDateLabel =
@@ -1418,6 +1421,7 @@ const handleAnswerShortcut = (event) => {
 
 const renderTable = () => {
   studentsTable.innerHTML = "";
+  const filtersEnabled = Boolean(studentFiltersToggle?.checked);
   const query = String(studentSearchInput?.value || "").trim().toLowerCase();
   let filtered = filterStudents(query);
   debugLog("renderTable", {
@@ -1448,34 +1452,36 @@ const renderTable = () => {
     return;
   }
   const maxPoints = mapping ? getMaxPoints() : 0;
-  const minVal = Number(studentGradeMin?.value);
-  const maxVal = Number(studentGradeMax?.value);
-  const hasMin = Number.isFinite(minVal);
-  const hasMax = Number.isFinite(maxVal);
-  if (hasMin || hasMax) {
-    filtered = filtered.filter(({ student }) => {
-      const score = mapping ? gradeStudent(student) : null;
-      const grade = score === null ? null : toThirty(score, maxPoints);
-      const normalized = getNormalizedGrade(student, grade);
-      if (normalized === null) return false;
-      if (hasMin && normalized < minVal) return false;
-      if (hasMax && normalized > maxVal) return false;
-      return true;
-    });
-  }
-  const sortMode = studentSortSelect?.value || "default";
-  if (sortMode !== "default") {
-    filtered = filtered.slice().sort((a, b) => {
-      const scoreA = mapping ? gradeStudent(a.student) : null;
-      const scoreB = mapping ? gradeStudent(b.student) : null;
-      const gradeA = scoreA === null ? null : toThirty(scoreA, maxPoints);
-      const gradeB = scoreB === null ? null : toThirty(scoreB, maxPoints);
-      const normA = getNormalizedGrade(a.student, gradeA);
-      const normB = getNormalizedGrade(b.student, gradeB);
-      const safeA = Number.isFinite(normA) ? normA : -Infinity;
-      const safeB = Number.isFinite(normB) ? normB : -Infinity;
-      return sortMode === "gradeAsc" ? safeA - safeB : safeB - safeA;
-    });
+  if (filtersEnabled) {
+    const minVal = Number(studentGradeMin?.value);
+    const maxVal = Number(studentGradeMax?.value);
+    const hasMin = Number.isFinite(minVal);
+    const hasMax = Number.isFinite(maxVal);
+    if (hasMin || hasMax) {
+      filtered = filtered.filter(({ student }) => {
+        const score = mapping ? gradeStudent(student) : null;
+        const grade = score === null ? null : toThirty(score, maxPoints);
+        const normalized = getNormalizedGrade(student, grade);
+        if (normalized === null) return false;
+        if (hasMin && normalized < minVal) return false;
+        if (hasMax && normalized > maxVal) return false;
+        return true;
+      });
+    }
+    const sortMode = studentSortSelect?.value || "default";
+    if (sortMode !== "default") {
+      filtered = filtered.slice().sort((a, b) => {
+        const scoreA = mapping ? gradeStudent(a.student) : null;
+        const scoreB = mapping ? gradeStudent(b.student) : null;
+        const gradeA = scoreA === null ? null : toThirty(scoreA, maxPoints);
+        const gradeB = scoreB === null ? null : toThirty(scoreB, maxPoints);
+        const normA = getNormalizedGrade(a.student, gradeA);
+        const normB = getNormalizedGrade(b.student, gradeB);
+        const safeA = Number.isFinite(normA) ? normA : -Infinity;
+        const safeB = Number.isFinite(normB) ? normB : -Infinity;
+        return sortMode === "gradeAsc" ? safeA - safeB : safeB - safeA;
+      });
+    }
   }
   filtered.forEach(({ student, index }) => {
     const score = mapping ? gradeStudent(student) : null;
@@ -1795,6 +1801,23 @@ const renderExamHistory = (exams) => {
         },
       },
     ],
+  });
+};
+
+const updateStudentFiltersState = () => {
+  if (!studentFiltersToggle) return;
+  const enabled = studentFiltersToggle.checked;
+  const controls = [studentSortSelect, studentGradeMin, studentGradeMax];
+  controls.forEach((control) => {
+    if (!control) return;
+    control.disabled = !enabled;
+    if (!enabled) {
+      if (control.tagName === "SELECT") {
+        control.value = "default";
+      } else if (control.tagName === "INPUT") {
+        control.value = "";
+      }
+    }
   });
 };
 
@@ -2452,6 +2475,12 @@ if (!appUser) {
         event.preventDefault();
         loadStudentForEdit(filtered[0].index);
       }
+    });
+  }
+  if (studentFiltersToggle) {
+    studentFiltersToggle.addEventListener("change", () => {
+      updateStudentFiltersState();
+      renderTable();
     });
   }
   if (studentSortSelect) {

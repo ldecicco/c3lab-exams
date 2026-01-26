@@ -1178,6 +1178,12 @@ h1 {
   margin-top: 12px;
 }
 
+.students-toolbar-filters .filter-toggle {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+
 .toolbar-field {
   gap: 4px;
   min-width: 220px;
