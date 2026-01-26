@@ -157,6 +157,16 @@ const renderLatexHtml = (source, target) => {
 
 const normalizeSet = (arr) => Array.from(new Set(arr)).sort().join(",");
 
+const isStudentEvaluated = (student) => {
+  const version = Number(student?.versione);
+  if (!Number.isFinite(version) || version < 1) return false;
+  const answers = Array.isArray(student?.answers) ? student.answers : [];
+  const overrides = Array.isArray(student?.overrides) ? student.overrides : [];
+  const hasAnswer = answers.some((ans) => String(ans || "").trim() !== "");
+  const hasOverride = overrides.some((val) => Number.isFinite(Number(val)));
+  return hasAnswer || hasOverride;
+};
+
 const getQuestionPoints = (row) => {
   const correctCount = row.filter((val) => val > 0).length;
   if (correctCount > 1) return 1;
@@ -322,14 +332,15 @@ const renderCdfChart = (grades) => {
 };
 
 const computeCurrentGrades = () => {
-  if (!students.length) return [];
-  const normalized = students
+  const evaluatedStudents = students.filter(isStudentEvaluated);
+  if (!evaluatedStudents.length) return [];
+  const normalized = evaluatedStudents
     .map((student) => Number(student.normalizedScore))
     .filter((val) => Number.isFinite(val));
-  if (normalized.length === students.length) return normalized;
+  if (normalized.length === evaluatedStudents.length) return normalized;
   const maxPoints = getMaxPoints();
   if (!maxPoints) return normalized;
-  const rawGrades = students
+  const rawGrades = evaluatedStudents
     .map((student) => {
       const score = gradeStudentLocal(student);
       return score === null ? null : (score / maxPoints) * 30;
@@ -667,7 +678,8 @@ const renderCheatingTable = (payload) => {
 
 const computeAnalytics = () => {
   if (!mapping || !examQuestions.length) return;
-  if (!students.length) {
+  const evaluatedStudents = students.filter(isStudentEvaluated);
+  if (!evaluatedStudents.length) {
     setSectionVisible(analysisSummary, false);
     if (cdfScope === "all") {
       renderCdfForScope("all");
@@ -694,7 +706,7 @@ const computeAnalytics = () => {
     return { total: 0, counts: Array.from({ length: answerCount }, () => 0) };
   });
 
-  students.forEach((student) => {
+  evaluatedStudents.forEach((student) => {
     for (let q = 0; q < questionCount; q += 1) {
       const isCorrect = getCorrectForQuestion(student, q);
       if (isCorrect === null) continue;
@@ -713,7 +725,7 @@ const computeAnalytics = () => {
 
   const totalAnswers = questionStats.reduce((sum, q) => sum + q.total, 0);
   const totalCorrect = questionStats.reduce((sum, q) => sum + q.correct, 0);
-  const studentCount = students.length;
+  const studentCount = evaluatedStudents.length;
 
   const enhanced = questionStats.map((stat) => {
     const question = examQuestions[stat.index] || {};

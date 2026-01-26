@@ -121,9 +121,20 @@ const buildCoursesRouter = ({ requireRole, db, gradeStudent, getMaxPoints }) => 
         )
         .all(courseId);
 
+      const isEvaluated = (row) => {
+        const version = Number(row.versione);
+        if (!Number.isFinite(version) || version < 1) return false;
+        const answers = JSON.parse(row.answers_json || "[]");
+        const overrides = JSON.parse(row.overrides_json || "[]");
+        const hasAnswer = answers.some((ans) => String(ans || "").trim() !== "");
+        const hasOverride = overrides.some((val) => Number.isFinite(Number(val)));
+        return hasAnswer || hasOverride;
+      };
+
       const examMappings = new Map();
       const sessions = new Map();
       rows.forEach((row) => {
+        if (!isEvaluated(row)) return;
         if (!sessions.has(row.session_id)) {
           sessions.set(row.session_id, {
             examId: row.exam_id,
