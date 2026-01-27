@@ -19,7 +19,15 @@ const buildGradingRouter = (deps) => {
   router.get("/api/public-exams", publicExamsLimiter, (req, res) => {
     const rows = db
       .prepare(
-        `SELECT e.id, e.title, e.date, c.id AS course_id, c.name AS course_name
+        `SELECT e.id, e.title, e.date, e.is_draft, e.public_access_enabled,
+                e.public_access_expires_at,
+                EXISTS (
+                  SELECT 1
+                  FROM exam_session_students ess
+                  JOIN exam_sessions es ON es.id = ess.session_id
+                 WHERE es.exam_id = e.id
+                ) AS has_results,
+                c.id AS course_id, c.name AS course_name
            FROM exams e
            JOIN courses c ON c.id = e.course_id
           WHERE e.public_access_enabled = 1
@@ -167,9 +175,13 @@ const buildGradingRouter = (deps) => {
 
     const questionRows = db
       .prepare(
-        `SELECT eq.position, q.id, q.text, q.note, q.type
+        `SELECT eq.position, q.id, q.text, q.note, q.type,
+                q.image_path, q.image_layout_enabled, q.image_layout_mode,
+                q.image_left_width, q.image_right_width, q.image_scale,
+                i.thumbnail_path AS image_thumbnail_path
            FROM exam_questions eq
            JOIN questions q ON q.id = eq.question_id
+           LEFT JOIN images i ON i.file_path = q.image_path
           WHERE eq.exam_id = ?
           ORDER BY eq.position`
       )
@@ -202,6 +214,13 @@ const buildGradingRouter = (deps) => {
         text: row.text,
         note: allowNotes ? row.note || "" : "",
         type: row.type,
+        imagePath: row.image_path || "",
+        imageThumbnailPath: row.image_thumbnail_path || "",
+        imageLayoutEnabled: Boolean(row.image_layout_enabled),
+        imageLayoutMode: row.image_layout_mode || "side",
+        imageLeftWidth: row.image_left_width || "",
+        imageRightWidth: row.image_right_width || "",
+        imageScale: row.image_scale || "",
         answers,
         topics,
       };
@@ -259,6 +278,13 @@ const buildGradingRouter = (deps) => {
         text: q.text,
         type: q.type,
         note: q.note || "",
+        imagePath: q.imagePath,
+        imageThumbnailPath: q.imageThumbnailPath,
+        imageLayoutEnabled: q.imageLayoutEnabled,
+        imageLayoutMode: q.imageLayoutMode,
+        imageLeftWidth: q.imageLeftWidth,
+        imageRightWidth: q.imageRightWidth,
+        imageScale: q.imageScale,
         topics: q.topics || [],
         answers: displayedAnswers,
         selectedLetters,
@@ -292,12 +318,182 @@ const buildGradingRouter = (deps) => {
     };
   };
 
+  const buildPublicExamPreview = (examId) => {
+    if (!Number.isFinite(examId)) {
+      const err = new Error("Dati mancanti");
+      err.status = 400;
+      throw err;
+    }
+    const exam = db
+      .prepare(
+        `SELECT e.id, e.title, e.date, e.mapping_json, e.public_access_enabled, e.is_draft,
+                e.public_access_expires_at, e.public_access_show_notes,
+                EXISTS (
+                  SELECT 1
+                    FROM exam_session_students ess
+                    JOIN exam_sessions es ON es.id = ess.session_id
+                   WHERE es.exam_id = e.id
+                   LIMIT 1
+                ) AS has_results,
+                c.name AS course_name
+           FROM exams e
+           JOIN courses c ON c.id = e.course_id
+          WHERE e.id = ?`
+      )
+      .get(examId);
+    if (!exam) {
+      const err = new Error("Traccia non trovata");
+      err.status = 404;
+      throw err;
+    }
+    if (!exam.public_access_enabled) {
+      const err = new Error("Accesso non abilitato per questa traccia.");
+      err.status = 403;
+      throw err;
+    }
+    if (exam.is_draft) {
+      const err = new Error("Traccia non chiusa.");
+      err.status = 403;
+      throw err;
+    }
+    if (exam.public_access_expires_at && new Date(exam.public_access_expires_at) <= new Date()) {
+      const err = new Error("Accesso scaduto.");
+      err.status = 403;
+      throw err;
+    }
+    if (!exam.has_results) {
+      const err = new Error("Risultati non disponibili.");
+      err.status = 403;
+      throw err;
+    }
+    if (!exam.mapping_json) {
+      const err = new Error("Mapping non disponibile.");
+      err.status = 400;
+      throw err;
+    }
+    let mapping;
+    try {
+      mapping = JSON.parse(exam.mapping_json);
+    } catch {
+      const err = new Error("Mapping non valido.");
+      err.status = 400;
+      throw err;
+    }
+    const allowNotes = Boolean(exam.public_access_show_notes) && Boolean(exam.has_results);
+    const questionRows = db
+      .prepare(
+        `SELECT eq.position, q.id, q.text, q.note, q.type,
+                q.image_path, q.image_layout_enabled, q.image_layout_mode,
+                q.image_left_width, q.image_right_width, q.image_scale,
+                i.thumbnail_path AS image_thumbnail_path
+           FROM exam_questions eq
+           JOIN questions q ON q.id = eq.question_id
+           LEFT JOIN images i ON i.file_path = q.image_path
+          WHERE eq.exam_id = ?
+          ORDER BY eq.position`
+      )
+      .all(examId);
+    const questions = questionRows.map((row) => {
+      const answers = db
+        .prepare(
+          "SELECT position, text, note, is_correct FROM answers WHERE question_id = ? ORDER BY position"
+        )
+        .all(row.id)
+        .map((ans) => ({
+          position: ans.position,
+          text: ans.text,
+          note: allowNotes ? ans.note || "" : "",
+          isCorrect: Boolean(ans.is_correct),
+        }));
+      return {
+        id: row.id,
+        position: row.position,
+        text: row.text,
+        note: allowNotes ? row.note || "" : "",
+        type: row.type,
+        imagePath: row.image_path || "",
+        imageThumbnailPath: row.image_thumbnail_path || "",
+        imageLayoutEnabled: Boolean(row.image_layout_enabled),
+        imageLayoutMode: row.image_layout_mode || "side",
+        imageLeftWidth: row.image_left_width || "",
+        imageRightWidth: row.image_right_width || "",
+        imageScale: row.image_scale || "",
+        answers,
+      };
+    });
+    const qdict = mapping.questiondictionary[0];
+    const adict = mapping.randomizedanswersdictionary[0];
+    const displayedToOriginal = [];
+    qdict.forEach((displayed, original) => {
+      displayedToOriginal[displayed - 1] = original;
+    });
+    const displayedQuestions = displayedToOriginal.map((originalIndex, displayedIndex) => {
+      const q = questions[originalIndex];
+      const order = adict[originalIndex];
+      const orderSafe = Array.isArray(order) ? order : [];
+      const correctLetters = orderSafe
+        .map((originalAnswerIndex, idx) => {
+          const answer = q.answers[originalAnswerIndex - 1];
+          return answer?.isCorrect ? ANSWER_OPTIONS[idx] || String(idx + 1) : null;
+        })
+        .filter(Boolean);
+      const displayedAnswers = orderSafe.map((originalAnswerIndex, idx) => {
+        const answer = q.answers[originalAnswerIndex - 1];
+        const letter = ANSWER_OPTIONS[idx] || String(idx + 1);
+        return {
+          letter,
+          text: answer.text,
+          note: allowNotes ? answer.note || "" : "",
+          isCorrect: Boolean(answer.isCorrect),
+          selected: false,
+        };
+      });
+      return {
+        index: displayedIndex + 1,
+        text: q.text,
+        type: q.type,
+        note: q.note || "",
+        imagePath: q.imagePath,
+        imageThumbnailPath: q.imageThumbnailPath,
+        imageLayoutEnabled: q.imageLayoutEnabled,
+        imageLayoutMode: q.imageLayoutMode,
+        imageLeftWidth: q.imageLeftWidth,
+        imageRightWidth: q.imageRightWidth,
+        imageScale: q.imageScale,
+        answers: displayedAnswers,
+        selectedLetters: [],
+        correctLetters,
+        isCorrect: false,
+        isOverride: false,
+      };
+    });
+    return {
+      exam: {
+        id: exam.id,
+        title: exam.title,
+        date: exam.date || "",
+        courseName: exam.course_name,
+      },
+      questions: displayedQuestions,
+    };
+  };
+
   router.post("/api/public-results", publicResultsLimiter, (req, res) => {
     const examId = Number(req.body.examId);
     const matricola = String(req.body.matricola || "").trim();
     const password = String(req.body.password || "");
     try {
       const payload = getPublicResultsPayload({ examId, matricola, password });
+      res.json(payload);
+    } catch (err) {
+      res.status(err.status || 500).json({ error: err.message || "Errore accesso" });
+    }
+  });
+
+  router.get("/api/public-exam-preview/:id", publicResultsLimiter, (req, res) => {
+    const examId = Number(req.params.id);
+    try {
+      const payload = buildPublicExamPreview(examId);
       res.json(payload);
     } catch (err) {
       res.status(err.status || 500).json({ error: err.message || "Errore accesso" });

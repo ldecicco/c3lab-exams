@@ -61,6 +61,11 @@ const publicResultMeta = document.getElementById("publicResultMeta");
 const publicResultQuestions = document.getElementById("publicResultQuestions");
 const publicPrintResult = document.getElementById("publicPrintResult");
 const publicDownloadPdf = document.getElementById("publicDownloadPdf");
+const publicExamPreviewBackdrop = document.getElementById("publicExamPreviewBackdrop");
+const publicExamPreviewModal = document.getElementById("publicExamPreviewModal");
+const publicExamPreviewClose = document.getElementById("publicExamPreviewClose");
+const publicExamPreviewTitle = document.getElementById("publicExamPreviewTitle");
+const publicExamPreviewBody = document.getElementById("publicExamPreviewBody");
 const showPromptBtn = document.getElementById("showPromptBtn");
 const promptTestBackdrop = document.getElementById("promptTestBackdrop");
 const promptTestModal = document.getElementById("promptTestModal");
@@ -182,6 +187,13 @@ const examHistoryModalApi = bindModal
       modal: examHistoryModal,
       backdrop: examHistoryBackdrop,
       closers: [examHistoryCloseBtn],
+    })
+  : null;
+const publicExamPreviewModalApi = bindModal
+  ? bindModal({
+      modal: publicExamPreviewModal,
+      backdrop: publicExamPreviewBackdrop,
+      closers: [publicExamPreviewClose],
     })
   : null;
 
@@ -414,6 +426,152 @@ const updatePublicAccessHeader = (step) => {
   }
 };
 
+const canShowPublicSolvedPreview = (exam) => {
+  if (!exam) return false;
+  if (exam.is_draft || exam.isDraft) return false;
+  if (!(exam.has_results ?? exam.hasResults)) return false;
+  const enabled = Boolean(exam.public_access_enabled ?? exam.publicAccessEnabled);
+  if (!enabled) return false;
+  const expiresAt = exam.public_access_expires_at || exam.publicAccessExpiresAt;
+  if (!expiresAt) return true;
+  const expiry = new Date(expiresAt);
+  if (Number.isNaN(expiry.getTime())) return false;
+  return expiry > new Date();
+};
+
+const renderPublicQuestionImage = (question) => {
+  const src = question?.imageThumbnailPath || question?.imagePath;
+  if (!src) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "public-question-image";
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = "Figura domanda";
+  img.loading = "lazy";
+  wrap.appendChild(img);
+  return wrap;
+};
+
+const renderSolvedExamPreview = (payload) => {
+  if (!publicExamPreviewBody) return;
+  publicExamPreviewBody.innerHTML = "";
+  if (publicExamPreviewTitle) {
+    const dateText = payload.exam.date ? ` • ${payload.exam.date}` : "";
+    publicExamPreviewTitle.textContent = `${payload.exam.courseName} — ${payload.exam.title}${dateText}`;
+  }
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  questions.forEach((question) => {
+    const card = document.createElement("div");
+    card.className = "card shadow-sm public-question-card question-correct";
+    const body = document.createElement("div");
+    body.className = "card-body";
+    const title = document.createElement("div");
+    title.className = "public-question-header";
+    const badge = document.createElement("span");
+    badge.className = "selected-question-badge";
+    badge.textContent = `Es. ${question.index}`;
+    title.appendChild(badge);
+    const text = document.createElement("div");
+    text.className = "question-preview";
+    renderLatexHtml(question.text, text);
+    body.appendChild(title);
+    body.appendChild(text);
+    const imageBlock = renderPublicQuestionImage(question);
+    if (imageBlock) body.appendChild(imageBlock);
+    if (question.note) {
+      const note = document.createElement("div");
+      note.className = "public-question-note";
+      note.innerHTML = "<strong>Nota:</strong>";
+      const noteBody = document.createElement("div");
+      noteBody.className = "public-question-note-body";
+      renderLatexHtml(question.note, noteBody);
+      note.appendChild(noteBody);
+      body.appendChild(note);
+    }
+    const answers = document.createElement("div");
+    answers.className = "vstack gap-2 mt-3";
+    question.answers.forEach((ans) => {
+      const row = document.createElement("div");
+      row.className = "preview-answer-row";
+      const label = document.createElement("span");
+      label.className = "preview-answer-label";
+      label.textContent = ans.letter;
+      const answerText = document.createElement("div");
+      answerText.className = "preview-answer-text";
+      renderLatexHtml(ans.text, answerText);
+      row.appendChild(label);
+      row.appendChild(answerText);
+      if (ans.note) {
+        const note = document.createElement("div");
+        note.className = "preview-answer-note";
+        note.innerHTML = "<strong>Nota:</strong>";
+        const noteBody = document.createElement("div");
+        noteBody.className = "preview-answer-note-body";
+        renderLatexHtml(ans.note, noteBody);
+        note.appendChild(noteBody);
+        row.appendChild(note);
+      }
+      if (ans.isCorrect) {
+        row.classList.add("is-correct");
+        const tick = document.createElement("span");
+        tick.className = "answer-tick";
+        tick.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+        row.appendChild(tick);
+      }
+      answers.appendChild(row);
+    });
+    body.appendChild(answers);
+    card.appendChild(body);
+    publicExamPreviewBody.appendChild(card);
+  });
+};
+
+const openPublicExamPreview = async (exam) => {
+  if (!publicExamPreviewModal || !publicExamPreviewBackdrop) return;
+  if (!exam || !Number.isFinite(Number(exam.id))) return;
+  try {
+    const response = await fetch(`api/public-exam-preview/${exam.id}`);
+    if (!response.ok) {
+      const info = await response.json().catch(() => ({}));
+      if (publicAccessError) {
+        publicAccessError.textContent = info.error || "Accesso non consentito.";
+      } else {
+        showToast(info.error || "Accesso non consentito.", "error");
+      }
+      return;
+    }
+    const payload = await response.json();
+    renderSolvedExamPreview(payload);
+    if (publicExamPreviewModalApi) {
+      publicExamPreviewModalApi.open();
+    } else if (typeof window.openModal === "function") {
+      window.openModal(publicExamPreviewModal, publicExamPreviewBackdrop);
+    } else {
+      publicExamPreviewModal.classList.remove("is-hidden");
+      publicExamPreviewBackdrop.classList.remove("is-hidden");
+    }
+  } catch {
+    if (publicAccessError) {
+      publicAccessError.textContent = "Errore di rete.";
+    } else {
+      showToast("Errore di rete.", "error");
+    }
+  }
+};
+
+const closePublicExamPreview = () => {
+  if (!publicExamPreviewModal || !publicExamPreviewBackdrop) return;
+  if (publicExamPreviewModalApi) {
+    publicExamPreviewModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(publicExamPreviewModal, publicExamPreviewBackdrop);
+  } else {
+    publicExamPreviewModal.classList.add("is-hidden");
+    publicExamPreviewBackdrop.classList.add("is-hidden");
+  }
+};
+
 const renderPublicCourses = () => {
   if (!publicCourseGrid || !window.ExamCards) return;
   const courses = Array.from(
@@ -469,6 +627,15 @@ const renderPublicExams = (courseId) => {
     metaBuilder: () => "Apri accesso valutazione",
     bandBadgesBuilder: (exam) =>
       exam.date ? [{ label: formatDateLabel(exam.date) }] : [],
+    actions: (exam) => [
+      canShowPublicSolvedPreview(exam)
+        ? {
+            label: "Traccia risolta",
+            className: "btn btn-outline-primary btn-sm",
+            onClick: () => openPublicExamPreview(exam),
+          }
+        : null,
+    ],
     onCardClick: (exam) => {
       publicSelectedExam = exam;
       openPublicAccessModal(exam);
@@ -587,6 +754,7 @@ const renderPublicResults = (payload) => {
       const text = document.createElement("div");
       text.className = "question-preview";
       renderLatexHtml(question.text, text);
+      const imageBlock = renderPublicQuestionImage(question);
       let note = null;
       if (question.note) {
         note = document.createElement("div");
@@ -637,6 +805,7 @@ const renderPublicResults = (payload) => {
       });
       body.appendChild(title);
       body.appendChild(text);
+      if (imageBlock) body.appendChild(imageBlock);
       if (note) body.appendChild(note);
       const selectionMeta = document.createElement("div");
       selectionMeta.className = "public-question-meta";
@@ -1806,6 +1975,13 @@ const renderExamHistory = (exams) => {
           closeExamHistoryModal();
         },
       },
+      canShowPublicSolvedPreview(exam)
+        ? {
+            label: "Traccia risolta",
+            className: "btn btn-outline-secondary btn-sm",
+            onClick: () => openPublicExamPreview(exam),
+          }
+        : null,
     ],
   });
 };

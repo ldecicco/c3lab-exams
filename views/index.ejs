@@ -330,8 +330,22 @@
           <div class="text-danger mt-3" id="publicAccessError" style="min-height: 1.5rem; font-weight: 500;"></div>
         </div>
       </div>
+
       <% } %>
     </main>
+
+    <div class="modal-backdrop is-hidden" id="publicExamPreviewBackdrop"></div>
+    <div class="modal-panel modal-lg is-hidden" id="publicExamPreviewModal" role="dialog" aria-modal="true" aria-labelledby="publicExamPreviewTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="publicExamPreviewTitle">Traccia risolta</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="publicExamPreviewClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="publicExamPreviewBody" class="vstack gap-3"></div>
+      </div>
+    </div>
 
     <% if (user) { %>
     <div class="modal-backdrop is-hidden" id="examPreviewBackdrop"></div>

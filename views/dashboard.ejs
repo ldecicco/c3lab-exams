@@ -278,6 +278,19 @@
       </div>
     </div>
 
+    <div class="modal-backdrop is-hidden" id="analysisPreviewBackdrop"></div>
+    <div class="modal-panel modal-lg is-hidden" id="analysisPreviewModal" role="dialog" aria-modal="true" aria-labelledby="analysisPreviewTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="analysisPreviewTitle">Traccia risolta</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="analysisPreviewClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div id="analysisPreviewBody" class="vstack gap-3"></div>
+      </div>
+    </div>
+
     <div class="toast-notify" id="analysisToast" role="status" aria-live="polite"></div>
 
     <script

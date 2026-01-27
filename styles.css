@@ -992,6 +992,20 @@ h1 {
   margin-top: 6px;
 }
 
+.public-question-image {
+  display: flex;
+  justify-content: center;
+  margin-top: 12px;
+  margin-bottom: 8px;
+}
+
+.public-question-image img {
+  max-width: 100%;
+  height: auto;
+  border-radius: 10px;
+  background: #fff;
+}
+
 .preview-answer-note {
   grid-column: 2 / -1;
   margin-top: 6px;

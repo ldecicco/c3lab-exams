@@ -31,6 +31,11 @@ const analysisSelectExam = document.getElementById("analysisSelectExam");
 const analysisExamBackdrop = document.getElementById("analysisExamBackdrop");
 const analysisExamModal = document.getElementById("analysisExamModal");
 const analysisExamClose = document.getElementById("analysisExamClose");
+const analysisPreviewBackdrop = document.getElementById("analysisPreviewBackdrop");
+const analysisPreviewModal = document.getElementById("analysisPreviewModal");
+const analysisPreviewClose = document.getElementById("analysisPreviewClose");
+const analysisPreviewTitle = document.getElementById("analysisPreviewTitle");
+const analysisPreviewBody = document.getElementById("analysisPreviewBody");
 const analysisTopbarSelectExam = document.getElementById("analysisTopbarSelectExam");
 const analysisTopbarStatus = document.getElementById("analysisTopbarStatus");
 const courseEmptyState = document.getElementById("courseEmptyState");
@@ -70,6 +75,13 @@ const analysisCdfModalApi = bindModal
       closers: [analysisCdfClose],
     })
   : null;
+const analysisPreviewModalApi = bindModal
+  ? bindModal({
+      modal: analysisPreviewModal,
+      backdrop: analysisPreviewBackdrop,
+      closers: [analysisPreviewClose],
+    })
+  : null;
 
 const fetchActiveCourse = async () => {
   try {
@@ -103,6 +115,132 @@ const setActiveExam = async (examId) => {
     });
   } catch {
     // ignore
+  }
+};
+
+const canShowPublicSolvedPreview = (exam) => {
+  if (!exam) return false;
+  if (exam.is_draft || exam.isDraft) return false;
+  if (!(exam.has_results ?? exam.hasResults)) return false;
+  const enabled = Boolean(exam.public_access_enabled ?? exam.publicAccessEnabled);
+  if (!enabled) return false;
+  const expiresAt = exam.public_access_expires_at || exam.publicAccessExpiresAt;
+  if (!expiresAt) return true;
+  const expiry = new Date(expiresAt);
+  if (Number.isNaN(expiry.getTime())) return false;
+  return expiry > new Date();
+};
+
+const renderQuestionImage = (question) => {
+  const src = question?.imageThumbnailPath || question?.imagePath;
+  if (!src) return null;
+  const wrap = document.createElement("div");
+  wrap.className = "public-question-image";
+  const img = document.createElement("img");
+  img.src = src;
+  img.alt = "Figura domanda";
+  img.loading = "lazy";
+  wrap.appendChild(img);
+  return wrap;
+};
+
+const renderExamPreview = (payload) => {
+  if (!analysisPreviewBody) return;
+  analysisPreviewBody.innerHTML = "";
+  if (analysisPreviewTitle) {
+    const dateText = payload.exam.date ? ` • ${payload.exam.date}` : "";
+    analysisPreviewTitle.textContent = `${payload.exam.courseName} — ${payload.exam.title}${dateText}`;
+  }
+  const questions = Array.isArray(payload.questions) ? payload.questions : [];
+  questions.forEach((question) => {
+    const card = document.createElement("div");
+    card.className = "card shadow-sm public-question-card question-correct";
+    const body = document.createElement("div");
+    body.className = "card-body";
+    const title = document.createElement("div");
+    title.className = "public-question-header";
+    const badge = document.createElement("span");
+    badge.className = "selected-question-badge";
+    badge.textContent = `Es. ${question.index}`;
+    title.appendChild(badge);
+    const text = document.createElement("div");
+    text.className = "question-preview";
+    renderLatexHtml(question.text, text);
+    body.appendChild(title);
+    body.appendChild(text);
+    const imageBlock = renderQuestionImage(question);
+    if (imageBlock) body.appendChild(imageBlock);
+    if (question.note) {
+      const note = document.createElement("div");
+      note.className = "public-question-note";
+      note.innerHTML = "<strong>Nota:</strong>";
+      const noteBody = document.createElement("div");
+      noteBody.className = "public-question-note-body";
+      renderLatexHtml(question.note, noteBody);
+      note.appendChild(noteBody);
+      body.appendChild(note);
+    }
+    const answers = document.createElement("div");
+    answers.className = "vstack gap-2 mt-3";
+    question.answers.forEach((ans) => {
+      const row = document.createElement("div");
+      row.className = "preview-answer-row";
+      const label = document.createElement("span");
+      label.className = "preview-answer-label";
+      label.textContent = ans.letter;
+      const answerText = document.createElement("div");
+      answerText.className = "preview-answer-text";
+      renderLatexHtml(ans.text, answerText);
+      row.appendChild(label);
+      row.appendChild(answerText);
+      if (ans.note) {
+        const note = document.createElement("div");
+        note.className = "preview-answer-note";
+        note.innerHTML = "<strong>Nota:</strong>";
+        const noteBody = document.createElement("div");
+        noteBody.className = "preview-answer-note-body";
+        renderLatexHtml(ans.note, noteBody);
+        note.appendChild(noteBody);
+        row.appendChild(note);
+      }
+      if (ans.isCorrect) {
+        row.classList.add("is-correct");
+        const tick = document.createElement("span");
+        tick.className = "answer-tick";
+        tick.innerHTML =
+          '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.4-1.4z"/></svg>';
+        row.appendChild(tick);
+      }
+      answers.appendChild(row);
+    });
+    body.appendChild(answers);
+    card.appendChild(body);
+    analysisPreviewBody.appendChild(card);
+  });
+};
+
+const openExamPreview = async (exam) => {
+  if (!analysisPreviewModal || !analysisPreviewBackdrop) return;
+  if (!exam || !Number.isFinite(Number(exam.id))) return;
+  try {
+    const response = await fetch(`api/public-exam-preview/${exam.id}`);
+    if (!response.ok) {
+      const info = await response.json().catch(() => ({}));
+      showToast(info.error || "Accesso non consentito.", "error");
+      return;
+    }
+    const payload = await response.json();
+    renderExamPreview(payload);
+    if (analysisPreviewModalApi) {
+      analysisPreviewModalApi.open();
+    } else if (typeof window.openModal === "function") {
+      window.openModal(analysisPreviewModal, analysisPreviewBackdrop);
+    } else {
+      analysisPreviewModal.classList.remove("is-hidden");
+      analysisPreviewBackdrop.classList.remove("is-hidden");
+    }
+  } catch {
+    showToast("Errore di rete.", "error");
   }
 };
 
@@ -497,6 +635,13 @@ const renderExamList = (exams) => {
           closeExamModal();
         },
       },
+      canShowPublicSolvedPreview(exam)
+        ? {
+            label: "Traccia risolta",
+            className: "btn btn-outline-secondary btn-sm",
+            onClick: () => openExamPreview(exam),
+          }
+        : null,
     ],
   });
 };

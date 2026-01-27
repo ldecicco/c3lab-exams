@@ -131,7 +131,10 @@
           if (action.disabled) btn.disabled = true;
           if (action.title) btn.title = action.title;
           if (typeof action.onClick === "function") {
-            btn.addEventListener("click", action.onClick);
+            btn.addEventListener("click", (event) => {
+              event.stopPropagation();
+              action.onClick(event);
+            });
           }
           actionsWrap.appendChild(btn);
         });
