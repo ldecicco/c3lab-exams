@@ -628,6 +628,14 @@ const renderPublicExams = (courseId) => {
     bandBadgesBuilder: (exam) =>
       exam.date ? [{ label: formatDateLabel(exam.date) }] : [],
     actions: (exam) => [
+      {
+        label: "Accedi alla valutazione",
+        className: "btn btn-outline-primary btn-sm",
+        onClick: () => {
+          publicSelectedExam = exam;
+          openPublicAccessModal(exam);
+        },
+      },
       canShowPublicSolvedPreview(exam)
         ? {
             label: "Traccia risolta",
