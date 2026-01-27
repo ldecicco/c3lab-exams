@@ -120,12 +120,18 @@ const buildGradingRouter = (deps) => {
       err.status = 404;
       throw err;
     }
+    const answersParsed = JSON.parse(studentRow.answers_json || "[]");
+    if (!studentRow.versione || !Array.isArray(answersParsed) || answersParsed.length === 0) {
+      const err = new Error("Studente non valutato.");
+      err.status = 403;
+      throw err;
+    }
     const student = {
       matricola: studentRow.matricola,
       nome: studentRow.nome || "",
       cognome: studentRow.cognome || "",
       versione: studentRow.versione,
-      answers: JSON.parse(studentRow.answers_json || "[]"),
+      answers: answersParsed,
       overrides: JSON.parse(studentRow.overrides_json || "[]"),
     };
 

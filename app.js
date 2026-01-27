@@ -736,6 +736,12 @@ const initPublicAccess = () => {
       }
 
       const payload = await response.json();
+      if (!payload || !Array.isArray(payload.questions)) {
+        if (publicAccessError) {
+          publicAccessError.textContent = "Risultati non disponibili per lo studente.";
+        }
+        return;
+      }
 
       // Store credentials for prompt testing
       currentStudentCredentials = {
