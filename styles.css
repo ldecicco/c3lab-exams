@@ -1380,6 +1380,11 @@ input {
   display: block;
 }
 
+#publicExamPreviewBody .question-preview,
+#analysisPreviewBody .question-preview {
+  display: block;
+}
+
 #publicResultWrap .question-preview p {
   margin: 0 0 12px;
 }
