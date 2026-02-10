@@ -6,6 +6,10 @@ const createLatexService = ({ fs, path, spawn, baseDir }) => {
   const normalizeAssetPath = (assetPath) => {
     const raw = String(assetPath || "").trim().replace(/\\/g, "/");
     if (!raw) return "";
+    // Keep LaTeX macros untouched (e.g. \examlogo, \somepathmacro).
+    if (raw.startsWith("/") && String(assetPath || "").trim().startsWith("\\")) {
+      return String(assetPath || "").trim();
+    }
     if (path.isAbsolute(raw)) return raw;
     return raw.replace(/^(\.\.\/)+/, "").replace(/^\.\//, "");
   };
