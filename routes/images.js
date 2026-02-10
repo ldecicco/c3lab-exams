@@ -14,7 +14,9 @@ const buildImagesRouter = (deps) => {
     generateThumbnail,
     fs,
     path,
+    baseDir,
   } = deps;
+  const rootDir = baseDir || __dirname;
   const router = express.Router();
 
   router.get("/api/images", requireRole("admin", "creator"), (req, res) => {
@@ -37,13 +39,13 @@ const buildImagesRouter = (deps) => {
       if (!row.thumbnail_path) {
         const ext = path.extname(row.file_path || "").toLowerCase();
         if (canThumbnailExtension(ext)) {
-          const absPath = path.join(__dirname, row.file_path);
+          const absPath = path.join(rootDir, row.file_path);
           if (fs.existsSync(absPath)) {
             const baseName = path.parse(absPath).name;
             const destDir = path.dirname(absPath);
             const thumbAbs = generateThumbnail(absPath, destDir, baseName, ext);
             if (thumbAbs) {
-              const thumbRel = path.relative(__dirname, thumbAbs).replace(/\\/g, "/");
+              const thumbRel = path.relative(rootDir, thumbAbs).replace(/\\/g, "/");
               db.prepare(
                 "UPDATE images SET thumbnail_path = ?, updated_at = datetime('now') WHERE id = ?"
               ).run(thumbRel, row.id);
@@ -87,13 +89,13 @@ const buildImagesRouter = (deps) => {
     const filePath = path.join(destDir, fileName);
     const buffer = Buffer.from(stripDataUrl(dataBase64), "base64");
     fs.writeFileSync(filePath, buffer);
-    const relPath = path.relative(__dirname, filePath).replace(/\\/g, "/");
+    const relPath = path.relative(rootDir, filePath).replace(/\\/g, "/");
     const baseName = path.parse(fileName).name;
     const thumbnailAbs = canThumbnailExtension(ext)
       ? generateThumbnail(filePath, destDir, baseName, ext)
       : null;
     const thumbnailRel = thumbnailAbs
-      ? path.relative(__dirname, thumbnailAbs).replace(/\\/g, "/")
+      ? path.relative(rootDir, thumbnailAbs).replace(/\\/g, "/")
       : null;
     let sourceRelPath = null;
     if (sourceBase64) {
@@ -103,7 +105,7 @@ const buildImagesRouter = (deps) => {
       const sourcePath = path.join(destDir, sourceName);
       const sourceBuffer = Buffer.from(stripDataUrl(sourceBase64), "base64");
       fs.writeFileSync(sourcePath, sourceBuffer);
-      sourceRelPath = path.relative(__dirname, sourcePath).replace(/\\/g, "/");
+      sourceRelPath = path.relative(rootDir, sourcePath).replace(/\\/g, "/");
     }
     const info = db
       .prepare(
@@ -164,18 +166,18 @@ const buildImagesRouter = (deps) => {
       res.status(400).json({ error: "Immagine usata in una domanda" });
       return;
     }
-    const absPath = path.join(__dirname, image.file_path);
+    const absPath = path.join(rootDir, image.file_path);
     if (fs.existsSync(absPath)) {
       fs.unlinkSync(absPath);
     }
     if (image.thumbnail_path) {
-      const thumbAbs = path.join(__dirname, image.thumbnail_path);
+      const thumbAbs = path.join(rootDir, image.thumbnail_path);
       if (fs.existsSync(thumbAbs)) {
         fs.unlinkSync(thumbAbs);
       }
     }
     if (image.source_path) {
-      const sourceAbs = path.join(__dirname, image.source_path);
+      const sourceAbs = path.join(rootDir, image.source_path);
       if (fs.existsSync(sourceAbs)) {
         fs.unlinkSync(sourceAbs);
       }
@@ -199,7 +201,7 @@ const buildImagesRouter = (deps) => {
       res.status(404).json({ error: "Immagine non trovata" });
       return;
     }
-    const absPath = path.join(__dirname, image.file_path);
+    const absPath = path.join(rootDir, image.file_path);
     if (!fs.existsSync(absPath)) {
       res.status(404).json({ error: "File immagine non trovato" });
       return;
@@ -216,7 +218,7 @@ const buildImagesRouter = (deps) => {
       res.status(500).json({ error: "Impossibile generare la thumbnail" });
       return;
     }
-    const thumbRel = path.relative(__dirname, thumbAbs).replace(/\\/g, "/");
+    const thumbRel = path.relative(rootDir, thumbAbs).replace(/\\/g, "/");
     db.prepare(
       "UPDATE images SET thumbnail_path = ?, updated_at = datetime('now') WHERE id = ?"
     ).run(thumbRel, id);

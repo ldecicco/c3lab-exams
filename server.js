@@ -747,7 +747,7 @@ const insertQuestion = (question, courseId) => {
   return questionId;
 };
 
-const { collectLatexAssets, copyLatexAssets, runPdflatex } = createLatexService({
+const { normalizeLatexAssetReferences, collectLatexAssets, copyLatexAssets, runPdflatex } = createLatexService({
   fs,
   path,
   spawn,
@@ -792,6 +792,7 @@ router.use(
     insertQuestion,
     convertRtoMapping,
     runPdflatex,
+    normalizeLatexAssetReferences,
     copyLatexAssets,
     collectLatexAssets,
     fs,
@@ -834,6 +835,7 @@ router.use(
     generateThumbnail,
     fs,
     path,
+    baseDir: __dirname,
   })
 );
 

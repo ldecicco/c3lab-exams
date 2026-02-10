@@ -14,6 +14,7 @@ const buildExamsRouter = (deps) => {
     insertQuestion,
     convertRtoMapping,
     runPdflatex,
+    normalizeLatexAssetReferences,
     copyLatexAssets,
     collectLatexAssets,
     fs,
@@ -988,7 +989,8 @@ router.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, 
   }
 
   const payload = req.body || {};
-  const latex = typeof payload.latex === "string" ? payload.latex : "";
+  const latexRaw = typeof payload.latex === "string" ? payload.latex : "";
+  const latex = normalizeLatexAssetReferences(latexRaw);
   const versions = Number(payload.versions || exam.versions || 1);
   if (!latex.trim()) {
     res.status(400).json({ error: "LaTeX mancante per generare il mapping" });
@@ -1007,7 +1009,7 @@ router.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, 
 
   const jobName = "exam-map";
   const texArg = `\\def\\myversion{1}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
-  const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+  const first = await runPdflatex(tmpDir, jobName, texArg);
   if (!first.ok) {
     res.status(400).json({
       error: "Errore compilazione LaTeX",
@@ -1015,7 +1017,7 @@ router.post("/api/exams/:id/lock", requireRole("admin", "creator"), async (req, 
     });
     return;
   }
-  const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+  const second = await runPdflatex(tmpDir, jobName, texArg);
   if (!second.ok) {
     res.status(400).json({
       error: "Errore compilazione LaTeX",
@@ -1544,7 +1546,8 @@ router.post("/api/results-xls", requireRole("admin", "creator", "evaluator"), (r
 router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res) => {
   try {
     const payload = req.body || {};
-    const latex = typeof payload.latex === "string" ? payload.latex : "";
+    const latexRaw = typeof payload.latex === "string" ? payload.latex : "";
+    const latex = normalizeLatexAssetReferences(latexRaw);
     if (!latex.trim()) {
       res.status(400).json({ error: "LaTeX mancante" });
       return;
@@ -1554,7 +1557,6 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
     const texPath = path.join(tmpDir, "exam.tex");
     fs.writeFileSync(texPath, latex, "utf8");
     copyLatexAssets(collectLatexAssets(latex), tmpDir);
-    const texInput = texPath.replace(/\\/g, "/");
 
     const args = [
       "-interaction=nonstopmode",
@@ -1563,7 +1565,7 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
       tmpDir,
       texPath,
     ];
-    const pdflatex = spawn("pdflatex", args, { cwd: __dirname });
+    const pdflatex = spawn("pdflatex", args, { cwd: tmpDir });
     let stdout = "";
     let stderr = "";
     pdflatex.stdout.on("data", (chunk) => {
@@ -1600,7 +1602,8 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
 
 router.post("/api/generate-traces", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
-  const latex = typeof payload.latex === "string" ? payload.latex : "";
+  const latexRaw = typeof payload.latex === "string" ? payload.latex : "";
+  const latex = normalizeLatexAssetReferences(latexRaw);
   const versions = Number(payload.versions);
   if (!latex.trim()) {
     res.status(400).json({ error: "LaTeX mancante" });
@@ -1646,11 +1649,11 @@ router.post("/api/generate-traces", requireRole("admin", "creator"), (req, res) 
         });
         const jobName = `exam-${i}`;
         const texArg = `\\def\\myversion{${i}}\\def\\mynumversions{${versions}}\\def\\myoutput{exam}\\input{${texInput}}`;
-        const first = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+        const first = await runPdflatex(tmpDir, jobName, texArg);
         if (!first.ok) {
           throw new Error(first.log || first.stderr || first.stdout || "Errore compilazione LaTeX");
         }
-        const second = await runPdflatex(tmpDir, jobName, texArg, __dirname);
+        const second = await runPdflatex(tmpDir, jobName, texArg);
         if (!second.ok) {
           throw new Error(first.log || first.stderr || first.stdout || "Errore compilazione LaTeX");
         }
@@ -1671,13 +1674,13 @@ router.post("/api/generate-traces", requireRole("admin", "creator"), (req, res) 
       emitTraceJob(jobId, "job:progress", { step: "answers", message: "Compilazione soluzioni..." });
       const answersJob = "exam-answers";
       const answersArg = `\\def\\mynumversions{${versions}}\\def\\myoutput{answers}\\input{${texInput}}`;
-      const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
+      const answersFirst = await runPdflatex(tmpDir, answersJob, answersArg);
       if (!answersFirst.ok) {
         throw new Error(
           answersFirst.log || answersFirst.stderr || answersFirst.stdout || "Errore LaTeX (answers)"
         );
       }
-      const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg, __dirname);
+      const answersSecond = await runPdflatex(tmpDir, answersJob, answersArg);
       if (!answersSecond.ok) {
         throw new Error(
           answersSecond.log || answersSecond.stderr || answersSecond.stdout || "Errore LaTeX (answers)"
