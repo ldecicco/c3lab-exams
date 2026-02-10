@@ -1600,6 +1600,7 @@ const buildHeader = (meta) => {
   headerLines.push(`\\newcommand{\\examlogo}{${meta.logo}}`);
   headerLines.push("");
   headerLines.push("\\usepackage{etoolbox}");
+  headerLines.push("\\usepackage{amsmath}");
   headerLines.push("\\usepackage{circledtext}");
   headerLines.push(`\\ifdef{\\myoutput}{}{\\def\\myoutput{${meta.output}}}`);
   headerLines.push("\\ifdef{\\myversion}{}{\\def\\myversion{1}}");
