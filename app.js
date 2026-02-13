@@ -145,6 +145,8 @@ let activeAnswerIndex = 0;
 let currentStudentCredentials = null;
 let hoverPreviewQuestion = null;
 let examPreviewOpenedByHover = false;
+let hoverPreviewOpenTimer = null;
+let hoverPreviewCloseTimer = null;
 
 const showToast =
   typeof window.showToast === "function" ? window.showToast : () => {};
@@ -1314,6 +1316,13 @@ const openExamPreview = (index, version, options = {}) => {
   }
   examPreviewOpenedByHover = Boolean(byHover);
   renderExamPreview(question, index, mappedIndex, version);
+  if (byHover) {
+    examPreviewModal.classList.add("is-hover-preview");
+    examPreviewBackdrop.classList.add("is-hidden");
+    examPreviewModal.classList.remove("is-hidden");
+    return;
+  }
+  examPreviewModal.classList.remove("is-hover-preview");
   if (examPreviewModalApi) {
     examPreviewModalApi.open();
   } else if (typeof window.openModal === "function") {
@@ -1325,6 +1334,24 @@ const openExamPreview = (index, version, options = {}) => {
 };
 
 const closeExamPreview = () => {
+  if (hoverPreviewOpenTimer) {
+    clearTimeout(hoverPreviewOpenTimer);
+    hoverPreviewOpenTimer = null;
+  }
+  if (hoverPreviewCloseTimer) {
+    clearTimeout(hoverPreviewCloseTimer);
+    hoverPreviewCloseTimer = null;
+  }
+  if (examPreviewOpenedByHover) {
+    if (examPreviewModal) {
+      examPreviewModal.classList.add("is-hidden");
+      examPreviewModal.classList.remove("is-hover-preview");
+    }
+    if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
+    if (examPreviewBody) examPreviewBody.innerHTML = "";
+    examPreviewOpenedByHover = false;
+    return;
+  }
   if (examPreviewModalApi) {
     examPreviewModalApi.close();
   } else if (typeof window.closeModal === "function") {
@@ -1334,6 +1361,7 @@ const closeExamPreview = () => {
     if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
   }
   if (examPreviewBody) examPreviewBody.innerHTML = "";
+  if (examPreviewModal) examPreviewModal.classList.remove("is-hover-preview");
   examPreviewOpenedByHover = false;
 };
 
@@ -1378,16 +1406,29 @@ const renderAnswerGrid = () => {
     label.className = "answer-label is-clickable";
     label.textContent = `Es. ${i}`;
     label.addEventListener("mouseenter", () => {
+      if (hoverPreviewCloseTimer) {
+        clearTimeout(hoverPreviewCloseTimer);
+        hoverPreviewCloseTimer = null;
+      }
       const version = Number(versioneInput?.value || "");
       if (!Number.isFinite(version) || version < 1) return;
       hoverPreviewQuestion = i;
-      openExamPreview(i, version, { silent: true, byHover: true });
+      if (hoverPreviewOpenTimer) clearTimeout(hoverPreviewOpenTimer);
+      hoverPreviewOpenTimer = setTimeout(() => {
+        if (hoverPreviewQuestion !== i) return;
+        openExamPreview(i, version, { silent: true, byHover: true });
+      }, 180);
     });
     label.addEventListener("mouseleave", () => {
-      if (hoverPreviewQuestion === i && examPreviewOpenedByHover) {
-        closeExamPreview();
+      if (hoverPreviewOpenTimer) {
+        clearTimeout(hoverPreviewOpenTimer);
+        hoverPreviewOpenTimer = null;
       }
       hoverPreviewQuestion = null;
+      if (hoverPreviewCloseTimer) clearTimeout(hoverPreviewCloseTimer);
+      hoverPreviewCloseTimer = setTimeout(() => {
+        if (examPreviewOpenedByHover) closeExamPreview();
+      }, 120);
     });
     label.addEventListener("click", () => {
       const version = Number(versioneInput?.value || "");

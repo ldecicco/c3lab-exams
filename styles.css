@@ -3220,6 +3220,13 @@ input {
   display: none;
 }
 
+#examPreviewModal.is-hover-preview {
+  z-index: 75;
+  top: 10vh;
+  width: min(860px, 88vw);
+  pointer-events: none;
+}
+
 #builderImagePickerBackdrop,
 #imagePickerBackdrop,
 #builderImagePreviewBackdrop,
