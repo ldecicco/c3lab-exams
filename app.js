@@ -2256,7 +2256,31 @@ const buildInverseQuestionMap = (qdict) => {
   return inverse;
 };
 
+const isMultipleQuestionType = (questionType) => {
+  const normalized = String(questionType || "").trim().toLowerCase();
+  if (!normalized) return null;
+  if (
+    normalized === "multipla" ||
+    normalized === "multiple" ||
+    normalized === "multi" ||
+    normalized.startsWith("mul")
+  ) {
+    return true;
+  }
+  if (
+    normalized === "singola" ||
+    normalized === "single" ||
+    normalized.startsWith("sin")
+  ) {
+    return false;
+  }
+  return null;
+};
+
 const isQuestionMultipleByOriginalIndex = (originalIndex) => {
+  const questionType = examQuestions?.[originalIndex]?.type;
+  const fromType = isMultipleQuestionType(questionType);
+  if (fromType !== null) return fromType;
   if (!mapping || !Array.isArray(mapping.correctiondictionary)) return false;
   const row = mapping.correctiondictionary[originalIndex];
   if (!Array.isArray(row)) return false;
