@@ -1404,7 +1404,15 @@ const renderAnswerGrid = () => {
 
     const label = document.createElement("div");
     label.className = "answer-label is-clickable";
-    label.textContent = `Es. ${i}`;
+    const labelText = document.createElement("span");
+    labelText.className = "answer-label-text";
+    labelText.textContent = `Es. ${i}`;
+    const kindBadge = document.createElement("span");
+    kindBadge.className = "question-kind-badge is-single";
+    kindBadge.dataset.question = String(i);
+    kindBadge.textContent = "S";
+    label.appendChild(labelText);
+    label.appendChild(kindBadge);
     label.addEventListener("mouseenter", () => {
       if (hoverPreviewCloseTimer) {
         clearTimeout(hoverPreviewCloseTimer);
@@ -1448,7 +1456,7 @@ const renderAnswerGrid = () => {
       btn.type = "button";
       btn.className = "toggle";
       btn.dataset.question = String(i);
-    btn.dataset.answer = letter;
+      btn.dataset.answer = letter;
       btn.textContent = letter;
       btn.addEventListener("click", () => {
         btn.classList.toggle("active");
@@ -1468,19 +1476,22 @@ const renderAnswerGrid = () => {
 
     const overrideWrap = document.createElement("div");
     overrideWrap.className = "override";
-    const overrideLabel = document.createElement("span");
-    overrideLabel.textContent = "Override";
+    const overrideLabel = document.createElement("label");
+    overrideLabel.className = "override-checkbox-label";
     const overrideInput = document.createElement("input");
-    overrideInput.type = "number";
-    overrideInput.step = "0.5";
-    overrideInput.placeholder = "-";
+    overrideInput.type = "checkbox";
+    overrideInput.className = "override-checkbox";
     overrideInput.dataset.question = String(i);
-    overrideInput.addEventListener("input", () => {
+    overrideInput.setAttribute("aria-label", `Override 50% domanda ${i}`);
+    overrideInput.addEventListener("change", () => {
       updatePerQuestionScores();
       updateLiveGradeBadge();
     });
+    const overrideText = document.createElement("span");
+    overrideText.textContent = "50%";
+    overrideLabel.appendChild(overrideInput);
+    overrideLabel.appendChild(overrideText);
     overrideWrap.appendChild(overrideLabel);
-    overrideWrap.appendChild(overrideInput);
 
     row.appendChild(label);
     row.appendChild(options);
@@ -1488,6 +1499,7 @@ const renderAnswerGrid = () => {
     row.appendChild(overrideWrap);
     answersGrid.appendChild(row);
   }
+  refreshAnswerGridQuestionMeta();
   applyCorrectHints();
   updatePerQuestionScores();
   updateAnswerRowFocus();
@@ -1527,8 +1539,8 @@ const clearSelections = () => {
   answersGrid.querySelectorAll(".toggle.active").forEach((btn) => {
     btn.classList.remove("active");
   });
-  answersGrid.querySelectorAll(".override input").forEach((input) => {
-    input.value = "";
+  answersGrid.querySelectorAll('.override input[type="checkbox"]').forEach((input) => {
+    input.checked = false;
   });
   updateLiveGradeBadge();
 };
@@ -1536,9 +1548,11 @@ const clearSelections = () => {
 const collectOverrides = () => {
   const overrides = [];
   for (let i = 1; i <= questionCount; i += 1) {
-    const input = answersGrid.querySelector(`.override input[data-question="${i}"]`);
-    const value = input ? input.value.trim() : "";
-    overrides.push(value === "" ? null : Number(value));
+    const input = answersGrid.querySelector(
+      `.override input[type="checkbox"][data-question="${i}"]`
+    );
+    const shouldOverride = Boolean(input && !input.disabled && input.checked);
+    overrides.push(shouldOverride ? 0.5 : null);
   }
   return overrides;
 };
@@ -1618,10 +1632,10 @@ const loadStudentForEdit = (idx) => {
   );
   overrides.forEach((val, i) => {
     const input = answersGrid.querySelector(
-      `.override input[data-question="${i + 1}"]`
+      `.override input[type="checkbox"][data-question="${i + 1}"]`
     );
-    if (input && val !== null && val !== undefined) {
-      input.value = String(val);
+    if (input && !input.disabled && Number.isFinite(Number(val))) {
+      input.checked = true;
     }
   });
   applyCorrectHints();
@@ -2242,6 +2256,65 @@ const buildInverseQuestionMap = (qdict) => {
   return inverse;
 };
 
+const isQuestionMultipleByOriginalIndex = (originalIndex) => {
+  if (!mapping || !Array.isArray(mapping.correctiondictionary)) return false;
+  const row = mapping.correctiondictionary[originalIndex];
+  if (!Array.isArray(row)) return false;
+  return row.filter((val) => Number(val) > 0).length > 1;
+};
+
+const getDisplayedQuestionMeta = (displayedIndex, version) => {
+  if (!mapping || mapping.Nquestions < 1) return null;
+  let originalIndex = displayedIndex - 1;
+  if (Number.isFinite(version) && version >= 1 && version <= mapping.Nversions) {
+    const qdict = mapping.questiondictionary?.[version - 1];
+    if (Array.isArray(qdict)) {
+      const inverse = buildInverseQuestionMap(qdict);
+      const mapped = inverse[displayedIndex - 1];
+      if (mapped !== undefined) originalIndex = mapped;
+    }
+  }
+  const isMultiple = isQuestionMultipleByOriginalIndex(originalIndex);
+  return {
+    originalIndex,
+    isMultiple,
+    kindLabel: isMultiple ? "M" : "S",
+  };
+};
+
+const refreshAnswerGridQuestionMeta = () => {
+  if (!answersGrid || questionCount < 1) return;
+  const version = Number(versioneInput?.value || "");
+  answersGrid.querySelectorAll(".answer-row").forEach((row) => {
+    const displayedIndex = Number(row.dataset.question || "");
+    if (!Number.isFinite(displayedIndex) || displayedIndex < 1) return;
+    const meta = getDisplayedQuestionMeta(displayedIndex, version);
+    const badge = row.querySelector(".question-kind-badge");
+    if (badge) {
+      badge.textContent = meta?.kindLabel || "S";
+      badge.classList.toggle("is-multiple", Boolean(meta?.isMultiple));
+      badge.classList.toggle("is-single", !meta?.isMultiple);
+      badge.title = meta?.isMultiple
+        ? "Domanda a risposta multipla"
+        : "Domanda a risposta singola";
+    }
+    const overrideWrap = row.querySelector(".override");
+    const overrideInput = row.querySelector('.override input[type="checkbox"]');
+    const allowOverride = Boolean(meta?.isMultiple);
+    if (overrideInput) {
+      overrideInput.disabled = !allowOverride;
+      if (!allowOverride) overrideInput.checked = false;
+    }
+    if (overrideWrap) {
+      overrideWrap.classList.toggle("is-hidden", !allowOverride);
+      overrideWrap.classList.toggle("is-disabled", !allowOverride);
+      overrideWrap.title = allowOverride
+        ? "Assegna override 50% a questa domanda"
+        : "Override disponibile solo per domande multiple";
+    }
+  });
+};
+
 const mapOverridesToOriginal = (overridesDisplayed, version) => {
   if (!mapping) return overridesDisplayed;
   if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
@@ -2302,10 +2375,9 @@ const updatePerQuestionScores = () => {
     );
     if (!scoreEl) continue;
     const overrideInput = answersGrid.querySelector(
-      `.override input[data-question="${displayed + 1}"]`
+      `.override input[type="checkbox"][data-question="${displayed + 1}"]`
     );
-    const overrideVal = overrideInput ? overrideInput.value.trim() : "";
-    if (overrideVal !== "" && Number.isFinite(Number(overrideVal))) {
+    if (overrideInput && !overrideInput.disabled && overrideInput.checked) {
       scoreEl.textContent = "✓";
       scoreEl.classList.add("score-correct");
       scoreEl.classList.remove("score-wrong");
@@ -2466,6 +2538,12 @@ const applyCorrectHints = () => {
   }
 };
 
+const sanitizeOverride = (value) => {
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return null;
+  return Math.max(0, Math.min(1, parsed));
+};
+
 const gradeStudent = (student) => {
   if (!mapping) return null;
   const version = Number(student.versione);
@@ -2477,8 +2555,8 @@ const gradeStudent = (student) => {
   const cdict = mapping.correctiondictionary;
   let total = 0;
   for (let q = 0; q < mapping.Nquestions; q += 1) {
-    const override = student.overrides ? student.overrides[q] : null;
-    if (typeof override === "number" && Number.isFinite(override)) {
+    const override = sanitizeOverride(student.overrides ? student.overrides[q] : null);
+    if (override !== null && isQuestionMultipleByOriginalIndex(q)) {
       total += override;
       continue;
     }
@@ -2729,6 +2807,7 @@ if (!appUser) {
   }
   if (versioneInput) {
     versioneInput.addEventListener("input", () => {
+      refreshAnswerGridQuestionMeta();
       applyCorrectHints();
       updatePerQuestionScores();
       updateLiveGradeBadge();

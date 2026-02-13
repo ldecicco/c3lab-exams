@@ -1361,6 +1361,9 @@ input {
 }
 
 .answer-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-weight: 700;
   color: var(--brand-primary);
 }
@@ -1369,6 +1372,32 @@ input {
   cursor: pointer;
   text-decoration: underline;
   text-underline-offset: 4px;
+}
+
+.question-kind-badge {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 0.72rem;
+  font-weight: 800;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  color: var(--muted);
+}
+
+.question-kind-badge.is-single {
+  border-color: rgba(47, 95, 167, 0.28);
+  background: rgba(47, 95, 167, 0.12);
+  color: #2f5fa7;
+}
+
+.question-kind-badge.is-multiple {
+  border-color: rgba(214, 58, 44, 0.3);
+  background: rgba(214, 58, 44, 0.12);
+  color: #b83428;
 }
 
 .question-preview {
@@ -1494,9 +1523,26 @@ input {
   font-size: 0.75rem;
 }
 
-.override input {
-  max-width: 90px;
-  padding: 6px 8px;
+.override.is-disabled {
+  opacity: 0.55;
+}
+
+.override-checkbox-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  user-select: none;
+}
+
+.override-checkbox {
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.override-checkbox:disabled {
+  cursor: not-allowed;
 }
 
 .toggle {
