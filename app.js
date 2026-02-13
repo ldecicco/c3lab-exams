@@ -24,6 +24,7 @@ const cognomeInput = document.getElementById("cognome");
 const versioneInput = document.getElementById("versione");
 const resetFormBtn = document.getElementById("resetForm");
 const submitBtn = studentForm ? studentForm.querySelector('button[type="submit"]') : null;
+const liveGradeBadge = document.getElementById("liveGradeBadge");
 
 const studentsTable = document.getElementById("studentsTable");
 const exportBtn = document.getElementById("exportCsv");
@@ -142,6 +143,8 @@ let sessionSaveTimer = null;
 let activeQuestionIndex = 1;
 let activeAnswerIndex = 0;
 let currentStudentCredentials = null;
+let hoverPreviewQuestion = null;
+let examPreviewOpenedByHover = false;
 
 const showToast =
   typeof window.showToast === "function" ? window.showToast : () => {};
@@ -1290,20 +1293,26 @@ const getQuestionIndexForVersion = (displayedIndex, version) => {
   return mapped;
 };
 
-const openExamPreview = (index, version) => {
+const openExamPreview = (index, version, options = {}) => {
+  const { silent = false, byHover = false } = options;
   if (!examPreviewModal || !examPreviewBackdrop) return;
   if (!examQuestions.length) {
-    mappingStatus.textContent = "Nessuna domanda disponibile per l'anteprima.";
-    showToast("Nessuna domanda disponibile per l'anteprima.", "error");
+    if (!silent) {
+      mappingStatus.textContent = "Nessuna domanda disponibile per l'anteprima.";
+      showToast("Nessuna domanda disponibile per l'anteprima.", "error");
+    }
     return;
   }
   const mappedIndex = getQuestionIndexForVersion(index, version);
   const question = examQuestions[mappedIndex];
   if (!question) {
-    mappingStatus.textContent = "Domanda non trovata.";
-    showToast("Domanda non trovata.", "error");
+    if (!silent) {
+      mappingStatus.textContent = "Domanda non trovata.";
+      showToast("Domanda non trovata.", "error");
+    }
     return;
   }
+  examPreviewOpenedByHover = Boolean(byHover);
   renderExamPreview(question, index, mappedIndex, version);
   if (examPreviewModalApi) {
     examPreviewModalApi.open();
@@ -1325,6 +1334,32 @@ const closeExamPreview = () => {
     if (examPreviewBackdrop) examPreviewBackdrop.classList.add("is-hidden");
   }
   if (examPreviewBody) examPreviewBody.innerHTML = "";
+  examPreviewOpenedByHover = false;
+};
+
+const updateLiveGradeBadge = () => {
+  if (!liveGradeBadge) return;
+  if (!mapping || questionCount < 1) {
+    liveGradeBadge.textContent = "Voto live: -/30";
+    return;
+  }
+  const version = Number(versioneInput?.value || "");
+  if (!Number.isFinite(version) || version < 1 || version > mapping.Nversions) {
+    liveGradeBadge.textContent = "Voto live: -/30";
+    return;
+  }
+  const draftStudent = {
+    versione: String(version),
+    answers: collectAnswers(),
+    overrides: mapOverridesToOriginal(collectOverrides(), version),
+  };
+  const score = gradeStudent(draftStudent);
+  const maxPoints = getMaxPoints();
+  if (!Number.isFinite(score) || !Number.isFinite(maxPoints) || maxPoints <= 0) {
+    liveGradeBadge.textContent = "Voto live: -/30";
+    return;
+  }
+  liveGradeBadge.textContent = `Voto live: ${toThirty(score, maxPoints).toFixed(2)}/30`;
 };
 
 const renderAnswerGrid = () => {
@@ -1342,6 +1377,18 @@ const renderAnswerGrid = () => {
     const label = document.createElement("div");
     label.className = "answer-label is-clickable";
     label.textContent = `Es. ${i}`;
+    label.addEventListener("mouseenter", () => {
+      const version = Number(versioneInput?.value || "");
+      if (!Number.isFinite(version) || version < 1) return;
+      hoverPreviewQuestion = i;
+      openExamPreview(i, version, { silent: true, byHover: true });
+    });
+    label.addEventListener("mouseleave", () => {
+      if (hoverPreviewQuestion === i && examPreviewOpenedByHover) {
+        closeExamPreview();
+      }
+      hoverPreviewQuestion = null;
+    });
     label.addEventListener("click", () => {
       const version = Number(versioneInput?.value || "");
       if (!Number.isFinite(version) || version < 1) {
@@ -1349,7 +1396,7 @@ const renderAnswerGrid = () => {
         showToast("Inserisci la versione del compito per l'anteprima.", "error");
         return;
       }
-      openExamPreview(i, version);
+      openExamPreview(i, version, { byHover: false });
     });
 
     const options = document.createElement("div");
@@ -1368,6 +1415,7 @@ const renderAnswerGrid = () => {
         activeAnswerIndex = ANSWER_OPTIONS.indexOf(letter);
         updateAnswerRowFocus();
         updatePerQuestionScores();
+        updateLiveGradeBadge();
       });
       options.appendChild(btn);
     });
@@ -1386,7 +1434,10 @@ const renderAnswerGrid = () => {
     overrideInput.step = "0.5";
     overrideInput.placeholder = "-";
     overrideInput.dataset.question = String(i);
-    overrideInput.addEventListener("input", updatePerQuestionScores);
+    overrideInput.addEventListener("input", () => {
+      updatePerQuestionScores();
+      updateLiveGradeBadge();
+    });
     overrideWrap.appendChild(overrideLabel);
     overrideWrap.appendChild(overrideInput);
 
@@ -1399,6 +1450,7 @@ const renderAnswerGrid = () => {
   applyCorrectHints();
   updatePerQuestionScores();
   updateAnswerRowFocus();
+  updateLiveGradeBadge();
 };
 
 const loadStudents = () => {
@@ -1437,6 +1489,7 @@ const clearSelections = () => {
   answersGrid.querySelectorAll(".override input").forEach((input) => {
     input.value = "";
   });
+  updateLiveGradeBadge();
 };
 
 const collectOverrides = () => {
@@ -1532,6 +1585,7 @@ const loadStudentForEdit = (idx) => {
   });
   applyCorrectHints();
   updatePerQuestionScores();
+  updateLiveGradeBadge();
   studentForm.scrollIntoView({ behavior: "smooth", block: "start" });
 };
 
@@ -2636,6 +2690,7 @@ if (!appUser) {
     versioneInput.addEventListener("input", () => {
       applyCorrectHints();
       updatePerQuestionScores();
+      updateLiveGradeBadge();
     });
   }
   if (targetTopGradeInput) targetTopGradeInput.addEventListener("input", renderGrading);

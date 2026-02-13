@@ -1660,10 +1660,13 @@ const buildHeader = (meta) => {
 };
 
 const buildQuestionBlock = (question, index) => {
+  const escapeLatexPercent = (value) =>
+    String(value || "").replace(/(^|[^\\])%/g, "$1\\\\%");
+  const questionText = escapeLatexPercent(question.text);
   const lines = [];
   const typeCmd = question.type === "multipla" ? "\\multipla" : "\\singola";
   lines.push(`% Es. ${index + 1}`);
-  lines.push(`\\question ${typeCmd} ${question.text}`.trim());
+  lines.push(`\\question ${typeCmd} ${questionText}`.trim());
   const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
   if (question.image && question.imageLayoutEnabled) {
     const imageScale = question.imageScale || "0.96\\linewidth";
@@ -1677,8 +1680,9 @@ const buildQuestionBlock = (question, index) => {
         lines.push("% TODO: aggiungi risposte");
       } else {
         answers.forEach((answer) => {
+          const answerText = escapeLatexPercent(answer.text);
           const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-          lines.push(`${prefix} ${answer.text}`.trim());
+          lines.push(`${prefix} ${answerText}`.trim());
         });
       }
       lines.push("\\end{mcanswerslist}");
@@ -1697,10 +1701,11 @@ const buildQuestionBlock = (question, index) => {
         lines.push("            % TODO: aggiungi risposte");
       } else {
         answers.forEach((answer, idx) => {
+          const answerText = escapeLatexPercent(answer.text);
           const number = idx + 1;
           const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
           lines.push(
-            `            \\item\\answernum{${number}} ${prefix}{${number}}{${answer.text}}`.trim()
+            `            \\item\\answernum{${number}} ${prefix}{${number}}{${answerText}}`.trim()
           );
         });
       }
@@ -1714,8 +1719,9 @@ const buildQuestionBlock = (question, index) => {
       lines.push("% TODO: aggiungi risposte");
     } else {
       answers.forEach((answer) => {
+        const answerText = escapeLatexPercent(answer.text);
         const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-        lines.push(`${prefix} ${answer.text}`.trim());
+        lines.push(`${prefix} ${answerText}`.trim());
       });
     }
     lines.push("\\end{mcanswerslist}");
