@@ -1634,7 +1634,7 @@ const loadStudentForEdit = (idx) => {
     const input = answersGrid.querySelector(
       `.override input[type="checkbox"][data-question="${i + 1}"]`
     );
-    if (input && !input.disabled && Number.isFinite(Number(val))) {
+    if (input && !input.disabled && isFiniteOverrideValue(val)) {
       input.checked = true;
     }
   });
@@ -2218,13 +2218,20 @@ const importEsse3 = async () => {
 
 const normalizeSet = (arr) => Array.from(new Set(arr)).sort().join(",");
 
+const isFiniteOverrideValue = (value) => {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string" && value.trim() === "") return false;
+  const parsed = Number(value);
+  return Number.isFinite(parsed);
+};
+
 const isStudentEvaluated = (student) => {
   const version = Number(student?.versione);
   if (!Number.isFinite(version) || version < 1) return false;
   const answers = Array.isArray(student?.answers) ? student.answers : [];
   const overrides = Array.isArray(student?.overrides) ? student.overrides : [];
   const hasAnswer = answers.some((ans) => String(ans || "").trim() !== "");
-  const hasOverride = overrides.some((val) => Number.isFinite(Number(val)));
+  const hasOverride = overrides.some((val) => isFiniteOverrideValue(val));
   return hasAnswer || hasOverride;
 };
 
@@ -2563,8 +2570,8 @@ const applyCorrectHints = () => {
 };
 
 const sanitizeOverride = (value) => {
+  if (!isFiniteOverrideValue(value)) return null;
   const parsed = Number(value);
-  if (!Number.isFinite(parsed)) return null;
   return Math.max(0, Math.min(1, parsed));
 };
 
