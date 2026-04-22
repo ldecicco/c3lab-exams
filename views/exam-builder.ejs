@@ -65,6 +65,10 @@
           </div>
         </div>
         <div class="builder-topbar-right">
+          <button class="btn btn-outline-secondary" id="openEditExam" type="button">
+            <i class="fa-solid fa-pen-to-square"></i>
+            Modifica
+          </button>
           <button class="btn btn-outline-secondary" id="openSettings" type="button">
             <i class="fa-solid fa-sliders"></i>
             Impostazioni
@@ -268,6 +272,31 @@
           <button class="btn btn-primary" id="saveExam">Crea bozza</button>
           <button class="btn btn-outline-secondary" id="newExamCancel" type="button">Annulla</button>
         </div>
+      </div>
+    </div>
+
+    <div class="modal-backdrop is-hidden" id="editExamBackdrop"></div>
+    <div class="modal-panel is-hidden" id="editExamModal" role="dialog" aria-modal="true" aria-labelledby="editExamTitle">
+      <div class="modal-header">
+        <h3 class="h5 mb-0" id="editExamTitle">Modifica traccia</h3>
+        <button class="btn btn-outline-secondary btn-icon btn-sm" type="button" id="editExamClose" aria-label="Chiudi">
+          <i class="fa-solid fa-xmark"></i>
+        </button>
+      </div>
+      <div class="modal-body">
+        <div class="grid">
+          <label class="field">
+            <span>Nome traccia</span>
+            <input id="metaExamEditName" class="form-control" type="text" placeholder="Esame 26/1/2025" />
+          </label>
+          <label class="field">
+            <span>Data esame</span>
+            <input id="metaExamEditDate" class="form-control" type="date" />
+          </label>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-outline-secondary" id="editExamCancel" type="button">Chiudi</button>
       </div>
     </div>
 

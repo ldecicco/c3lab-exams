@@ -44,10 +44,12 @@ let examStatsCache = {};
 
 const metaFields = {
   metaExamName: "examName",
+  metaExamEditName: "examName",
   metaTitle: "title",
   metaDepartment: "department",
   metaUniversity: "university",
   metaDate: "date",
+  metaExamEditDate: "date",
   metaNote: "note",
   metaLogo: "logo",
   metaOutput: "output",
@@ -67,11 +69,15 @@ const generateTracesBtn = document.getElementById("generateTraces");
 const pdfStatus = document.getElementById("pdfStatus");
 const latexLogWrap = document.getElementById("latexLogWrap");
 const latexLog = document.getElementById("latexLog");
-const metaExamNameInput = document.getElementById("metaExamName");
+const metaExamNameInputs = [
+  document.getElementById("metaExamName"),
+  document.getElementById("metaExamEditName"),
+].filter(Boolean);
 const saveExamBtn = document.getElementById("saveExam");
 const lockExamBtn = document.getElementById("lockExam");
 const unlockExamBtn = document.getElementById("unlockExam");
 const newExamBtn = document.getElementById("newExam");
+const openEditExamBtn = document.getElementById("openEditExam");
 const examHistory = document.getElementById("examHistory");
 const confirmBackdrop = document.getElementById("confirmBackdrop");
 const confirmModal = document.getElementById("confirmModal");
@@ -95,6 +101,10 @@ const newExamBackdrop = document.getElementById("newExamBackdrop");
 const newExamModal = document.getElementById("newExamModal");
 const newExamCloseBtn = document.getElementById("newExamClose");
 const newExamCancelBtn = document.getElementById("newExamCancel");
+const editExamBackdrop = document.getElementById("editExamBackdrop");
+const editExamModal = document.getElementById("editExamModal");
+const editExamCloseBtn = document.getElementById("editExamClose");
+const editExamCancelBtn = document.getElementById("editExamCancel");
 const bankPreviewBackdrop = document.getElementById("bankPreviewBackdrop");
 const bankPreviewModal = document.getElementById("bankPreviewModal");
 const bankPreviewCloseBtn = document.getElementById("bankPreviewClose");
@@ -174,6 +184,13 @@ const newExamModalApi = bindModal
       modal: newExamModal,
       backdrop: newExamBackdrop,
       closers: [newExamCloseBtn, newExamCancelBtn],
+    })
+  : null;
+const editExamModalApi = bindModal
+  ? bindModal({
+      modal: editExamModal,
+      backdrop: editExamBackdrop,
+      closers: [editExamCloseBtn, editExamCancelBtn],
     })
   : null;
 const bankPreviewModalApi = bindModal
@@ -462,6 +479,28 @@ const closeNewExamModal = () => {
   } else {
     if (newExamBackdrop) newExamBackdrop.classList.add("is-hidden");
     if (newExamModal) newExamModal.classList.add("is-hidden");
+  }
+};
+
+const openEditExamModal = () => {
+  if (editExamModalApi) {
+    editExamModalApi.open();
+  } else if (typeof window.openModal === "function") {
+    window.openModal(editExamModal, editExamBackdrop);
+  } else {
+    if (editExamBackdrop) editExamBackdrop.classList.remove("is-hidden");
+    if (editExamModal) editExamModal.classList.remove("is-hidden");
+  }
+};
+
+const closeEditExamModal = () => {
+  if (editExamModalApi) {
+    editExamModalApi.close();
+  } else if (typeof window.closeModal === "function") {
+    window.closeModal(editExamModal, editExamBackdrop);
+  } else {
+    if (editExamBackdrop) editExamBackdrop.classList.add("is-hidden");
+    if (editExamModal) editExamModal.classList.add("is-hidden");
   }
 };
 
@@ -1107,13 +1146,14 @@ const updateSaveAvailability = () => {
   const ready = Boolean(state.meta.examName) && Number.isFinite(state.meta.courseId);
   if (saveExamBtn) saveExamBtn.disabled = !ready || currentExamLocked;
   if (lockExamBtn) lockExamBtn.disabled = !ready || currentExamLocked;
+  if (openEditExamBtn) openEditExamBtn.disabled = !ready || currentExamLocked;
 };
 
 const highlightMissingMeta = () => {
   const missingExamName = !state.meta.examName;
-  if (metaExamNameInput) {
-    metaExamNameInput.classList.toggle("input-error", missingExamName);
-  }
+  metaExamNameInputs.forEach((input) => {
+    input.classList.toggle("input-error", missingExamName);
+  });
 };
 
 const collectExamPayload = () => ({
@@ -2081,6 +2121,9 @@ const init = async () => {
       resetExamState();
       openNewExamModal();
     });
+  }
+  if (openEditExamBtn) {
+    openEditExamBtn.addEventListener("click", openEditExamModal);
   }
   if (refreshBankBtn) refreshBankBtn.addEventListener("click", refreshQuestionBank);
   if (bankSearchInput) {
