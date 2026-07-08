@@ -384,6 +384,11 @@ const loadMultiModules = async () => {
 
 const exportCsv = () => {
   if (!selectedMultiModule || !selectedResults.length) return;
+  const filteredRows = getFilteredResults();
+  if (!filteredRows.length) {
+    notify("Nessuno studente da esportare con i filtri attivi.", "info");
+    return;
+  }
   const header = [
     "matricola",
     "cognome",
@@ -393,7 +398,7 @@ const exportCsv = () => {
     "finale",
     "esito",
   ];
-  const rows = selectedResults.map((row) => {
+  const rows = filteredRows.map((row) => {
     const esito = row.status === "passed" ? "Superato" : row.status === "not_passed" ? "Non superato" : "In attesa";
     return [
       row.matricola,
