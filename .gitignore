@@ -4,6 +4,7 @@ node_modules/
 /data/*.db
 /data/*.sqlite
 /data/*.sqlite3
+/data/backups/
 /data/images/
 
 # Generated PDFs/results

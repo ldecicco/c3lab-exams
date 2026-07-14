@@ -1,4 +1,8 @@
-.PHONY: build update run
+DB_PATH ?= data/exam-builder.db
+BACKUP_DIR ?= data/backups
+BACKUP_FILE ?=
+
+.PHONY: build update run logs down backup-db
 
 build:
 	docker compose build
@@ -16,3 +20,6 @@ logs:
 
 down:
 	docker compose down
+
+backup-db:
+	@DB_PATH="$(DB_PATH)" BACKUP_DIR="$(BACKUP_DIR)" BACKUP_FILE="$(BACKUP_FILE)" node scripts/backup-db.js
