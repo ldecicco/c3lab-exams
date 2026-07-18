@@ -2,6 +2,28 @@
 
 const express = require("express");
 
+const normalizeAnswerLayout = (value) =>
+  value === "horizontal" || value === "vertical" ? value : null;
+
+const ensureEvenPdfPages = (latex) => {
+  const endDocument = "\\end{document}";
+  const endIndex = latex.lastIndexOf(endDocument);
+  if (endIndex === -1 || latex.includes("% c3lab-even-page-padding")) return latex;
+
+  const padding = [
+    "% c3lab-even-page-padding",
+    "\\clearpage",
+    "\\ifodd\\value{page}\\else",
+    "  \\thispagestyle{empty}",
+    "  \\null",
+    "  \\newpage",
+    "\\fi",
+    "",
+  ].join("\n");
+
+  return `${latex.slice(0, endIndex)}${padding}${latex.slice(endIndex)}`;
+};
+
 const buildExamsRouter = (deps) => {
   const {
     requireRole,
@@ -578,7 +600,7 @@ router.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req,
   const exam = db
     .prepare(
       `SELECT id, course_id, title, date, output_name, versions, seed,
-              randomize_questions, randomize_answers, write_r,
+              randomize_questions, randomize_answers, answer_layout, write_r,
               header_title, header_department, header_university, header_note, header_logo,
               is_draft, locked_at,
               EXISTS (
@@ -616,6 +638,7 @@ router.get("/api/exams/:id", requireRole("admin", "creator", "evaluator"), (req,
       seed: exam.seed,
       randomizeQuestions: Boolean(exam.randomize_questions),
       randomizeAnswers: Boolean(exam.randomize_answers),
+      answerLayout: exam.answer_layout || "vertical",
       writeR: Boolean(exam.write_r),
       headerTitle: exam.header_title || "",
       headerDepartment: exam.header_department || "",
@@ -728,7 +751,7 @@ router.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
   const draft = db
     .prepare(
       `SELECT id, course_id, title, date, output_name, versions, seed,
-              randomize_questions, randomize_answers, write_r,
+              randomize_questions, randomize_answers, answer_layout, write_r,
               header_title, header_department, header_university, header_note, header_logo,
               is_draft, locked_at
          FROM exams
@@ -752,6 +775,7 @@ router.get("/api/exams/draft", requireRole("admin", "creator"), (req, res) => {
       seed: draft.seed,
       randomizeQuestions: Boolean(draft.randomize_questions),
       randomizeAnswers: Boolean(draft.randomize_answers),
+      answerLayout: draft.answer_layout || "vertical",
       writeR: Boolean(draft.write_r),
       headerTitle: draft.header_title || "",
       headerDepartment: draft.header_department || "",
@@ -798,10 +822,10 @@ router.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
       .prepare(
         `INSERT INTO exams
           (course_id, title, date, output_name, versions, seed,
-           randomize_questions, randomize_answers, write_r,
+           randomize_questions, randomize_answers, answer_layout, write_r,
            header_title, header_department, header_university, header_note, header_logo,
            is_draft, locked_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
       )
       .run(
         courseId,
@@ -812,6 +836,7 @@ router.post("/api/exams", requireRole("admin", "creator"), (req, res) => {
         exam.seed || null,
         exam.randomizeQuestions ? 1 : 0,
         exam.randomizeAnswers ? 1 : 0,
+        normalizeAnswerLayout(exam.answerLayout) || "vertical",
         exam.writeR ? 1 : 0,
         exam.headerTitle || null,
         exam.headerDepartment || null,
@@ -848,6 +873,7 @@ router.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
     db.prepare(
       `UPDATE exams
           SET course_id = ?, title = ?, date = ?, output_name = ?, versions = ?, seed = ?,
+              answer_layout = COALESCE(?, answer_layout),
               randomize_questions = ?, randomize_answers = ?, write_r = ?,
               header_title = ?, header_department = ?, header_university = ?, header_note = ?, header_logo = ?,
               updated_at = datetime('now')
@@ -859,6 +885,7 @@ router.put("/api/exams/:id", requireRole("admin", "creator"), (req, res) => {
       exam.outputName || null,
       exam.versions || null,
       exam.seed || null,
+      normalizeAnswerLayout(exam.answerLayout),
       exam.randomizeQuestions ? 1 : 0,
       exam.randomizeAnswers ? 1 : 0,
       exam.writeR ? 1 : 0,
@@ -894,6 +921,7 @@ router.post("/api/exams/draft", (req, res) => {
       db.prepare(
         `UPDATE exams
             SET title = ?, date = ?, output_name = ?, versions = ?, seed = ?,
+                answer_layout = COALESCE(?, answer_layout),
                 randomize_questions = ?, randomize_answers = ?, write_r = ?,
                 header_title = ?, header_department = ?, header_university = ?, header_note = ?, header_logo = ?,
                 updated_at = datetime('now')
@@ -904,6 +932,7 @@ router.post("/api/exams/draft", (req, res) => {
         exam.outputName || null,
         exam.versions || null,
         exam.seed || null,
+        normalizeAnswerLayout(exam.answerLayout),
         exam.randomizeQuestions ? 1 : 0,
         exam.randomizeAnswers ? 1 : 0,
         exam.writeR ? 1 : 0,
@@ -921,10 +950,10 @@ router.post("/api/exams/draft", (req, res) => {
       .prepare(
         `INSERT INTO exams
           (course_id, title, date, output_name, versions, seed,
-           randomize_questions, randomize_answers, write_r,
+           randomize_questions, randomize_answers, answer_layout, write_r,
            header_title, header_department, header_university, header_note, header_logo,
            is_draft, locked_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL)`
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1, NULL)`
       )
       .run(
         courseId,
@@ -935,6 +964,7 @@ router.post("/api/exams/draft", (req, res) => {
         exam.seed || null,
         exam.randomizeQuestions ? 1 : 0,
         exam.randomizeAnswers ? 1 : 0,
+        normalizeAnswerLayout(exam.answerLayout) || "vertical",
         exam.writeR ? 1 : 0,
         exam.headerTitle || null,
         exam.headerDepartment || null,
@@ -1547,7 +1577,7 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
   try {
     const payload = req.body || {};
     const latexRaw = typeof payload.latex === "string" ? payload.latex : "";
-    const latex = normalizeLatexAssetReferences(latexRaw);
+    const latex = ensureEvenPdfPages(normalizeLatexAssetReferences(latexRaw));
     if (!latex.trim()) {
       res.status(400).json({ error: "LaTeX mancante" });
       return;
@@ -1603,7 +1633,7 @@ router.post("/api/compile-pdf", requireRole("admin", "creator"), async (req, res
 router.post("/api/generate-traces", requireRole("admin", "creator"), (req, res) => {
   const payload = req.body || {};
   const latexRaw = typeof payload.latex === "string" ? payload.latex : "";
-  const latex = normalizeLatexAssetReferences(latexRaw);
+  const latex = ensureEvenPdfPages(normalizeLatexAssetReferences(latexRaw));
   const versions = Number(payload.versions);
   if (!latex.trim()) {
     res.status(400).json({ error: "LaTeX mancante" });

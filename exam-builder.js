@@ -13,6 +13,7 @@ const state = {
     seed: 42,
     randomizeQuestions: true,
     randomizeAnswers: true,
+    answerLayout: "vertical",
     writeR: true,
     isDraft: true,
   },
@@ -58,6 +59,7 @@ const metaFields = {
   metaRandomQuestions: "randomizeQuestions",
   metaRandomAnswers: "randomizeAnswers",
   metaWriteR: "writeR",
+  metaAnswerLayout: "answerLayout",
 };
 
 const latexPreview = document.getElementById("latexPreview");
@@ -168,6 +170,8 @@ const createEl = (tag, className, text) => {
   if (text !== undefined) el.textContent = text;
   return el;
 };
+
+const escapeLatexPercent = (value) => String(value || "").replace(/(^|[^\\])%/g, "$1\\\\%");
 
 const apiFetch = typeof window.apiFetch === "function" ? window.apiFetch : fetch;
 const bindModal = typeof window.bindModal === "function" ? window.bindModal : null;
@@ -743,6 +747,7 @@ const resetExamState = () => {
   state.meta.examName = "";
   state.meta.courseId = Number.isFinite(activeCourseId) ? activeCourseId : null;
   state.meta.isDraft = true;
+  state.meta.answerLayout = "vertical";
   courseTopics = [];
   state.questions = [];
   nextQuestionId = 1;
@@ -1166,6 +1171,7 @@ const collectExamPayload = () => ({
     seed: state.meta.seed,
     randomizeQuestions: state.meta.randomizeQuestions,
     randomizeAnswers: state.meta.randomizeAnswers,
+    answerLayout: state.meta.answerLayout,
     writeR: state.meta.writeR,
     headerTitle: state.meta.title,
     headerDepartment: state.meta.department,
@@ -1412,6 +1418,7 @@ const loadExam = async (examId) => {
     state.meta.seed = payload.exam.seed || 1;
     state.meta.randomizeQuestions = payload.exam.randomizeQuestions;
     state.meta.randomizeAnswers = payload.exam.randomizeAnswers;
+    state.meta.answerLayout = payload.exam.answerLayout || "vertical";
     state.meta.writeR = payload.exam.writeR;
     state.meta.title = payload.exam.headerTitle || "";
     state.meta.department = payload.exam.headerDepartment || "";
@@ -1509,6 +1516,7 @@ const duplicateExam = async (examId) => {
         seed: source.seed || 1,
         randomizeQuestions: source.randomizeQuestions,
         randomizeAnswers: source.randomizeAnswers,
+        answerLayout: source.answerLayout || "vertical",
         writeR: source.writeR,
         headerTitle: source.headerTitle || "",
         headerDepartment: source.headerDepartment || "",
@@ -1638,6 +1646,7 @@ const buildHeader = (meta) => {
   headerLines.push(`\\newcommand{\\examuniversity}{${meta.university}}`);
   headerLines.push(`\\newcommand{\\examnote}{${meta.note}}`);
   headerLines.push(`\\newcommand{\\examlogo}{${meta.logo}}`);
+  headerLines.push(`\\newcommand{\\examanswerlayout}{${meta.answerLayout}}`);
   headerLines.push("");
   headerLines.push("\\usepackage{etoolbox}");
   headerLines.push("\\usepackage{amsmath}");
@@ -1699,15 +1708,67 @@ const buildHeader = (meta) => {
   return headerLines;
 };
 
+const buildAnswersBlock = (question, answerLayout) => {
+  const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
+  const lines = [];
+  if (answerLayout === "horizontal") {
+    lines.push("\\begin{mcanswers}");
+    lines.push(...buildHorizontalAnswerTabular(question));
+    lines.push("\\end{mcanswers}");
+    return lines;
+  }
+
+  lines.push("\\begin{mcanswerslist}");
+  if (answers.length === 0) {
+    lines.push("% TODO: aggiungi risposte");
+  } else {
+    answers.forEach((answer) => {
+      const answerText = escapeLatexPercent(answer.text);
+      const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
+      lines.push(`${prefix} ${answerText}`.trim());
+    });
+  }
+  lines.push("\\end{mcanswerslist}");
+  return lines;
+};
+
+const buildHorizontalAnswerTabular = (question) => {
+  const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
+  const gapWidth = Math.max(0, answers.length - 1) * 1.5;
+  const columnWidth = answers.length
+    ? `\\dimexpr(\\linewidth-${gapWidth}em)/${answers.length}\\relax`
+    : "\\linewidth";
+  const columnSpec = `@{}${Array.from(
+    { length: Math.max(1, answers.length) },
+    () => `p{${columnWidth}}`
+  ).join("@{\\hspace{1.5em}}")}@{}`;
+  const lines = [];
+  lines.push("  \\noindent");
+  lines.push(`  \\begin{tabular}{${columnSpec}}`);
+  if (answers.length === 0) {
+    lines.push("    % TODO: aggiungi risposte");
+  } else {
+    const row = answers
+      .map((answer, idx) => {
+        const answerText = escapeLatexPercent(answer.text);
+        const number = idx + 1;
+        const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
+        return `\\raggedright \\answernum{${number}} ${prefix}{${number}}{${answerText}}`;
+      })
+      .join(" & ");
+    lines.push(`    ${row}`);
+  }
+  lines.push("  \\end{tabular}");
+  return lines;
+};
+
 const buildQuestionBlock = (question, index) => {
-  const escapeLatexPercent = (value) =>
-    String(value || "").replace(/(^|[^\\])%/g, "$1\\\\%");
   const questionText = escapeLatexPercent(question.text);
   const lines = [];
   const typeCmd = question.type === "multipla" ? "\\multipla" : "\\singola";
+  const answerLayout = state.meta.answerLayout === "horizontal" ? "horizontal" : "vertical";
   lines.push(`% Es. ${index + 1}`);
   lines.push(`\\question ${typeCmd} ${questionText}`.trim());
-  const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
   if (question.image && question.imageLayoutEnabled) {
     const imageScale = question.imageScale || "0.96\\linewidth";
     const layoutMode = question.imageLayoutMode || question.image_layout_mode || "side";
@@ -1715,17 +1776,7 @@ const buildQuestionBlock = (question, index) => {
       lines.push("\\begin{center}");
       lines.push(`  \\includegraphics[width=${imageScale}]{${question.image}}`);
       lines.push("\\end{center}");
-      lines.push("\\begin{mcanswerslist}");
-      if (answers.length === 0) {
-        lines.push("% TODO: aggiungi risposte");
-      } else {
-        answers.forEach((answer) => {
-          const answerText = escapeLatexPercent(answer.text);
-          const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-          lines.push(`${prefix} ${answerText}`.trim());
-        });
-      }
-      lines.push("\\end{mcanswerslist}");
+      lines.push(...buildAnswersBlock(question, answerLayout));
     } else {
       const leftWidth = question.imageWidthLeft || "0.5\\linewidth";
       const rightWidth = question.imageWidthRight || "0.5\\linewidth";
@@ -1736,35 +1787,30 @@ const buildQuestionBlock = (question, index) => {
       lines.push("  \\end{minipage}");
       lines.push("  % Risposte");
       lines.push(`    \\begin{minipage}{${rightWidth}}`);
-      lines.push("        \\begin{enumerate}[label=]");
-      if (answers.length === 0) {
-        lines.push("            % TODO: aggiungi risposte");
+      if (answerLayout === "horizontal") {
+        lines.push(...buildHorizontalAnswerTabular(question).map((line) => `        ${line}`));
       } else {
-        answers.forEach((answer, idx) => {
-          const answerText = escapeLatexPercent(answer.text);
-          const number = idx + 1;
-          const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-          lines.push(
-            `            \\item\\answernum{${number}} ${prefix}{${number}}{${answerText}}`.trim()
-          );
-        });
+        lines.push("        \\begin{enumerate}[label=]");
+        const answers = question.answers.filter((ans) => String(ans.text || "").trim() !== "");
+        if (answers.length === 0) {
+          lines.push("            % TODO: aggiungi risposte");
+        } else {
+          answers.forEach((answer, idx) => {
+            const answerText = escapeLatexPercent(answer.text);
+            const number = idx + 1;
+            const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
+            lines.push(
+              `            \\item\\answernum{${number}} ${prefix}{${number}}{${answerText}}`.trim()
+            );
+          });
+        }
+        lines.push("        \\end{enumerate}");
       }
-      lines.push("        \\end{enumerate}");
       lines.push("    \\end{minipage}");
       lines.push("\\end{mcanswers}");
     }
   } else {
-    lines.push("\\begin{mcanswerslist}");
-    if (answers.length === 0) {
-      lines.push("% TODO: aggiungi risposte");
-    } else {
-      answers.forEach((answer) => {
-        const answerText = escapeLatexPercent(answer.text);
-        const prefix = answer.correct ? "\\answer[correct]" : "\\answer";
-        lines.push(`${prefix} ${answerText}`.trim());
-      });
-    }
-    lines.push("\\end{mcanswerslist}");
+    lines.push(...buildAnswersBlock(question, answerLayout));
   }
   lines.push("");
   return lines;

@@ -40,6 +40,11 @@ ensureColumn("exams", "public_access_enabled", "INTEGER NOT NULL DEFAULT 0");
 ensureColumn("exams", "public_access_password_hash", "TEXT");
 ensureColumn("exams", "public_access_expires_at", "TEXT");
 ensureColumn("exams", "public_access_show_notes", "INTEGER NOT NULL DEFAULT 0");
+ensureColumn(
+  "exams",
+  "answer_layout",
+  "TEXT NOT NULL DEFAULT 'vertical' CHECK (answer_layout IN ('vertical', 'horizontal'))"
+);
 ensureColumn("images", "source_name", "TEXT");
 ensureColumn("images", "source_path", "TEXT");
 ensureColumn("questions", "image_layout_mode", "TEXT NOT NULL DEFAULT 'side'");

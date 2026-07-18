@@ -113,6 +113,8 @@ module.exports = `
     seed INTEGER,
     randomize_questions INTEGER NOT NULL DEFAULT 1,
     randomize_answers INTEGER NOT NULL DEFAULT 1,
+    answer_layout TEXT NOT NULL DEFAULT 'vertical'
+      CHECK (answer_layout IN ('vertical', 'horizontal')),
     write_r INTEGER NOT NULL DEFAULT 1,
     header_title TEXT,
     header_department TEXT,
