@@ -22,4 +22,9 @@ down:
 	docker compose down
 
 backup-db:
-	@DB_PATH="$(DB_PATH)" BACKUP_DIR="$(BACKUP_DIR)" BACKUP_FILE="$(BACKUP_FILE)" node scripts/backup-db.js
+	@docker compose run --rm --no-deps \
+		-v "$(CURDIR)/scripts/backup-db.js:/app/scripts/backup-db.js:ro" \
+		-e DB_PATH="$(DB_PATH)" \
+		-e BACKUP_DIR="$(BACKUP_DIR)" \
+		-e BACKUP_FILE="$(BACKUP_FILE)" \
+		app node scripts/backup-db.js
