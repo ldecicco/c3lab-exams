@@ -21,6 +21,7 @@ const bankUsageSelect = document.getElementById("bankUsage");
 const refreshBankBtn = document.getElementById("refreshBank");
 const bankList = document.getElementById("bankList");
 const adminQuestionType = document.getElementById("adminQuestionType");
+const adminAnswerLayout = document.getElementById("adminAnswerLayout");
 const adminQuestionTopics = document.getElementById("adminQuestionTopics");
 const adminPickImageBtn = document.getElementById("adminPickImage");
 const adminQuestionText = document.getElementById("adminQuestionText");
@@ -231,6 +232,14 @@ const updateQuestionTypePills = () => {
   if (!adminQuestionType) return;
   const pills = adminQuestionType.querySelectorAll(".radio-pill");
   pills.forEach((pill) => {
+    const input = pill.querySelector('input[type="radio"]');
+    pill.classList.toggle("is-selected", Boolean(input?.checked));
+  });
+};
+
+const updateAnswerLayoutPills = () => {
+  if (!adminAnswerLayout) return;
+  adminAnswerLayout.querySelectorAll(".radio-pill").forEach((pill) => {
     const input = pill.querySelector('input[type="radio"]');
     pill.classList.toggle("is-selected", Boolean(input?.checked));
   });
@@ -968,6 +977,7 @@ const getQuestionSnapshot = () => {
   const topicIds = [...adminQuestionState.topicIds].sort((a, b) => a - b);
   return JSON.stringify({
     type: adminQuestionState.type,
+    answerLayout: adminQuestionState.answerLayout,
     text: String(adminQuestionState.text || "").trim(),
     note: String(adminQuestionState.note || "").trim(),
     topicIds,
@@ -1564,8 +1574,9 @@ const updateAdminPreviews = () => {
   updateSaveStateFromSnapshot();
   if (adminPreviewMeta) {
     const typeLabel = adminQuestionState.type === "multipla" ? "Multipla" : "Singola";
+    const layoutLabel = adminQuestionState.answerLayout === "horizontal" ? "Orizzontale" : "Verticale";
     const answersCount = adminQuestionState.answers.length;
-    adminPreviewMeta.textContent = `${typeLabel} • ${answersCount} risposte`;
+    adminPreviewMeta.textContent = `${typeLabel} • ${layoutLabel} • ${answersCount} risposte`;
   }
   if (adminPreviewImageWrap && adminPreviewImage) {
     const path = adminQuestionState.image || "";
@@ -1588,6 +1599,10 @@ const updateAdminPreviews = () => {
   }
   if (adminPreviewAnswers) {
     adminPreviewAnswers.innerHTML = "";
+    adminPreviewAnswers.classList.toggle(
+      "is-horizontal",
+      adminQuestionState.answerLayout === "horizontal"
+    );
     const inputs = adminAnswers?.querySelectorAll("input.form-control") || [];
     let answersOk = true;
     adminQuestionState.answers.forEach((answer, idx) => {
@@ -1622,6 +1637,7 @@ const updateAdminPreviews = () => {
 
 const adminQuestionState = {
   type: "singola",
+  answerLayout: "vertical",
   text: "",
   note: "",
   topicIds: [],
@@ -1698,6 +1714,7 @@ const renderAdminAnswers = () => {
 const resetAdminQuestion = () => {
   editingQuestionId = null;
   adminQuestionState.type = "singola";
+  adminQuestionState.answerLayout = "vertical";
   adminQuestionState.text = "";
   adminQuestionState.note = "";
   adminQuestionState.topicIds = [];
@@ -1719,6 +1736,11 @@ const resetAdminQuestion = () => {
     if (radio) radio.checked = true;
   }
   updateQuestionTypePills();
+  if (adminAnswerLayout) {
+    const radio = adminAnswerLayout.querySelector('input[value="vertical"]');
+    if (radio) radio.checked = true;
+  }
+  updateAnswerLayoutPills();
   if (adminQuestionText) adminQuestionText.value = "";
   renderTopicOptions(topicOptions);
   adminQuestionState.image = "";
@@ -1819,6 +1841,11 @@ const updateTopicGate = () => {
     if (!enabled) adminImageAccordion.open = false;
   }
   if (adminQuestionImageLayout) adminQuestionImageLayout.disabled = !enabled;
+  if (adminAnswerLayout) {
+    adminAnswerLayout.querySelectorAll("input").forEach((input) => {
+      input.disabled = !enabled;
+    });
+  }
   if (adminPickImageBtn) adminPickImageBtn.disabled = !enabled;
   if (adminImageSplit) adminImageSplit.disabled = !enabled;
   if (adminImageScaleRange) adminImageScaleRange.disabled = !enabled;
@@ -2715,6 +2742,12 @@ const loadQuestionForEdit = async (questionId) => {
     if (radio) radio.checked = true;
   }
   updateQuestionTypePills();
+  if (adminAnswerLayout) {
+    const layout = q.answerLayout || "vertical";
+    const radio = adminAnswerLayout.querySelector(`input[value="${layout}"]`);
+    if (radio) radio.checked = true;
+  }
+  updateAnswerLayoutPills();
   if (adminQuestionText) adminQuestionText.value = q.text;
   if (adminQuestionImageLayout) adminQuestionImageLayout.checked = Boolean(q.imageLayoutEnabled);
   if (adminImageLayoutMode) {
@@ -2739,6 +2772,7 @@ const loadQuestionForEdit = async (questionId) => {
     adminImageScaleRange.value = String(scalePercent);
   }
   adminQuestionState.type = q.type || "singola";
+  adminQuestionState.answerLayout = q.answerLayout || "vertical";
   adminQuestionState.text = q.text || "";
   adminQuestionState.note = q.note || "";
   adminQuestionState.image = q.imagePath || "";
@@ -2795,6 +2829,7 @@ const saveAdminQuestion = async () => {
       text,
       note: String(adminQuestionState.note || "").trim(),
       type: adminQuestionState.type,
+      answerLayout: adminQuestionState.answerLayout,
       imagePath: String(adminQuestionState.image || "").trim(),
       imageLayoutEnabled: Boolean(adminQuestionImageLayout?.checked),
       imageLayoutMode: adminQuestionState.imageLayoutMode || "side",
@@ -2943,6 +2978,15 @@ if (adminToolbarSave) {
         updateAdminPreviews();
       }
       updateQuestionTypePills();
+    });
+  }
+  if (adminAnswerLayout) {
+    adminAnswerLayout.addEventListener("change", (event) => {
+      const target = event.target;
+      if (!target || target.name !== "adminAnswerLayoutOption") return;
+      adminQuestionState.answerLayout = target.value === "horizontal" ? "horizontal" : "vertical";
+      updateAnswerLayoutPills();
+      updateAdminPreviews();
     });
   }
   if (adminQuestionImageLayout && adminQuestionLayoutFields) {

@@ -2,6 +2,9 @@
 
 const express = require("express");
 
+const normalizeAnswerLayout = (value) =>
+  value === "horizontal" || value === "vertical" ? value : null;
+
 const buildQuestionsRouter = (deps) => {
   const { requireRole, db, upsertTopics, insertQuestion, isQuestionLocked } = deps;
   const router = express.Router();
@@ -29,7 +32,7 @@ const buildQuestionsRouter = (deps) => {
     const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
     const havingSql = unusedOnly ? "HAVING is_used = 0" : "";
     const stmt = db.prepare(`
-      SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
+      SELECT q.id, q.text, q.note, q.type, q.answer_layout, q.image_path, q.image_layout_enabled,
              q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
              i.thumbnail_path AS image_thumbnail_path,
              GROUP_CONCAT(DISTINCT t.name) AS topics,
@@ -113,7 +116,8 @@ const buildQuestionsRouter = (deps) => {
       const requestedCourseId = Number((req.body || {}).courseId);
       const question = db
         .prepare(
-          `SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
+          `SELECT q.id, q.text, q.note, q.type, q.answer_layout,
+                  q.image_path, q.image_layout_enabled,
                   q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
                   i.thumbnail_path AS image_thumbnail_path
              FROM questions q
@@ -164,6 +168,7 @@ const buildQuestionsRouter = (deps) => {
           text: question.text,
           note: question.note || "",
           type: question.type,
+          answerLayout: question.answer_layout || "vertical",
           imagePath: question.image_path,
           imageLayoutEnabled: Boolean(question.image_layout_enabled),
           imageLayoutMode: question.image_layout_mode || "side",
@@ -205,7 +210,7 @@ const buildQuestionsRouter = (deps) => {
     const tx = db.transaction(() => {
       db.prepare(
         `UPDATE questions
-            SET text = ?, note = ?, type = ?, image_path = ?, image_layout_enabled = ?,
+            SET text = ?, note = ?, type = ?, answer_layout = COALESCE(?, answer_layout), image_path = ?, image_layout_enabled = ?,
                 image_layout_mode = ?, image_left_width = ?, image_right_width = ?, image_scale = ?,
                 updated_at = datetime('now')
           WHERE id = ?`
@@ -213,6 +218,7 @@ const buildQuestionsRouter = (deps) => {
         question.text,
         question.note || null,
         question.type,
+        normalizeAnswerLayout(question.answerLayout),
         question.imagePath || null,
         question.imageLayoutEnabled ? 1 : 0,
         question.imageLayoutMode || "side",
@@ -274,7 +280,8 @@ const buildQuestionsRouter = (deps) => {
     }
     const question = db
       .prepare(
-        `SELECT q.id, q.text, q.note, q.type, q.image_path, q.image_layout_enabled,
+        `SELECT q.id, q.text, q.note, q.type, q.answer_layout,
+                q.image_path, q.image_layout_enabled,
                 q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
                 i.thumbnail_path AS image_thumbnail_path
            FROM questions q
@@ -321,6 +328,7 @@ const buildQuestionsRouter = (deps) => {
         text: question.text,
         note: question.note || "",
         type: question.type,
+        answerLayout: question.answer_layout || "vertical",
         imagePath: question.image_path || "",
         imageThumbnailPath: question.image_thumbnail_path || "",
         imageLayoutEnabled: Boolean(question.image_layout_enabled),

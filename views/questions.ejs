@@ -18,7 +18,7 @@
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.2/css/all.min.css"
     />
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=2" />
   </head>
   <body>
     <%- include('partials/nav', { active: 'questions' }) %>
@@ -108,6 +108,19 @@
                 <label class="radio-pill">
                   <input type="radio" name="adminQuestionTypeOption" value="multipla" />
                   <span>Multipla</span>
+                </label>
+              </div>
+            </div>
+            <div class="field-inline">
+              <span class="field-label">Disposizione risposte</span>
+              <div class="radio-group" id="adminAnswerLayout">
+                <label class="radio-pill is-selected">
+                  <input type="radio" name="adminAnswerLayoutOption" value="vertical" checked />
+                  <span>Verticale</span>
+                </label>
+                <label class="radio-pill">
+                  <input type="radio" name="adminAnswerLayoutOption" value="horizontal" />
+                  <span>Orizzontale</span>
                 </label>
               </div>
             </div>
@@ -442,7 +455,7 @@
       defer
       src="https://cdn.jsdelivr.net/npm/latex.js/dist/latex.min.js"
     ></script>
-    <script defer src="question-cards.js?v=1"></script>
-    <script defer src="admin.js?v=5"></script>
+    <script defer src="question-cards.js?v=2"></script>
+    <script defer src="admin.js?v=6"></script>
   </body>
 </html>

@@ -64,6 +64,8 @@ module.exports = `
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     text TEXT NOT NULL,
     type TEXT NOT NULL,
+    answer_layout TEXT NOT NULL DEFAULT 'vertical'
+      CHECK (answer_layout IN ('vertical', 'horizontal')),
     image_path TEXT,
     image_layout_enabled INTEGER NOT NULL DEFAULT 0,
     image_layout_mode TEXT NOT NULL DEFAULT 'side',

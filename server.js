@@ -76,7 +76,8 @@ const isQuestionLocked = (questionId) =>
 const getExamQuestions = (examId) => {
   const questionRows = db
     .prepare(
-      `SELECT eq.position, q.id, q.text, q.type, q.image_path, q.image_layout_enabled,
+      `SELECT eq.position, q.id, q.text, q.type, q.answer_layout,
+              q.image_path, q.image_layout_enabled,
               q.image_layout_mode, q.image_left_width, q.image_right_width, q.image_scale,
               i.thumbnail_path AS image_thumbnail_path
          FROM exam_questions eq
@@ -112,6 +113,7 @@ const getExamQuestions = (examId) => {
       position: row.position,
       text: row.text,
       type: row.type,
+      answerLayout: row.answer_layout || "vertical",
       imagePath: row.image_path || "",
       imageThumbnailPath: row.image_thumbnail_path || "",
       imageLayoutEnabled: Boolean(row.image_layout_enabled),
@@ -708,13 +710,14 @@ const insertQuestion = (question, courseId) => {
   const info = db
     .prepare(
       `INSERT INTO questions
-        (text, note, type, image_path, image_layout_enabled, image_layout_mode, image_left_width, image_right_width, image_scale)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
+        (text, note, type, answer_layout, image_path, image_layout_enabled, image_layout_mode, image_left_width, image_right_width, image_scale)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
     )
     .run(
       question.text,
       question.note || null,
       question.type,
+      question.answerLayout === "horizontal" ? "horizontal" : "vertical",
       question.imagePath || null,
       question.imageLayoutEnabled ? 1 : 0,
       question.imageLayoutMode || "side",

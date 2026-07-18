@@ -13,7 +13,6 @@ const state = {
     seed: 42,
     randomizeQuestions: true,
     randomizeAnswers: true,
-    answerLayout: "vertical",
     writeR: true,
     isDraft: true,
   },
@@ -59,7 +58,6 @@ const metaFields = {
   metaRandomQuestions: "randomizeQuestions",
   metaRandomAnswers: "randomizeAnswers",
   metaWriteR: "writeR",
-  metaAnswerLayout: "answerLayout",
 };
 
 const latexPreview = document.getElementById("latexPreview");
@@ -146,6 +144,7 @@ const createQuestion = () => ({
   id: String(nextQuestionId++),
   sourceId: null,
   type: "singola",
+  answerLayout: "vertical",
   text: "",
   note: "",
   image: "",
@@ -747,7 +746,6 @@ const resetExamState = () => {
   state.meta.examName = "";
   state.meta.courseId = Number.isFinite(activeCourseId) ? activeCourseId : null;
   state.meta.isDraft = true;
-  state.meta.answerLayout = "vertical";
   courseTopics = [];
   state.questions = [];
   nextQuestionId = 1;
@@ -921,6 +919,7 @@ const renderBankList = (questions) => {
         imageThumbnailPath: question.image_thumbnail_path || question.imageThumbnailPath || "",
         imageLayoutEnabled: Boolean(question.image_layout_enabled ?? question.imageLayoutEnabled),
         imageLayoutMode: question.image_layout_mode || question.imageLayoutMode || "side",
+        answerLayout: question.answer_layout || question.answerLayout || "vertical",
         imageLeftWidth: question.image_left_width || question.imageLeftWidth || "",
         imageRightWidth: question.image_right_width || question.imageRightWidth || "",
         imageScale: question.image_scale || question.imageScale || "",
@@ -1119,6 +1118,7 @@ const importQuestionFromBank = async (questionId) => {
     const q = payload.question;
     const newQuestion = createQuestion();
     newQuestion.type = q.type || "singola";
+    newQuestion.answerLayout = q.answerLayout || q.answer_layout || "vertical";
     newQuestion.text = q.text || "";
     newQuestion.note = q.note || "";
     newQuestion.sourceId = q.id;
@@ -1171,7 +1171,6 @@ const collectExamPayload = () => ({
     seed: state.meta.seed,
     randomizeQuestions: state.meta.randomizeQuestions,
     randomizeAnswers: state.meta.randomizeAnswers,
-    answerLayout: state.meta.answerLayout,
     writeR: state.meta.writeR,
     headerTitle: state.meta.title,
     headerDepartment: state.meta.department,
@@ -1186,6 +1185,7 @@ const collectExamPayload = () => ({
     return {
       text: question.text,
       type: question.type,
+      answerLayout: question.answerLayout || "vertical",
       imagePath: question.image,
       imageLayoutEnabled: question.imageLayoutEnabled,
       imageLayoutMode: question.imageLayoutMode || "side",
@@ -1418,7 +1418,6 @@ const loadExam = async (examId) => {
     state.meta.seed = payload.exam.seed || 1;
     state.meta.randomizeQuestions = payload.exam.randomizeQuestions;
     state.meta.randomizeAnswers = payload.exam.randomizeAnswers;
-    state.meta.answerLayout = payload.exam.answerLayout || "vertical";
     state.meta.writeR = payload.exam.writeR;
     state.meta.title = payload.exam.headerTitle || "";
     state.meta.department = payload.exam.headerDepartment || "";
@@ -1428,6 +1427,7 @@ const loadExam = async (examId) => {
     state.questions = payload.questions.map((question) => {
       const item = createQuestion();
       item.type = question.type || "singola";
+      item.answerLayout = question.answerLayout || question.answer_layout || "vertical";
       item.text = question.text || "";
       item.sourceId = question.id || null;
       item.image = question.imagePath || "";
@@ -1516,7 +1516,6 @@ const duplicateExam = async (examId) => {
         seed: source.seed || 1,
         randomizeQuestions: source.randomizeQuestions,
         randomizeAnswers: source.randomizeAnswers,
-        answerLayout: source.answerLayout || "vertical",
         writeR: source.writeR,
         headerTitle: source.headerTitle || "",
         headerDepartment: source.headerDepartment || "",
@@ -1528,6 +1527,7 @@ const duplicateExam = async (examId) => {
       questions: (payload.questions || []).map((question) => ({
         text: question.text,
         type: question.type,
+        answerLayout: question.answerLayout || question.answer_layout || "vertical",
         imagePath: question.imagePath,
         imageLayoutEnabled: question.imageLayoutEnabled,
         imageLeftWidth: question.imageLeftWidth,
@@ -1646,7 +1646,6 @@ const buildHeader = (meta) => {
   headerLines.push(`\\newcommand{\\examuniversity}{${meta.university}}`);
   headerLines.push(`\\newcommand{\\examnote}{${meta.note}}`);
   headerLines.push(`\\newcommand{\\examlogo}{${meta.logo}}`);
-  headerLines.push(`\\newcommand{\\examanswerlayout}{${meta.answerLayout}}`);
   headerLines.push("");
   headerLines.push("\\usepackage{etoolbox}");
   headerLines.push("\\usepackage{amsmath}");
@@ -1766,7 +1765,7 @@ const buildQuestionBlock = (question, index) => {
   const questionText = escapeLatexPercent(question.text);
   const lines = [];
   const typeCmd = question.type === "multipla" ? "\\multipla" : "\\singola";
-  const answerLayout = state.meta.answerLayout === "horizontal" ? "horizontal" : "vertical";
+  const answerLayout = question.answerLayout === "horizontal" ? "horizontal" : "vertical";
   lines.push(`% Es. ${index + 1}`);
   lines.push(`\\question ${typeCmd} ${questionText}`.trim());
   if (question.image && question.imageLayoutEnabled) {

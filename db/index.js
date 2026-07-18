@@ -47,6 +47,11 @@ ensureColumn(
 );
 ensureColumn("images", "source_name", "TEXT");
 ensureColumn("images", "source_path", "TEXT");
+ensureColumn(
+  "questions",
+  "answer_layout",
+  "TEXT NOT NULL DEFAULT 'vertical' CHECK (answer_layout IN ('vertical', 'horizontal'))"
+);
 ensureColumn("questions", "image_layout_mode", "TEXT NOT NULL DEFAULT 'side'");
 ensureColumn("images", "source_mime_type", "TEXT");
 ensureColumn("images", "thumbnail_path", "TEXT");

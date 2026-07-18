@@ -522,6 +522,17 @@ h1 {
   gap: 6px;
 }
 
+.selected-question-answers.is-horizontal,
+.preview-answer-list.is-horizontal {
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  align-items: start;
+}
+
+.selected-question-answers.is-horizontal .selected-question-answer,
+.preview-answer-list.is-horizontal .preview-answer-row {
+  min-width: 0;
+}
+
 .selected-question-answer {
   display: grid;
   grid-template-columns: auto 1fr auto;

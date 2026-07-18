@@ -26,6 +26,10 @@
       question.imageLayoutMode ||
       question.image_layout_mode ||
       "side",
+    answerLayout:
+      question.answerLayout ||
+      question.answer_layout ||
+      "vertical",
     answers: Array.isArray(question.answers) ? question.answers : [],
   });
 
@@ -45,6 +49,7 @@
       imageThumbnail,
       imageLayoutEnabled,
       imageLayoutMode,
+      answerLayout,
       answers,
     } = normalizeQuestion(question);
 
@@ -67,6 +72,7 @@
     );
     if (!trimmedAnswers.length) return;
     const list = createEl("div", "selected-question-answers");
+    list.classList.toggle("is-horizontal", answerLayout === "horizontal");
     trimmedAnswers.forEach((answer, idx) => {
       const row = createEl("div", "selected-question-answer");
       const label = createEl("span", "selected-preview-answer-label", `${idx + 1}.`);
